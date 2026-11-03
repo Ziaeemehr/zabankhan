@@ -1,0 +1,7 @@
+<resources>
+    <string name="app_name">Zabankhan</string>
+    <string name="nav_home">Accueil</string>
+    <string name="nav_library">Bibliothèque</string>
+    <string name="nav_review">Révision</string>
+    <string name="nav_settings">Réglages</string>
+</resources>
