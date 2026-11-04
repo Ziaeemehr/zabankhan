@@ -8,6 +8,14 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Pause
+import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.TextDecrease
+import androidx.compose.material.icons.filled.TextIncrease
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.*
 import androidx.compose.ui.semantics.semantics
@@ -70,12 +78,27 @@ data class ReaderSelection(val word: String, val sentence: String, val range: In
     val smallerLabel = stringResource(Res.string.font_smaller)
     val largerLabel = stringResource(Res.string.font_larger)
     Column(Modifier.fillMaxSize()) {
-        FlowRow(Modifier.fillMaxWidth().padding(horizontal = 12.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            TextButton(onClick = { if (speaking) playback.stop() else playback.start(list.firstVisibleItemIndex, rate, settings.ttsVoices[lang.code]) }) { Text(stringResource(if (speaking) Res.string.watch_pause else Res.string.watch_play)) }
-            Choice(stringResource(Res.string.speech_rate), rate, listOf(.75f, 1f, 1.25f).map { it to "${it}×" }) { rate = it; if (speaking) playback.start(list.firstVisibleItemIndex, rate, settings.ttsVoices[lang.code]) }
-            TextButton(onClick = back) { Text(stringResource(Res.string.back)) }
-            TextButton(onClick = { vm.action { vm.container.settings.setReaderFontSize(settings.readerFontSize - 1) } }, modifier = Modifier.semantics { contentDescription = smallerLabel }, enabled = settings.readerFontSize > 12) { Text("A−", modifier = Modifier, style = MaterialTheme.typography.titleMedium) }
-            TextButton(onClick = { vm.action { vm.container.settings.setReaderFontSize(settings.readerFontSize + 1) } }, modifier = Modifier.semantics { contentDescription = largerLabel }, enabled = settings.readerFontSize < 40) { Text("A+", style = MaterialTheme.typography.titleMedium) }
+        // Icon bar: one line on phones (text buttons wrapped onto two lines).
+        var rateMenu by remember { mutableStateOf(false) }
+        Row(Modifier.fillMaxWidth().padding(start = 4.dp, end = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+            IconButton(onClick = back) { Icon(Icons.AutoMirrored.Filled.ArrowBack, stringResource(Res.string.back)) }
+            Spacer(Modifier.weight(1f))
+            IconButton(onClick = { vm.action { vm.container.settings.setReaderFontSize(settings.readerFontSize - 1) } }, enabled = settings.readerFontSize > 12) { Icon(Icons.Filled.TextDecrease, smallerLabel) }
+            IconButton(onClick = { vm.action { vm.container.settings.setReaderFontSize(settings.readerFontSize + 1) } }, enabled = settings.readerFontSize < 40) { Icon(Icons.Filled.TextIncrease, largerLabel) }
+            Box {
+                TextButton(onClick = { rateMenu = true }) { Text("${rate}×") }
+                DropdownMenu(rateMenu, onDismissRequest = { rateMenu = false }) {
+                    listOf(.75f, 1f, 1.25f).forEach { r ->
+                        DropdownMenuItem(text = { Text(stringResource(Res.string.speech_rate) + ": ${r}×") }, onClick = {
+                            rateMenu = false; rate = r
+                            if (speaking) playback.start(list.firstVisibleItemIndex, rate, settings.ttsVoices[lang.code])
+                        })
+                    }
+                }
+            }
+            FilledTonalIconButton(onClick = { if (speaking) playback.stop() else playback.start(list.firstVisibleItemIndex, rate, settings.ttsVoices[lang.code]) }) {
+                Icon(if (speaking) Icons.Filled.Pause else Icons.Filled.PlayArrow, stringResource(if (speaking) Res.string.watch_pause else Res.string.watch_play))
+            }
         }
         Text(text.title, modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 8.dp), style = MaterialTheme.typography.titleLarge.merge(contentStyle(text.title)))
         Text(stringResource(Res.string.reader_hint), modifier = Modifier.padding(horizontal = 20.dp), style = MaterialTheme.typography.bodySmall)
@@ -120,11 +143,6 @@ data class ReaderSelection(val word: String, val sentence: String, val range: In
                 else -> scheme.primaryContainer
             }), start, end)
         }
-        spokenSentence?.let { range ->
-            val start = (range.first - part.offset).coerceAtLeast(0)
-            val end = (range.last + 1 - part.offset).coerceAtMost(part.text.length)
-            if (start < end) addStyle(SpanStyle(background = scheme.secondaryContainer), start, end)
-        }
         // Colour inflected forms by their saved lemma's Leitner box as well.
         if (lexicon != null) {
             val lemmaBoxes = words.flatMap { entry -> lexicon.lemmas(normalizeForMatch(entry.word, lang)).map { it to entry.leitnerBox.coerceIn(1, 5) } }.toMap()
@@ -151,7 +169,17 @@ data class ReaderSelection(val word: String, val sentence: String, val range: In
         val idiom = if (long) null else idioms?.match(part.text)?.firstOrNull { offset in it.startChar until it.endChar }
         select(idiom?.expression ?: word.text, part.text.substring(range), (range.first + part.offset)..(range.last + part.offset), long)
     }
-    Text(annotated, modifier = Modifier.fillMaxWidth().pointerInput(part, lang, idioms) {
+    // Spoken sentence drawn as one path behind the text: span backgrounds leave seams between styled words.
+    val spokenColor = scheme.secondaryContainer
+    val spokenPath = remember(localSpoken, layout) {
+        val l = layout; val r = localSpoken
+        if (l == null || r == null) null else {
+            val start = (r.first - part.offset).coerceIn(0, part.text.length)
+            val end = (r.last + 1 - part.offset).coerceIn(0, part.text.length)
+            if (start < end) l.getPathForRange(start, end) else null
+        }
+    }
+    Text(annotated, modifier = Modifier.fillMaxWidth().drawBehind { spokenPath?.let { drawPath(it, spokenColor) } }.pointerInput(part, lang, idioms) {
         detectTapGestures(onTap = { onPosition(it, false) }, onLongPress = { onPosition(it, true) })
     }, style = MaterialTheme.typography.bodyLarge.merge(contentStyle(part.text)).copy(fontSize = fontSize.sp, lineHeight = (fontSize * 1.7).sp), onTextLayout = { layout = it })
 }
