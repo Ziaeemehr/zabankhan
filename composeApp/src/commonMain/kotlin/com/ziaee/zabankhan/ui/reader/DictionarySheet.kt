@@ -15,12 +15,13 @@ import com.ziaee.zabankhan.resources.*
 import com.ziaee.zabankhan.translate.*
 import com.ziaee.zabankhan.translate.llm.LlmError
 import com.ziaee.zabankhan.ui.*
+import com.ziaee.zabankhan.speech.*
 import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.stringResource
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable fun DictionarySheet(vm: AppViewModel, settings: AppSettings, text: TextDocument, selection: ReaderSelection,
-    words: List<VocabEntry>, highlights: List<HighlightEntry>, dismiss: () -> Unit) {
+    words: List<VocabEntry>, highlights: List<HighlightEntry>, dismiss: () -> Unit, listen: (() -> Unit)? = null, listenFromHere: (() -> Unit)? = null, shadow: (() -> Unit)? = null) {
     val lang = Languages.byCode(text.lang)!!
     val target = settings.meaningLang.takeIf { it != text.lang } ?: if (text.lang == Languages.PERSIAN.code) Languages.ENGLISH.code else Languages.PERSIAN.code
     val saved = words.firstOrNull { normalizeForMatch(it.word, lang) == normalizeForMatch(selection.word, lang) }
@@ -50,6 +51,14 @@ import org.jetbrains.compose.resources.stringResource
     ModalBottomSheet(onDismissRequest = dismiss) {
         Column(Modifier.fillMaxWidth().navigationBarsPadding().verticalScroll(rememberScrollState()).padding(24.dp).imePadding(), verticalArrangement = Arrangement.spacedBy(16.dp)) {
             Text(selection.word, style = MaterialTheme.typography.headlineSmall.merge(contentStyle(selection.word)))
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                SpeakerButton(selection.word, text.lang, settings)
+                TextButton(onClick = { if (listen != null) listen() else createTts().pronounce(selection.sentence, text.lang, settings) }) { Text(stringResource(Res.string.speech_sentence)) }
+                if (selection.sentenceActions) {
+                    if (listenFromHere != null) TextButton(onClick = listenFromHere) { Text(stringResource(Res.string.speech_from_here)) }
+                    if (shadow != null) TextButton(onClick = shadow) { Text(stringResource(Res.string.speech_shadow)) }
+                }
+            }
             if (loading) CircularProgressIndicator()
             error?.let { TranslationError(it); TextButton(onClick = { attempt++ }) { Text(stringResource(Res.string.retry)) } }
             if (!loading && error == null && lookup?.primary.isNullOrBlank() && lookup?.senses.isNullOrEmpty()) Text(stringResource(Res.string.no_meaning))

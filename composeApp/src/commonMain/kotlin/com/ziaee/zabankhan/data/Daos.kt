@@ -153,3 +153,10 @@ interface PdfHighlightDao {
     @Query("DELETE FROM pdf_highlights WHERE id = :id")
     suspend fun delete(id: Long)
 }
+
+@Dao
+interface ShadowAttemptDao {
+    @Insert suspend fun insert(attempt: ShadowAttempt): Long
+    @Query("SELECT * FROM shadow_attempts WHERE lang = :lang AND textId = :textId ORDER BY timestampMs, id")
+    suspend fun forText(lang: String, textId: Long): List<ShadowAttempt>
+}

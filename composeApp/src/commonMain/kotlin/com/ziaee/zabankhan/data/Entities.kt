@@ -116,3 +116,15 @@ data class PdfHighlight(
     val colorKey: String,
     val createdAtMs: Long = nowMs(),
 )
+
+@Entity(tableName = "shadow_attempts", indices = [Index(value = ["lang", "textId"])])
+data class ShadowAttempt(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val lang: String,
+    val textId: Long?,
+    val sentence: String,
+    val matched: Int,
+    val total: Int,
+    val paceRatio: Float?,
+    val timestampMs: Long = nowMs(),
+)

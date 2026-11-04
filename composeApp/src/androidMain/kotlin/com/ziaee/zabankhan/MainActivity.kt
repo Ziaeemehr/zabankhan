@@ -11,7 +11,7 @@ import io.ktor.client.HttpClient
 import io.ktor.client.engine.okhttp.OkHttp
 
 class ZabankhanApp : Application() {
-    override fun onCreate() { super.onCreate(); com.ziaee.zabankhan.pdf.initializePdf(this) }
+    override fun onCreate() { super.onCreate(); com.ziaee.zabankhan.speech.initializeSpeech(this); com.ziaee.zabankhan.pdf.initializePdf(this) }
     val container by lazy {
         AppContainer(androidDatabase(this), SettingsRepository(createPrefsStore(androidPrefsPath(this))), HttpClient(OkHttp))
     }

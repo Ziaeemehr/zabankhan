@@ -20,6 +20,7 @@ import com.ziaee.zabankhan.lang.*
 import com.ziaee.zabankhan.resources.*
 import com.ziaee.zabankhan.srs.*
 import com.ziaee.zabankhan.ui.*
+import com.ziaee.zabankhan.speech.*
 import com.ziaee.zabankhan.ui.reader.*
 import kotlinx.coroutines.*
 import okio.FileSystem
@@ -39,6 +40,7 @@ import org.jetbrains.compose.resources.stringResource
     var loading by remember { mutableStateOf(true) }
     var failed by remember { mutableStateOf(false) }
     var attempt by remember { mutableIntStateOf(0) }
+    var shadowIndex by remember(identity) { mutableStateOf<Int?>(null) }
     var selection by remember(identity) { mutableStateOf<ReaderSelection?>(null) }
     var idiomMatcher by remember(lang) { mutableStateOf(IdiomMatcher(InMemoryIdiomLexicon(emptyList()), lang)) }
     val words by remember(lang) { vm.container.vocab.observeAll(lang.code) }.collectAsState(emptyList())
@@ -96,6 +98,7 @@ import org.jetbrains.compose.resources.stringResource
         val player = controller
         onDispose {
             player?.pause()
+            createTts().stop()
             val c = latestCaptions; val currentSubs = latestSubtitles
             if (player != null && c != null) vm.action { history.record(lang, RecentVideo(videoId, c.title, c.channel, player.positionMs.value, path.takeIf { it.isNotBlank() }, currentSubs.takeIf { it.isNotBlank() })) }
         }
@@ -141,6 +144,9 @@ import org.jetbrains.compose.resources.stringResource
                 loopIndex = if (loopIndex != null) null else active.takeIf { it >= 0 }
                 loopIndex?.let { controller?.seekTo(cueList[it].startMs); controller?.play() }
             }) { Text(stringResource(if (loopIndex != null) Res.string.watch_stop_repeat else Res.string.watch_repeat)) }
+            TextButton(enabled = active >= 0, onClick = {
+                loopIndex = null; controller?.pause(); shadowIndex = active
+            }) { Text(stringResource(Res.string.speech_shadow)) }
             TextButton(onClick = { showTranslation = !showTranslation }) { Text(stringResource(if (showTranslation) Res.string.watch_hide_translation else Res.string.watch_translation)) }
             if (!follow) TextButton(onClick = { follow = true }) { Text(stringResource(Res.string.watch_back_current)) }
         }
@@ -174,8 +180,16 @@ import org.jetbrains.compose.resources.stringResource
             }
         }
     }
+    shadowIndex?.let { start ->
+        ShadowingPanel(vm.container, settings, lang, document?.id, cueList.map { it.text }, start,
+            dismiss = { controller?.pause(); shadowIndex = null }, autoListen = true, replay = { index ->
+                val cue = cueList[index]
+                val player = checkNotNull(controller)
+                replayShadowCue(player, cue.startMs, cue.endMs, rate)
+            })
+    }
     val doc = document
-    if (doc != null) selection?.let { DictionarySheet(vm, settings, doc, it, words, emptyList()) { selection = null } }
+    if (doc != null) selection?.let { DictionarySheet(vm, settings, doc, it, words, emptyList(), dismiss = { selection = null }) }
 }
 
 @Composable private fun CueWords(cue: SubtitleCue, lang: LanguageSpec, highlighter: VocabHighlighter, words: List<VocabEntry>, fontSize: Int, select: (Int) -> Unit) {

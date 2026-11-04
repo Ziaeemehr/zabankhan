@@ -20,6 +20,7 @@ import com.ziaee.zabankhan.lang.*
 import com.ziaee.zabankhan.resources.*
 import com.ziaee.zabankhan.ui.*
 import com.ziaee.zabankhan.srs.*
+import com.ziaee.zabankhan.speech.*
 import kotlinx.coroutines.flow.distinctUntilChanged
 import org.jetbrains.compose.resources.stringResource
 
@@ -39,6 +40,19 @@ data class ReaderSelection(val word: String, val sentence: String, val range: In
     val highlights by remember(id) { vm.container.highlights.observeForText(id) }.collectAsState(emptyList())
     val highlighter = remember(words, lang) { VocabHighlighter(words.map { SavedVocab(it.word, it.srsState().status()) }, lang) }
     val list = rememberLazyListState(initialFirstVisibleItemIndex = paragraphIndexAt(parts, text.lastOffset))
+    val tts = remember { createTts() }
+    val playback = remember(id, parts, lang) { ReaderPlayback(tts, parts.map { SpokenParagraph(it.text, it.offset) }, lang) }
+    val speaking by tts.isSpeaking.collectAsState()
+    val spokenSentence by playback.sentence.collectAsState()
+    var rate by remember { mutableFloatStateOf(settings.speechRate) }
+    var shadowRange by remember(id) { mutableStateOf<IntRange?>(null) }
+    LaunchedEffect(playback) { tts.speakingRange.collect { playback.rangeChanged(it) } }
+    // Compose the destination paragraph before its TextLayoutResult can scroll to the sentence.
+    LaunchedEffect(spokenSentence) {
+        val range = spokenSentence ?: return@LaunchedEffect
+        val index = paragraphIndexAt(parts, range.first)
+        if (list.layoutInfo.visibleItemsInfo.none { it.index == index }) list.scrollToItem(index)
+    }
     var selection by remember(id) { mutableStateOf<ReaderSelection?>(null) }
     LaunchedEffect(id) {
         snapshotFlow { list.firstVisibleItemIndex }.distinctUntilChanged().collect { index ->
@@ -46,12 +60,14 @@ data class ReaderSelection(val word: String, val sentence: String, val range: In
         }
     }
     DisposableEffect(id) {
-        onDispose { parts.getOrNull(list.firstVisibleItemIndex)?.let { part -> vm.action { vm.container.texts.savePosition(id, part.offset) } } }
+        onDispose { playback.stop(); parts.getOrNull(list.firstVisibleItemIndex)?.let { part -> vm.action { vm.container.texts.savePosition(id, part.offset) } } }
     }
     val smallerLabel = stringResource(Res.string.font_smaller)
     val largerLabel = stringResource(Res.string.font_larger)
     Column(Modifier.fillMaxSize()) {
         FlowRow(Modifier.fillMaxWidth().padding(horizontal = 12.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            TextButton(onClick = { if (speaking) playback.stop() else playback.start(list.firstVisibleItemIndex, rate, settings.ttsVoices[lang.code]) }) { Text(stringResource(if (speaking) Res.string.watch_pause else Res.string.watch_play)) }
+            Choice(stringResource(Res.string.speech_rate), rate, listOf(.75f, 1f, 1.25f).map { it to "${it}×" }) { rate = it; if (speaking) playback.start(list.firstVisibleItemIndex, rate, settings.ttsVoices[lang.code]) }
             TextButton(onClick = back) { Text(stringResource(Res.string.back)) }
             TextButton(onClick = { vm.action { vm.container.settings.setReaderFontSize(settings.readerFontSize - 1) } }, modifier = Modifier.semantics { contentDescription = smallerLabel }, enabled = settings.readerFontSize > 12) { Text("A−", modifier = Modifier, style = MaterialTheme.typography.titleMedium) }
             TextButton(onClick = { vm.action { vm.container.settings.setReaderFontSize(settings.readerFontSize + 1) } }, modifier = Modifier.semantics { contentDescription = largerLabel }, enabled = settings.readerFontSize < 40) { Text("A+", style = MaterialTheme.typography.titleMedium) }
@@ -60,17 +76,29 @@ data class ReaderSelection(val word: String, val sentence: String, val range: In
         Text(stringResource(Res.string.reader_hint), modifier = Modifier.padding(horizontal = 20.dp), style = MaterialTheme.typography.bodySmall)
         LazyColumn(state = list, contentPadding = PaddingValues(20.dp), verticalArrangement = Arrangement.spacedBy(20.dp)) {
             itemsIndexed(parts, key = { _, part -> part.offset }) { _, part ->
-                ReaderParagraph(part, lang, highlighter, words, highlights, settings.readerFontSize) { token, sentence, range, long ->
+                ReaderParagraph(part, lang, highlighter, words, highlights, settings.readerFontSize, spokenSentence, { y ->
+                    val index = parts.indexOf(part)
+                    if (index >= 0) list.animateScrollToItem(index, y)
+                }) { token, sentence, range, long ->
+                    playback.stop()
                     selection = ReaderSelection(if (long) sentence else token, sentence, range, long)
                 }
             }
         }
     }
-    selection?.let { selected -> DictionarySheet(vm, settings, text, selected, words, highlights, { selection = null }) }
+    selection?.let { selected -> DictionarySheet(vm, settings, text, selected, words, highlights, { selection = null },
+        listen = { playback.sentenceOnly(selected.sentence, selected.range.first, rate, settings.ttsVoices[lang.code]); selection = null },
+        listenFromHere = { playback.start(paragraphIndexAt(parts, selected.range.first), rate, settings.ttsVoices[lang.code]); selection = null },
+        shadow = { playback.stop(); shadowRange = selected.range; selection = null }) }
+    shadowRange?.let { range ->
+        val sentences = splitSentences(text.body, lang)
+        val start = sentences.indexOfFirst { range.first in it }.coerceAtLeast(0)
+        ShadowingPanel(vm.container, settings, lang, id, sentences.map { text.body.substring(it) }, start, { shadowRange = null })
+    }
 }
 
 @Composable private fun ReaderParagraph(part: Paragraph, lang: LanguageSpec, highlighter: VocabHighlighter,
-    words: List<VocabEntry>, highlights: List<HighlightEntry>, fontSize: Int, select: (String, String, IntRange, Boolean) -> Unit) {
+    words: List<VocabEntry>, highlights: List<HighlightEntry>, fontSize: Int, spokenSentence: IntRange?, scrollTo: suspend (Int) -> Unit, select: (String, String, IntRange, Boolean) -> Unit) {
     var layout by remember { mutableStateOf<TextLayoutResult?>(null) }
     val matches = remember(part, highlighter) { highlighter.findMatches(part.text) }
     val colors = (1..5).associateWith { boxColor(it) }
@@ -87,10 +115,20 @@ data class ReaderSelection(val word: String, val sentence: String, val range: In
                 else -> scheme.primaryContainer
             }), start, end)
         }
+        spokenSentence?.let { range ->
+            val start = (range.first - part.offset).coerceAtLeast(0)
+            val end = (range.last + 1 - part.offset).coerceAtMost(part.text.length)
+            if (start < end) addStyle(SpanStyle(background = scheme.secondaryContainer), start, end)
+        }
         matches.forEach { match ->
             val box = savedBoxes[normalizeForMatch(part.text.substring(match.range), lang)] ?: 1
             addStyle(SpanStyle(color = colors.getValue(box)), match.range.first, match.range.last + 1)
         }
+    }
+    val localSpoken = spokenSentence?.takeIf { it.first < part.offset + part.text.length && it.last >= part.offset }
+    LaunchedEffect(localSpoken, layout) {
+        val start = localSpoken?.let { (it.first - part.offset).coerceAtLeast(0) }
+        if (start != null) layout?.let { scrollTo(it.getLineTop(it.getLineForOffset(start)).toInt()) }
     }
     fun onPosition(position: androidx.compose.ui.geometry.Offset, long: Boolean) {
         val offset = layout?.getOffsetForPosition(position) ?: return

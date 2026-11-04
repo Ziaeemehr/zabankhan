@@ -130,4 +130,26 @@
     <string name="watch_feed_error">Impossible de charger les vidéos de la chaîne.</string>
     <string name="watch_import_error">Impossible d’importer ce fichier.</string>
     <string name="no_meaning">Aucun sens trouvé. Essayez les dictionnaires ci-dessous.</string>
+    <string name="speech_listen">Écouter</string>
+    <string name="speech_sentence">Écouter la phrase</string>
+    <string name="speech_from_here">Écouter à partir d’ici</string>
+    <string name="speech_shadow">Répéter cette phrase</string>
+    <string name="speech_rate">Vitesse de parole</string>
+    <string name="speech_voice">Voix</string>
+    <string name="speech_default">Voix du système</string>
+    <string name="speech_auto_cards">Prononcer les cartes automatiquement</string>
+    <string name="speech_score">Score : %1$d%%</string>
+    <string name="speech_fast">Trop rapide</string>
+    <string name="speech_slow">Trop lent</string>
+    <string name="speech_good">Bon rythme</string>
+    <string name="speech_not_heard">Aucune parole entendue. Réessayez.</string>
+    <string name="speech_error">Parole indisponible ou enregistrement impossible. Réessayez.</string>
+    <string name="speech_permission">Le microphone et la reconnaissance vocale sont nécessaires. En cas de refus, autorisez-les dans les réglages du système.</string>
+    <string name="speech_mic">Toucher pour parler</string>
+    <string name="speech_stop_mic">Terminer de parler</string>
+    <string name="speech_next">Suivant</string>
+    <string name="speech_finish">Terminer</string>
+    <string name="speech_summary">Bilan de répétition</string>
+    <string name="speech_sentences">Phrases : %1$d</string>
+    <string name="speech_good_percent">Bon rythme : %1$d%%</string>
 </resources>

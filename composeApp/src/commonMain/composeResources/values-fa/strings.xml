@@ -130,4 +130,26 @@
     <string name="watch_feed_error">بارگیری ویدیوهای کانال ممکن نشد.</string>
     <string name="watch_import_error">وارد کردن فایل ممکن نشد.</string>
     <string name="no_meaning">معنایی پیدا نشد. دیکشنری‌های زیر را امتحان کن.</string>
+    <string name="speech_listen">گوش دادن</string>
+    <string name="speech_sentence">شنیدن جمله</string>
+    <string name="speech_from_here">شنیدن از اینجا</string>
+    <string name="speech_shadow">تمرین شدوینگ جمله</string>
+    <string name="speech_rate">سرعت گفتار</string>
+    <string name="speech_voice">صدا</string>
+    <string name="speech_default">پیش‌فرض سیستم</string>
+    <string name="speech_auto_cards">تلفظ خودکار کارت‌ها</string>
+    <string name="speech_score">امتیاز: %1$d%%</string>
+    <string name="speech_fast">بیش از حد سریع</string>
+    <string name="speech_slow">بیش از حد آهسته</string>
+    <string name="speech_good">سرعت مناسب</string>
+    <string name="speech_not_heard">گفتاری شنیده نشد. دوباره تلاش کنید.</string>
+    <string name="speech_error">گفتار در دسترس نیست یا ذخیره نشد. دوباره تلاش کنید.</string>
+    <string name="speech_permission">دسترسی میکروفون و تشخیص گفتار لازم است. در صورت رد شدن، در تنظیمات سیستم فعال کنید.</string>
+    <string name="speech_mic">برای صحبت لمس کنید</string>
+    <string name="speech_stop_mic">پایان صحبت</string>
+    <string name="speech_next">بعدی</string>
+    <string name="speech_finish">پایان</string>
+    <string name="speech_summary">خلاصهٔ شدوینگ</string>
+    <string name="speech_sentences">جمله‌ها: %1$d</string>
+    <string name="speech_good_percent">سرعت مناسب: %1$d%%</string>
 </resources>

@@ -11,6 +11,7 @@ import androidx.compose.ui.unit.dp
 import com.ziaee.zabankhan.app.AppViewModel
 import com.ziaee.zabankhan.data.AppSettings
 import com.ziaee.zabankhan.lang.*
+import com.ziaee.zabankhan.speech.*
 import com.ziaee.zabankhan.resources.*
 import com.ziaee.zabankhan.translate.llm.LlmProvider
 import org.jetbrains.compose.resources.stringResource
@@ -48,6 +49,16 @@ import org.jetbrains.compose.resources.stringResource
 @OptIn(ExperimentalLayoutApi::class)
 @Composable fun SettingsScreen(vm: AppViewModel, settings: AppSettings) {
     val repository = vm.container.settings
+    val tts = remember { createTts() }
+    val speaking by tts.isSpeaking.collectAsState()
+    var voices by remember { mutableStateOf(emptyMap<String, List<TtsVoice>>()) }
+    LaunchedEffect(tts, speaking) {
+        repeat(10) {
+            voices = Languages.learnable.associate { it.code to tts.voices(it.code) }
+            if (voices.values.any { it.isNotEmpty() }) return@LaunchedEffect
+            kotlinx.coroutines.delay(300)
+        }
+    }
     val uri = LocalUriHandler.current
     var provider by remember(settings.llmProvider) { mutableStateOf(settings.llmProvider) }
     var apiKey by remember(settings.llmApiKey) { mutableStateOf(settings.llmApiKey) }
@@ -74,6 +85,12 @@ import org.jetbrains.compose.resources.stringResource
         Choice(stringResource(Res.string.theme), settings.themeMode,
             listOf("SYSTEM" to stringResource(Res.string.system), "LIGHT" to stringResource(Res.string.light), "DARK" to stringResource(Res.string.dark))) {
             vm.action { repository.setThemeMode(it) }
+        }
+        Choice(stringResource(Res.string.speech_rate), settings.speechRate, listOf(.75f, 1f, 1.25f).map { it to "${it}×" }) { vm.action { repository.setSpeechRate(it) } }
+        Row { Checkbox(settings.autoPronounceCards, { vm.action { repository.setAutoPronounceCards(it) } }); Text(stringResource(Res.string.speech_auto_cards)) }
+        Languages.learnable.filter { it.code in settings.learningLangs }.forEach { lang ->
+            Choice("${languageName(lang)} — ${stringResource(Res.string.speech_voice)}", settings.ttsVoices[lang.code].orEmpty(),
+                listOf("" to stringResource(Res.string.speech_default)) + voices[lang.code].orEmpty().map { it.id to it.name }) { id -> vm.action { repository.setTtsVoice(lang.code, id.ifBlank { null }) } }
         }
         Text("${stringResource(Res.string.font_size)}: ${settings.readerFontSize}")
         Slider(settings.readerFontSize.toFloat(), { vm.action { repository.setReaderFontSize(it.toInt()) } }, valueRange = 12f..40f, steps = 27)

@@ -28,6 +28,9 @@ data class AppSettings(
     val themeMode: String = "SYSTEM",
     val dailyNewCards: Int = 10,
     val readerFontSize: Int = 20,
+    val speechRate: Float = 1f,
+    val autoPronounceCards: Boolean = false,
+    val ttsVoices: Map<String, String> = emptyMap(),
     val llmProvider: String = "",
     val llmApiKey: String = "",
     val llmModel: String = "",
@@ -42,6 +45,9 @@ class SettingsRepository(private val store: DataStore<Preferences>) {
         val theme = stringPreferencesKey("theme_mode")
         val newCards = intPreferencesKey("daily_new_cards")
         val font = intPreferencesKey("reader_font_size")
+        val speechRate = androidx.datastore.preferences.core.floatPreferencesKey("speech_rate")
+        val autoCards = androidx.datastore.preferences.core.booleanPreferencesKey("auto_pronounce_cards")
+        val voices = stringPreferencesKey("tts_voices")
         val llmProvider = stringPreferencesKey("llm_provider")
         val llmKey = stringPreferencesKey("llm_api_key")
         val llmModel = stringPreferencesKey("llm_model")
@@ -56,6 +62,9 @@ class SettingsRepository(private val store: DataStore<Preferences>) {
             themeMode = p[K.theme] ?: "SYSTEM",
             dailyNewCards = p[K.newCards] ?: 10,
             readerFontSize = p[K.font] ?: 20,
+            speechRate = p[K.speechRate] ?: 1f,
+            autoPronounceCards = p[K.autoCards] ?: false,
+            ttsVoices = runCatching { kotlinx.serialization.json.Json.decodeFromString<Map<String, String>>(p[K.voices] ?: "{}") }.getOrDefault(emptyMap()),
             llmProvider = p[K.llmProvider].orEmpty(),
             llmApiKey = p[K.llmKey].orEmpty(),
             llmModel = p[K.llmModel].orEmpty(),
@@ -82,6 +91,13 @@ class SettingsRepository(private val store: DataStore<Preferences>) {
     suspend fun setThemeMode(mode: String) = store.edit { it[K.theme] = mode }
     suspend fun setDailyNewCards(n: Int) = store.edit { it[K.newCards] = n.coerceIn(0, 100) }
     suspend fun setReaderFontSize(sp: Int) = store.edit { it[K.font] = sp.coerceIn(12, 40) }
+    suspend fun setSpeechRate(rate: Float) = store.edit { it[K.speechRate] = rate.coerceIn(.75f, 1.25f) }
+    suspend fun setAutoPronounceCards(enabled: Boolean) = store.edit { it[K.autoCards] = enabled }
+    suspend fun setTtsVoice(lang: String, id: String?) = store.edit {
+        com.ziaee.zabankhan.speech.learningSpeechLanguage(lang)
+        val voices = runCatching { kotlinx.serialization.json.Json.decodeFromString<Map<String, String>>(it[K.voices] ?: "{}") }.getOrDefault(emptyMap())
+        it[K.voices] = kotlinx.serialization.json.Json.encodeToString(if (id == null) voices - lang else voices + (lang to id))
+    }
     suspend fun setLlm(provider: String, apiKey: String, model: String) = store.edit {
         it[K.llmProvider] = provider; it[K.llmKey] = apiKey; it[K.llmModel] = model
     }

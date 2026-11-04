@@ -130,4 +130,26 @@
     <string name="watch_feed_error">Could not load channel videos.</string>
     <string name="watch_import_error">Could not import this file.</string>
     <string name="no_meaning">No meaning found. Try the dictionaries below.</string>
+    <string name="speech_listen">Listen</string>
+    <string name="speech_sentence">Listen to sentence</string>
+    <string name="speech_from_here">Listen from here</string>
+    <string name="speech_shadow">Shadow this sentence</string>
+    <string name="speech_rate">Speech rate</string>
+    <string name="speech_voice">Voice</string>
+    <string name="speech_default">System default</string>
+    <string name="speech_auto_cards">Pronounce cards automatically</string>
+    <string name="speech_score">Score: %1$d%%</string>
+    <string name="speech_fast">Too fast</string>
+    <string name="speech_slow">Too slow</string>
+    <string name="speech_good">Good pace</string>
+    <string name="speech_not_heard">No speech heard. Try again.</string>
+    <string name="speech_error">Speech unavailable or could not save. Try again.</string>
+    <string name="speech_permission">Microphone and speech access are required. Allow access in system settings if denied.</string>
+    <string name="speech_mic">Tap to speak</string>
+    <string name="speech_stop_mic">Finish speaking</string>
+    <string name="speech_next">Next</string>
+    <string name="speech_finish">Finish</string>
+    <string name="speech_summary">Shadowing summary</string>
+    <string name="speech_sentences">Sentences: %1$d</string>
+    <string name="speech_good_percent">Good pace: %1$d%%</string>
 </resources>

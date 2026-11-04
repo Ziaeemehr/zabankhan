@@ -16,6 +16,7 @@ import com.ziaee.zabankhan.data.*
 import com.ziaee.zabankhan.lang.*
 import com.ziaee.zabankhan.resources.*
 import com.ziaee.zabankhan.srs.*
+import com.ziaee.zabankhan.speech.*
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.stringResource
@@ -59,6 +60,16 @@ class ReviewViewModel(private val container: AppContainer, private val settings:
 @Composable fun ReviewScreen(container: AppContainer, settings: AppSettings) {
     val vm = viewModel(key = "review:${settings.learningLang}:${settings.dailyNewCards}") { ReviewViewModel(container, settings) }
     LaunchedEffect(vm) { if (vm.session?.cards?.isEmpty() == true) vm.load() }
+    val tts = remember { createTts() }
+    var shadow by remember { mutableStateOf<VocabEntry?>(null) }
+    DisposableEffect(Unit) { onDispose { tts.stop() } }
+    LaunchedEffect(vm.session?.current?.id, settings.autoPronounceCards) {
+        tts.stop()
+        val card = vm.session?.current
+        if (settings.autoPronounceCards && card != null) tts.pronounce(card.word, card.lang, settings)
+    }
+    shadow?.let { card -> ShadowingPanel(container, settings, learningSpeechLanguage(card.lang), card.textId,
+        listOf(card.sentence.ifBlank { card.word }), dismiss = { shadow = null }) }
     val session = vm.session
     Page {
         Heading(stringResource(Res.string.nav_review))
@@ -90,6 +101,10 @@ class ReviewViewModel(private val container: AppContainer, private val settings:
                     if (vm.flipped) Text(card.meaning.orEmpty(), style = MaterialTheme.typography.titleLarge.merge(contentStyle(card.meaning.orEmpty())))
                     else Text(stringResource(Res.string.flip_hint), style = MaterialTheme.typography.labelLarge)
                 }
+            }
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                SpeakerButton(card.word, card.lang, settings)
+                TextButton(onClick = { tts.stop(); shadow = card }) { Text(stringResource(Res.string.speech_shadow)) }
             }
             if (vm.flipped) FlowRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 listOf(VocabAnswer.FORGOT to Res.string.forgot, VocabAnswer.HARD to Res.string.hard, VocabAnswer.KNEW to Res.string.knew).forEach { (answer, label) ->

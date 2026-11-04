@@ -142,7 +142,7 @@ private data class PdfRange(val page: Int, val first: Int, val last: Int, val wo
             }
         }
     }
-    selection?.let { DictionarySheet(vm, settings, text, it, vocab, emptyList()) { selection = null } }
+    selection?.let { DictionarySheet(vm, settings, text, it, vocab, emptyList(), dismiss = { selection = null }) }
     areaText?.let { recognized ->
         ModalBottomSheet(onDismissRequest = { areaText = null }) {
             Column(Modifier.verticalScroll(rememberScrollState()).padding(24.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
