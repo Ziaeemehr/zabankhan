@@ -15,7 +15,10 @@ import platform.darwin.NSObject
 
 private const val REMINDER_ID = "vocabulary_review"
 
-private object ReminderNotificationDelegate : NSObject(), UNUserNotificationCenterDelegateProtocol {
+private val reminderDelegate by lazy { ReminderNotificationDelegate() } // strong ref: the center holds its delegate weakly
+
+// A Kotlin `object` subclassing NSObject crashes the iosArm64 code generator; use a class + one instance.
+private class ReminderNotificationDelegate : NSObject(), UNUserNotificationCenterDelegateProtocol {
     override fun userNotificationCenter(
         center: UNUserNotificationCenter,
         didReceiveNotificationResponse: UNNotificationResponse,
@@ -28,7 +31,7 @@ private object ReminderNotificationDelegate : NSObject(), UNUserNotificationCent
 
 /** Keep a strong reference to the delegate; UNUserNotificationCenter.delegate is weak. */
 fun initializeIosReviewReminders() {
-    UNUserNotificationCenter.currentNotificationCenter().delegate = ReminderNotificationDelegate
+    UNUserNotificationCenter.currentNotificationCenter().delegate = reminderDelegate
 }
 
 @Composable actual fun rememberReminderPermissionRequest(onResult: (Boolean) -> Unit): () -> Unit {

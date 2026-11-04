@@ -2,7 +2,7 @@
 
 - Reply in the language the user writes in (Persian question → Persian reply).
 - Stack: Kotlin Multiplatform + Compose Multiplatform, single module `composeApp` (commonMain/androidMain/iosMain) + `iosApp` (Swift host, generated with XcodeGen from `iosApp/project.yml`).
-- Build with JDK 17: `export JAVA_HOME=/opt/homebrew/opt/openjdk@17`. Android: `./gradlew :composeApp:assemblePlayDebug`. Tests: `./gradlew :composeApp:testPlayDebugUnitTest :composeApp:iosSimulatorArm64Test` (iOS test/link needs Xcode; `compileKotlinIosSimulatorArm64` works without it).
+- Build with JDK 17: `export JAVA_HOME=/opt/homebrew/opt/openjdk@17`. Android: `./gradlew :composeApp:assemblePlayDebug`. Verify gate: `./gradlew :composeApp:assemblePlayDebug :composeApp:assembleBazaarDebug :composeApp:testPlayDebugUnitTest :composeApp:iosSimulatorArm64Test :composeApp:linkDebugFrameworkIosArm64` (the device link catches Kotlin/Native codegen bugs the simulator tests miss, e.g. `object X : NSObject()`). Common code must avoid regex classes `\p{M}`/`\p{N}` (unsupported on Kotlin/Native).
 - Android flavors: `play` (may use Google Play services) and `bazaar` (no GMS at all, for Cafe Bazaar/Myket).
 - Port logic from `/Users/ziaee/git/FrenchReaderSpike` (read-only reference; never modify it). Generalize every French assumption through `LanguageSpec`; no hardcoded "fr".
 - Shared code in commonMain must not use java.*, android.*, org.json; use kotlinx-datetime, kotlinx-serialization, Ktor, okio (already on the classpath via DataStore) for files.
