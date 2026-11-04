@@ -30,6 +30,8 @@ class ReaderPlayback(private val tts: Tts, private val parts: List<SpokenParagra
         index = next; base = part.offset; spoken = part.text
         rangeChanged(0..0)
         tts.speak(part.text, lang.code, rate) { speakParagraph(next + 1, token) }
+        // Fetch the next paragraph's audio now so there is no pause between paragraphs.
+        parts.getOrNull(next + 1)?.let { tts.prefetch(it.text, lang.code, rate) }
     }
     fun sentenceOnly(text: String, offset: Int, rate: Float, voiceId: String?) {
         stop(); val token = generation; index = 0; base = offset; spoken = text

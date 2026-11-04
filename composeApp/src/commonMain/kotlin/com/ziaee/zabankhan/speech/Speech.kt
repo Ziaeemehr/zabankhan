@@ -12,6 +12,8 @@ interface Tts {
     fun stop()
     fun voices(langCode: String): List<TtsVoice>
     fun setVoice(id: String?)
+    /** Warm caches for text likely spoken next (online voice); no-op for device voices. */
+    fun prefetch(text: String, langCode: String, rate: Float) {}
 }
 expect fun createDeviceTts(): Tts
 fun createTts(): Tts = SpeechEngine.current ?: createDeviceTts()

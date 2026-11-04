@@ -152,4 +152,8 @@
     <string name="speech_summary">Shadowing summary</string>
     <string name="speech_sentences">Sentences: %1$d</string>
     <string name="speech_good_percent">Good pace: %1$d%%</string>
+    <string name="more_actions">More actions</string>
+    <string name="discover_hint">Fresh news and easy articles to add to your library</string>
+    <string name="grammar_hint">Short French grammar notes by level</string>
+    <string name="tcf_hint">Practise TCF-style questions</string>
 </resources>

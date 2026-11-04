@@ -1,5 +1,8 @@
 package com.ziaee.zabankhan.ui
 
+import androidx.compose.ui.Alignment
+import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.Icons
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -43,10 +46,20 @@ import org.jetbrains.compose.resources.stringResource
             normalizeForMatch(it.title + " " + it.body, spec).contains(normalizeForMatch(search, spec)) }
         if (filtered.isEmpty()) item { Text(stringResource(Res.string.empty_library)) }
         items(filtered, key = { it.id }) { text -> TextCard(text, { open(text.id) }) {
-            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                TextButton(onClick = { vm.action { vm.container.texts.setPinned(text.id, !text.pinned) } }) { Text(stringResource(if (text.pinned) Res.string.unpin else Res.string.pin)) }
-                TextButton(onClick = { deleteText = text }) { Text(stringResource(Res.string.delete)) }
-                Choice(stringResource(Res.string.move), text.folderId ?: 0L, options.filter { it.first != -1L }) { id -> vm.action { vm.container.texts.setFolder(text.id, id.takeIf { it != 0L }) } }
+            // One overflow menu instead of a row of buttons on every card.
+            var menu by remember { mutableStateOf(false) }
+            Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.CenterEnd) {
+                IconButton(onClick = { menu = true }) { Icon(Icons.Filled.MoreVert, stringResource(Res.string.more_actions)) }
+                DropdownMenu(menu, onDismissRequest = { menu = false }) {
+                    DropdownMenuItem(text = { Text(stringResource(if (text.pinned) Res.string.unpin else Res.string.pin)) },
+                        onClick = { menu = false; vm.action { vm.container.texts.setPinned(text.id, !text.pinned) } })
+                    options.filter { it.first != -1L && it.first != (text.folderId ?: 0L) }.forEach { (id, name) ->
+                        DropdownMenuItem(text = { Text(stringResource(Res.string.move) + ": " + name) },
+                            onClick = { menu = false; vm.action { vm.container.texts.setFolder(text.id, id.takeIf { it != 0L }) } })
+                    }
+                    DropdownMenuItem(text = { Text(stringResource(Res.string.delete), color = MaterialTheme.colorScheme.error) },
+                        onClick = { menu = false; deleteText = text })
+                }
             }
         } }
     }

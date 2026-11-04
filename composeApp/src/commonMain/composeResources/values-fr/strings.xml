@@ -152,4 +152,8 @@
     <string name="speech_summary">Bilan de répétition</string>
     <string name="speech_sentences">Phrases : %1$d</string>
     <string name="speech_good_percent">Bon rythme : %1$d%%</string>
+    <string name="more_actions">Plus d’actions</string>
+    <string name="discover_hint">Actualités récentes et articles faciles à ajouter à votre bibliothèque</string>
+    <string name="grammar_hint">Courtes notes de grammaire par niveau</string>
+    <string name="tcf_hint">Entraînez-vous aux questions de type TCF</string>
 </resources>

@@ -28,6 +28,9 @@ class SelectedTts(private val online: EdgeTts, private val device: Tts, private 
     }
     override fun voices(langCode: String) = if (settings.voiceEngine == "device") device.voices(langCode) else online.voices(langCode)
     override fun setVoice(id: String?) { voice = id }
+    override fun prefetch(text: String, langCode: String, rate: Float) {
+        if (settings.voiceEngine != "device") { online.setVoice(voice); online.prefetch(text, langCode, rate) }
+    }
     override fun speak(text: String, langCode: String, rate: Float, onDone: () -> Unit) {
         learningSpeechLanguage(langCode)
         val previous = job

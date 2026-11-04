@@ -65,5 +65,15 @@ class EdgeTts(
         try { Result.success(load(chunk)) }
         catch (e: CancellationException) { throw e }
         catch (e: Exception) { Result.failure(e) }
+    override fun prefetch(text: String, langCode: String, rate: Float) {
+        scope.launch {
+            val lang = learningSpeechLanguage(langCode)
+            val selected = voice?.takeIf { it in lang.onlineVoices } ?: lang.onlineVoices.first()
+            val percent = EdgeProtocol.ratePercent(rate)
+            // Only the first chunk: playText prefetches the rest itself while this one plays.
+            val first = EdgeProtocol.chunks(text, lang).firstOrNull() ?: return@launch
+            runCatching { cache.release(cache.acquire(first.text, selected, percent) { client.synthesize(first.text, selected, lang.ttsLocale, percent) }) }
+        }
+    }
     override fun stop() { job?.cancel(); job = null; player.stop(); range.value = null; speaking.value = false }
 }

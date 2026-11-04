@@ -14,6 +14,8 @@ private class FakeTts : Tts {
     override fun stop() { isSpeaking.value = false }
     override fun voices(langCode: String) = emptyList<TtsVoice>()
     override fun setVoice(id: String?) = Unit
+    val prefetched = mutableListOf<String>()
+    override fun prefetch(text: String, langCode: String, rate: Float) { prefetched += text }
 }
 class ReaderPlaybackTest {
     @Test fun paragraphSequenceSentenceOffsetsAndStop() {
@@ -32,5 +34,12 @@ class ReaderPlaybackTest {
         playback.start(1, .75f, null); assertEquals("Second.", tts.text)
         playback.sentenceOnly("Word.", 20, 1f, null); assertEquals(20..24, playback.sentence.value)
         tts.done(); assertNull(playback.sentence.value); assertEquals("Word.", tts.text)
+    }
+    @Test fun prefetchesNextParagraphWhileSpeaking() {
+        val tts = FakeTts()
+        val playback = ReaderPlayback(tts, listOf(SpokenParagraph("One.", 0), SpokenParagraph("Two.", 5), SpokenParagraph("Three.", 10)), Languages.ENGLISH)
+        playback.start(0, 1f, null); assertEquals(listOf("Two."), tts.prefetched)
+        tts.done(); assertEquals(listOf("Two.", "Three."), tts.prefetched)
+        tts.done(); assertEquals(2, tts.prefetched.size) // last paragraph: nothing to fetch
     }
 }

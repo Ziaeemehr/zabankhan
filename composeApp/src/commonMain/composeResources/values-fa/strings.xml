@@ -152,4 +152,8 @@
     <string name="speech_summary">خلاصهٔ شدوینگ</string>
     <string name="speech_sentences">جمله‌ها: %1$d</string>
     <string name="speech_good_percent">سرعت مناسب: %1$d%%</string>
+    <string name="more_actions">گزینه‌های بیشتر</string>
+    <string name="discover_hint">خبرهای تازه و مقاله‌های ساده برای افزودن به کتابخانه</string>
+    <string name="grammar_hint">یادداشت‌های کوتاه گرامر فرانسه بر اساس سطح</string>
+    <string name="tcf_hint">تمرین سؤال‌های شبیه آزمون TCF</string>
 </resources>

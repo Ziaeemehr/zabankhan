@@ -42,12 +42,10 @@ import org.jetbrains.compose.resources.stringResource
                 com.ziaee.zabankhan.statistics.DailyGoalCard(vm, settings)
             }
         }
-        ElevatedCard(onClick = discover, modifier = Modifier.fillMaxWidth()) {
-            Text(stringResource(Res.string.h2_discover), Modifier.padding(20.dp), style = MaterialTheme.typography.titleMedium)
-        }
+        LinkCard(stringResource(Res.string.h2_discover), stringResource(Res.string.discover_hint), discover)
         if (com.ziaee.zabankhan.datapack.LanguageDataPacks.available(lang)) {
-            TextButton(onClick = grammar) { Text(stringResource(Res.string.pack_grammar)) }
-            TextButton(onClick = exams) { Text(stringResource(Res.string.pack_tcf)) }
+            LinkCard(stringResource(Res.string.pack_grammar), stringResource(Res.string.grammar_hint), grammar)
+            LinkCard(stringResource(Res.string.pack_tcf), stringResource(Res.string.tcf_hint), exams)
         }
         recent.firstOrNull()?.let { text ->
             Text(stringResource(Res.string.continue_reading), style = MaterialTheme.typography.titleMedium)
@@ -92,6 +90,15 @@ import org.jetbrains.compose.resources.stringResource
             comprehension?.let { Text(stringResource(Res.string.pack_comprehension, it), style = MaterialTheme.typography.labelMedium) }
             Text(kotlin.time.Instant.fromEpochMilliseconds(text.createdAtMs).toString().take(10), style = MaterialTheme.typography.labelSmall)
             actions()
+        }
+    }
+}
+
+@Composable private fun LinkCard(title: String, hint: String, onClick: () -> Unit) {
+    ElevatedCard(onClick = onClick, modifier = Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Text(title, style = MaterialTheme.typography.titleMedium)
+            Text(hint, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }
 }
