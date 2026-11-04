@@ -25,7 +25,7 @@ import org.jetbrains.compose.resources.stringResource
         Text(stringResource(Res.string.welcome), style = MaterialTheme.typography.titleLarge)
         Text(stringResource(Res.string.learning_languages))
         FlowRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            Languages.all.forEach { lang -> FilterChip(selected = lang.code in selected, onClick = {
+            Languages.learnable.forEach { lang -> FilterChip(selected = lang.code in selected, onClick = {
                 selected = if (lang.code in selected) selected - lang.code else selected + lang.code
                 if (selected.firstOrNull() == meaning) meaning = if (meaning == Languages.PERSIAN.code) Languages.ENGLISH.code else Languages.PERSIAN.code
             }, label = { Column(Modifier.padding(8.dp)) { Text(lang.nativeName); languageName(lang).takeIf { it != lang.nativeName }?.let { Text(it) } } }) }
@@ -57,7 +57,7 @@ import org.jetbrains.compose.resources.stringResource
         Heading(stringResource(Res.string.nav_settings))
         Text(stringResource(Res.string.learning_languages), style = MaterialTheme.typography.titleMedium)
         FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Languages.all.forEach { lang ->
+            Languages.learnable.forEach { lang ->
                 val selected = lang.code in settings.learningLangs
                 FilterChip(selected, onClick = { vm.action {
                     if (selected && settings.learningLangs.size > 1) repository.removeLearningLang(lang.code)

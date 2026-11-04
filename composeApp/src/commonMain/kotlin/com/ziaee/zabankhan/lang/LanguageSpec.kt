@@ -55,6 +55,9 @@ object Languages {
         ),
     )
     val all: List<LanguageSpec> = listOf(FRENCH, ENGLISH, PERSIAN)
+
+    /** Languages offered for learning. Persian is only ever a meaning/translation language. */
+    val learnable: List<LanguageSpec> = listOf(FRENCH, ENGLISH)
     fun byCode(code: String): LanguageSpec? = all.firstOrNull { it.code == code.lowercase() }
 }
 
