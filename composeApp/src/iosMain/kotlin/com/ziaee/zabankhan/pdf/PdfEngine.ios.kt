@@ -128,40 +128,5 @@ actual fun createOcrEngine(): OcrEngine = object : OcrEngine {
         result
     }
 }
-private class PdfPickerDelegate(val picked: (String?) -> Unit) : NSObject(), UIDocumentPickerDelegateProtocol {
-    override fun documentPickerWasCancelled(controller: UIDocumentPickerViewController) { picked(null) }
-    override fun documentPicker(controller: UIDocumentPickerViewController, didPickDocumentsAtURLs: List<*>) {
-        val url = didPickDocumentsAtURLs.firstOrNull() as? NSURL ?: return picked(null)
-        val scoped = url.startAccessingSecurityScopedResource()
-        try {
-            val source = requireNotNull(url.path).toPath()
-            val fs = FileSystem.SYSTEM
-            val directory = "${AppFiles.filesDir}/pdfs".toPath()
-            fs.createDirectories(directory)
-            val temporary = directory / (NSUUID().UUIDString + ".tmp")
-            val target = try {
-                val hashing = HashingSink.sha256(fs.sink(temporary))
-                hashing.buffer().use { output -> fs.source(source).buffer().use { input -> output.writeAll(input) } }
-                val destination = directory / (hashing.hash.hex() + ".pdf")
-                if (!fs.exists(destination)) fs.atomicMove(temporary, destination)
-                destination
-            } finally { fs.delete(temporary, mustExist = false) }
-            fs.write((target.toString() + ".title").toPath()) { writeUtf8(url.lastPathComponent.orEmpty().substringBeforeLast('.')) }
-            picked(target.toString())
-        } catch (_: Exception) { picked(null) }
-        finally { if (scoped) url.stopAccessingSecurityScopedResource() }
-    }
-}
-@Composable actual fun rememberPdfPicker(onPicked: (path: String?) -> Unit): () -> Unit {
-    val callback by rememberUpdatedState(onPicked)
-    val delegate = remember { PdfPickerDelegate { callback(it) } }
-    return remember {
-        {
-            val picker = UIDocumentPickerViewController(forOpeningContentTypes = listOf(UTTypePDF), asCopy = true)
-            picker.delegate = delegate
-            var root = UIApplication.sharedApplication.keyWindow?.rootViewController
-            while (root?.presentedViewController != null) root = root.presentedViewController
-            root?.presentViewController(picker, true, null) ?: callback(null)
-        }
-    }
-}
+@Composable actual fun rememberPdfPicker(onPicked: (path: String?) -> Unit): () -> Unit =
+    com.ziaee.zabankhan.files.rememberFilePicker(listOf(com.ziaee.zabankhan.files.FileKind.PDF)) { onPicked(it?.path) }

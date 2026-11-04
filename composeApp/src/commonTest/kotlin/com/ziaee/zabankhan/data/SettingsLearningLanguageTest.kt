@@ -1,0 +1,45 @@
+package com.ziaee.zabankhan.data
+
+import androidx.datastore.core.DataStore
+import androidx.datastore.preferences.core.Preferences
+import androidx.datastore.preferences.core.emptyPreferences
+import androidx.datastore.preferences.core.preferencesOf
+import androidx.datastore.preferences.core.stringPreferencesKey
+import com.ziaee.zabankhan.lang.Languages
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.test.runTest
+import kotlin.test.*
+
+class SettingsLearningLanguageTest {
+    private class MemoryStore(initial: Preferences = emptyPreferences()) : DataStore<Preferences> {
+        override val data = MutableStateFlow(initial)
+        override suspend fun updateData(transform: suspend (t: Preferences) -> Preferences): Preferences =
+            transform(data.value).also { data.value = it }
+    }
+
+    @Test fun restoredPersianLearningLanguageFallsBackToSupportedLanguage() = runTest {
+        val repository = SettingsRepository(MemoryStore(preferencesOf(
+            stringPreferencesKey("learning_lang") to Languages.PERSIAN.code,
+            stringPreferencesKey("learning_langs") to "${Languages.PERSIAN.code},${Languages.ENGLISH.code}",
+        )))
+        assertEquals(Languages.ENGLISH.code, repository.current().learningLang)
+        assertEquals(listOf(Languages.ENGLISH.code), repository.current().learningLangs)
+    }
+
+    @Test fun restoredPersianOnlyPreferencesReturnToOnboarding() = runTest {
+        val repository = SettingsRepository(MemoryStore(preferencesOf(
+            stringPreferencesKey("learning_lang") to Languages.PERSIAN.code,
+            stringPreferencesKey("learning_langs") to Languages.PERSIAN.code,
+        )))
+        assertNull(repository.current().learningLang)
+        assertTrue(repository.current().learningLangs.isEmpty())
+    }
+
+    @Test fun persianCannotBeAddedOrActivatedAsLearningLanguage() = runTest {
+        val repository = SettingsRepository(MemoryStore())
+        assertFailsWith<IllegalArgumentException> { repository.addLearningLang(Languages.PERSIAN.code) }
+        assertFailsWith<IllegalArgumentException> { repository.setLearningLang(Languages.PERSIAN.code) }
+        repository.addLearningLang(Languages.ENGLISH.code)
+        assertEquals(Languages.ENGLISH.code, repository.current().learningLang)
+    }
+}

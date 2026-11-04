@@ -1,0 +1,10 @@
+<resources>
+    <string name="backup_heading">Backups</string>
+    <string name="backup_export">Export backup ZIP</string>
+    <string name="backup_restore">Restore backup ZIP</string>
+    <string name="backup_replace_warning">This replaces all current texts, words, settings, PDFs, and videos. The app will reload. Continue?</string>
+    <string name="backup_failed">Backup failed. Check the file and available space, then try again.</string>
+    <string name="backup_exported">Backup ready. Choose where to save it in the share sheet.</string>
+    <string name="backup_automatic_help">An automatic backup is kept daily when available. The newest five are retained.</string>
+    <string name="backup_too_large">Backups larger than 256 MiB are currently unsupported. Large video files require a streaming backup implementation.</string>
+</resources>

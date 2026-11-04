@@ -101,41 +101,6 @@ private class LocalController(val player: AVPlayer) : VideoController, VideoStat
     }, update = { it.playerLayer.player = controller.player }, onRelease = { it.playerLayer.player = null })
 }
 
-private class MediaPickerDelegate(private val kind: MediaFileKind, private val scope: CoroutineScope, val picked: (String?) -> Unit) : NSObject(), UIDocumentPickerDelegateProtocol {
-    override fun documentPickerWasCancelled(controller: UIDocumentPickerViewController) { picked(null) }
-    override fun documentPicker(controller: UIDocumentPickerViewController, didPickDocumentsAtURLs: List<*>) {
-        val url = didPickDocumentsAtURLs.firstOrNull() as? NSURL ?: return picked(null)
-        val scoped = url.startAccessingSecurityScopedResource()
-        scope.launch {
-            val path = try { withContext(Dispatchers.IO) {
-                val ext = url.pathExtension.orEmpty().lowercase()
-                require(ext in if (kind == MediaFileKind.VIDEO) listOf("mp4", "m4v", "mov") else listOf("srt", "vtt"))
-                val fs = FileSystem.SYSTEM
-                val directory = "${AppFiles.filesDir}/watch".toPath()
-                fs.createDirectories(directory)
-                val file = directory / (NSUUID().UUIDString + ".$ext")
-                try {
-                    fs.source(requireNotNull(url.path).toPath()).buffer().use { input -> fs.sink(file).buffer().use { it.writeAll(input) } }
-                    fs.write((file.toString() + ".title").toPath()) { writeUtf8(url.lastPathComponent.orEmpty().substringBeforeLast('.')) }
-                    file.toString()
-                } catch (e: Exception) { fs.delete(file, mustExist = false); throw e }
-            } } catch (e: CancellationException) { throw e } catch (_: Exception) { null }
-            finally { if (scoped) url.stopAccessingSecurityScopedResource() }
-            picked(path)
-        }
-    }
-}
-
-@Composable actual fun rememberMediaPicker(kind: MediaFileKind, onPicked: (String?) -> Unit): () -> Unit {
-    val callback by rememberUpdatedState(onPicked)
-    val scope = rememberCoroutineScope()
-    val delegate = remember(kind) { MediaPickerDelegate(kind, scope) { callback(it) } }
-    return remember(kind) { {
-        val types = if (kind == MediaFileKind.VIDEO) listOf(UTTypeMPEG4Movie, UTTypeQuickTimeMovie) else listOfNotNull(UTType.typeWithFilenameExtension("srt"), UTType.typeWithFilenameExtension("vtt"))
-        val picker = UIDocumentPickerViewController(forOpeningContentTypes = types, asCopy = true)
-        picker.delegate = delegate
-        var root = UIApplication.sharedApplication.keyWindow?.rootViewController
-        while (root?.presentedViewController != null) root = root.presentedViewController
-        root?.presentViewController(picker, true, null) ?: callback(null)
-    } }
-}
+@Composable actual fun rememberMediaPicker(kind: MediaFileKind, onPicked: (String?) -> Unit): () -> Unit =
+    com.ziaee.zabankhan.files.rememberFilePicker(listOf(if (kind == MediaFileKind.VIDEO)
+        com.ziaee.zabankhan.files.FileKind.VIDEO else com.ziaee.zabankhan.files.FileKind.SUBTITLE)) { onPicked(it?.path) }

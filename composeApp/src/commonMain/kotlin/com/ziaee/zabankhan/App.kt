@@ -20,8 +20,14 @@ import com.ziaee.zabankhan.watch.*
 import com.ziaee.zabankhan.ui.theme.*
 import org.jetbrains.compose.resources.stringResource
 
-@Composable fun App(container: AppContainer) {
-    val vm = viewModel { AppViewModel(container) }
+@Composable fun App(container: AppContainer, request: AppOpenRequest? = null, onRequestHandled: () -> Unit = {}) {
+    key(container) { AppContent(container, request, onRequestHandled) }
+}
+
+data class AppOpenRequest(val text: String? = null, val review: Boolean = false, val id: Long = 0)
+
+@Composable private fun AppContent(container: AppContainer, request: AppOpenRequest?, onRequestHandled: () -> Unit) {
+    val vm = viewModel(key = "app-${container.hashCode()}") { AppViewModel(container) }
     val settings by vm.settings.collectAsState()
     CompositionLocalProvider(LocalAppContainer provides container) {
         ZabankhanTheme(ThemeMode.entries.firstOrNull { it.name == settings?.themeMode } ?: ThemeMode.SYSTEM) {
@@ -29,6 +35,24 @@ import org.jetbrains.compose.resources.stringResource
             if (prefs == null) { CircularProgressIndicator(); return@ZabankhanTheme }
             if (prefs.learningLang == null) { Onboarding(vm); return@ZabankhanTheme }
             val nav = rememberNavController()
+            val reminderOpen by com.ziaee.zabankhan.reminder.ReviewReminderNavigation.pending.collectAsState()
+            LaunchedEffect(reminderOpen) {
+                if (reminderOpen) {
+                    nav.navigate("review") { launchSingleTop = true }
+                    com.ziaee.zabankhan.reminder.ReviewReminderNavigation.consume()
+                }
+            }
+            var sharedText by remember { mutableStateOf("") }
+            LaunchedEffect(request) {
+                if (request != null) {
+                    when {
+                        request.review -> nav.navigate("review") { launchSingleTop = true }
+                        request.text != null -> { sharedText = request.text; nav.navigate("add") { launchSingleTop = true } }
+                    }
+                    onRequestHandled()
+                }
+            }
+            com.ziaee.zabankhan.reminder.ReviewReminderLifecycle(container, prefs)
             val entry by nav.currentBackStackEntryAsState()
             val route = entry?.destination?.route
             val labels = listOf(Res.string.nav_home, Res.string.nav_library, Res.string.nav_words, Res.string.nav_review, Res.string.nav_settings)
@@ -54,7 +78,7 @@ import org.jetbrains.compose.resources.stringResource
                     composable("words") { WordsScreen(vm, prefs) }
                     composable("review") { ReviewScreen(container, prefs) }
                     composable("settings") { SettingsScreen(vm, prefs) }
-                    composable("add") { AddTextScreen(vm, prefs, { nav.popBackStack() }) { id -> nav.navigate("reader/$id") { popUpTo("add") { inclusive = true } } } }
+                    composable("add") { AddTextScreen(vm, prefs, { sharedText = ""; nav.popBackStack() }, { id -> sharedText = ""; nav.navigate("reader/$id") { popUpTo("add") { inclusive = true } } }, initialText = sharedText) }
                     composable("pdf/{id}", arguments = listOf(navArgument("id") { type = NavType.LongType })) {
                         ReaderScreen(vm, prefs, requireNotNull(it.arguments?.read { getLong("id") })) { nav.popBackStack() }
                     }

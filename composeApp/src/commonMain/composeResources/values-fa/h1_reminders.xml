@@ -1,0 +1,7 @@
+<resources>
+    <string name="h1_reminder_title">یادآور مرور</string>
+    <string name="h1_reminder_daily">اعلان روزانهٔ مرور</string>
+    <string name="h1_reminder_hour">ساعت</string>
+    <string name="h1_reminder_minute">دقیقه</string>
+    <string name="h1_reminder_waiting">%1$d کارت منتظر مرور است</string>
+</resources>

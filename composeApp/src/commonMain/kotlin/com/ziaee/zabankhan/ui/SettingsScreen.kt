@@ -66,6 +66,8 @@ import org.jetbrains.compose.resources.stringResource
     var customUrl by remember(settings.llmProvider) { mutableStateOf(settings.llmProvider.takeIf { it.startsWith("https://") }.orEmpty()) }
     Page {
         Heading(stringResource(Res.string.nav_settings))
+        com.ziaee.zabankhan.backup.BackupSettings(vm.container)
+        com.ziaee.zabankhan.reminder.ReviewReminderSettings(vm, settings)
         Text(stringResource(Res.string.learning_languages), style = MaterialTheme.typography.titleMedium)
         FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Languages.learnable.forEach { lang ->

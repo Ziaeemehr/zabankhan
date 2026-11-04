@@ -47,6 +47,7 @@ kotlin {
             implementation(libs.kotlinx.datetime)
         }
         androidMain.dependencies {
+            implementation("androidx.work:work-runtime-ktx:2.10.1")
             implementation(libs.media3.exoplayer)
             implementation(libs.media3.ui)
             implementation(libs.androidx.activity.compose)

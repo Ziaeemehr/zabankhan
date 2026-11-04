@@ -1,0 +1,15 @@
+<resources>
+    <string name="h1_import_text">متن / مارک‌داون</string>
+    <string name="h1_import_epub">کتاب EPUB</string>
+    <string name="h1_import_image">عکس به متن (OCR)</string>
+    <string name="h1_import_csv">واژه‌ها از CSV</string>
+    <string name="h1_import_anki">فایل Anki JSON</string>
+    <string name="h1_sample_csv">نمونهٔ CSV</string>
+    <string name="h1_imported_words">واژه‌های واردشده</string>
+    <string name="h1_ocr_preview">بازبینی متن استخراج‌شده</string>
+    <string name="h1_keep_progress">حفظ پیشرفت مرور</string>
+    <string name="h1_import">وارد کردن</string>
+    <string name="h1_import_complete">ورود داده انجام شد</string>
+    <string name="h1_import_counts">%1$d وارد شد · %2$d رد شد</string>
+    <string name="h1_copy">کپی</string>
+</resources>

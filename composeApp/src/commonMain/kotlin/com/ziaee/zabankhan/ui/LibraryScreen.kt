@@ -32,7 +32,7 @@ import org.jetbrains.compose.resources.stringResource
         item { OutlinedTextField(search, { search = it }, label = { Text(stringResource(Res.string.search)) }, singleLine = true, modifier = Modifier.fillMaxWidth()) }
         item { Choice(stringResource(Res.string.folder), folder, options) { folder = it } }
         item { FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            com.ziaee.zabankhan.pdf.PdfAddMenu(vm, settings, add, open, watch)
+            ImportAddMenu(vm, settings, add, open, watch)
             OutlinedButton(onClick = { newFolder = true }) { Text(stringResource(Res.string.new_folder)) }
             folders.firstOrNull { it.id == folder }?.let { selected ->
                 TextButton(onClick = { folderDialog = selected }) { Text(stringResource(Res.string.rename)) }
@@ -59,9 +59,9 @@ import org.jetbrains.compose.resources.stringResource
 }
 
 @OptIn(ExperimentalLayoutApi::class)
-@Composable fun AddTextScreen(vm: AppViewModel, settings: AppSettings, back: () -> Unit, open: (Long) -> Unit) {
+@Composable fun AddTextScreen(vm: AppViewModel, settings: AppSettings, back: () -> Unit, open: (Long) -> Unit, initialText: String = "") {
     var title by rememberSaveable { mutableStateOf("") }
-    var body by rememberSaveable { mutableStateOf("") }
+    var body by rememberSaveable(initialText) { mutableStateOf(initialText) }
     var busy by remember { mutableStateOf(false) }
     Page {
         TextButton(onClick = back) { Text(stringResource(Res.string.back)) }

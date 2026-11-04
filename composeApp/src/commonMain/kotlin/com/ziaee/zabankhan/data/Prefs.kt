@@ -1,11 +1,13 @@
 package com.ziaee.zabankhan.data
 
+import com.ziaee.zabankhan.lang.Languages
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.PreferenceDataStoreFactory
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
+import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
@@ -13,8 +15,8 @@ import okio.Path.Companion.toPath
 
 const val PREFS_FILE = "zabankhan.preferences_pb"
 
-fun createPrefsStore(path: String): DataStore<Preferences> =
-    PreferenceDataStoreFactory.createWithPath(produceFile = { path.toPath() })
+fun createPrefsStore(path: String, scope: CoroutineScope = CoroutineScope(Dispatchers.IO + SupervisorJob())): DataStore<Preferences> =
+    PreferenceDataStoreFactory.createWithPath(scope = scope, produceFile = { path.toPath() })
 
 data class AppSettings(
     /** Active learning language; null until onboarding picks one. */
@@ -31,12 +33,16 @@ data class AppSettings(
     val speechRate: Float = 1f,
     val autoPronounceCards: Boolean = false,
     val ttsVoices: Map<String, String> = emptyMap(),
+    val reminderEnabled: Boolean = false,
+    val reminderHour: Int = 19,
+    val reminderMinute: Int = 0,
     val llmProvider: String = "",
     val llmApiKey: String = "",
     val llmModel: String = "",
 )
 
-class SettingsRepository(private val store: DataStore<Preferences>) {
+class SettingsRepository(private val store: DataStore<Preferences>, private val scope: CoroutineScope? = null) {
+    suspend fun closeForRestore() { scope?.coroutineContext?.get(Job)?.cancelAndJoin() }
     private object K {
         val lang = stringPreferencesKey("learning_lang")
         val langs = stringPreferencesKey("learning_langs")
@@ -48,15 +54,21 @@ class SettingsRepository(private val store: DataStore<Preferences>) {
         val speechRate = androidx.datastore.preferences.core.floatPreferencesKey("speech_rate")
         val autoCards = androidx.datastore.preferences.core.booleanPreferencesKey("auto_pronounce_cards")
         val voices = stringPreferencesKey("tts_voices")
+        val reminderEnabled = androidx.datastore.preferences.core.booleanPreferencesKey("review_reminder_enabled")
+        val reminderHour = intPreferencesKey("review_reminder_hour")
+        val reminderMinute = intPreferencesKey("review_reminder_minute")
         val llmProvider = stringPreferencesKey("llm_provider")
         val llmKey = stringPreferencesKey("llm_api_key")
         val llmModel = stringPreferencesKey("llm_model")
     }
 
     val settings: Flow<AppSettings> = store.data.map { p ->
+        val allowed = Languages.learnable.map { it.code }.toSet()
+        val langs = p[K.langs]?.split(',')?.filter { it in allowed }?.distinct().orEmpty()
+        val active = p[K.lang]?.takeIf { it in allowed } ?: langs.firstOrNull()
         AppSettings(
-            learningLang = p[K.lang],
-            learningLangs = p[K.langs]?.split(',')?.filter { it.isNotBlank() }.orEmpty(),
+            learningLang = active,
+            learningLangs = (langs + listOfNotNull(active)).distinct(),
             meaningLang = p[K.meaning] ?: "fa",
             uiLang = p[K.ui] ?: "system",
             themeMode = p[K.theme] ?: "SYSTEM",
@@ -65,15 +77,22 @@ class SettingsRepository(private val store: DataStore<Preferences>) {
             speechRate = p[K.speechRate] ?: 1f,
             autoPronounceCards = p[K.autoCards] ?: false,
             ttsVoices = runCatching { kotlinx.serialization.json.Json.decodeFromString<Map<String, String>>(p[K.voices] ?: "{}") }.getOrDefault(emptyMap()),
+            reminderEnabled = p[K.reminderEnabled] ?: false,
+            reminderHour = (p[K.reminderHour] ?: 19).coerceIn(0, 23),
+            reminderMinute = (p[K.reminderMinute] ?: 0).coerceIn(0, 59),
             llmProvider = p[K.llmProvider].orEmpty(),
             llmApiKey = p[K.llmKey].orEmpty(),
             llmModel = p[K.llmModel].orEmpty(),
         )
     }
 
+    /** Persist defaults before a file-based backup, even on a fresh installation. */
+    suspend fun persistForBackup() = store.edit { if (it[K.theme] == null) it[K.theme] = "SYSTEM" }
+
     suspend fun current(): AppSettings = settings.first()
 
     suspend fun addLearningLang(code: String) = store.edit { p ->
+        require(Languages.learnable.any { it.code == code }) { "Unsupported learning language" }
         val list = p[K.langs]?.split(',')?.filter { it.isNotBlank() }.orEmpty()
         if (code !in list) p[K.langs] = (list + code).joinToString(",")
         p[K.lang] = code
@@ -85,7 +104,15 @@ class SettingsRepository(private val store: DataStore<Preferences>) {
         if (p[K.lang] == code) { if (list.isEmpty()) p.remove(K.lang) else p[K.lang] = list.first() }
     }
 
-    suspend fun setLearningLang(code: String) = store.edit { it[K.lang] = code }
+    suspend fun setReminderEnabled(enabled: Boolean) = store.edit { it[K.reminderEnabled] = enabled }
+    suspend fun setReminderTime(hour: Int, minute: Int) = store.edit {
+        require(hour in 0..23 && minute in 0..59)
+        it[K.reminderHour] = hour; it[K.reminderMinute] = minute
+    }
+    suspend fun setLearningLang(code: String) = store.edit {
+        require(Languages.learnable.any { it.code == code }) { "Unsupported learning language" }
+        it[K.lang] = code
+    }
     suspend fun setMeaningLang(code: String) = store.edit { it[K.meaning] = code }
     suspend fun setUiLang(code: String) = store.edit { it[K.ui] = code }
     suspend fun setThemeMode(mode: String) = store.edit { it[K.theme] = mode }

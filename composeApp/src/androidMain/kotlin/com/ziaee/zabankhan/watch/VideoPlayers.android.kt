@@ -91,28 +91,6 @@ private class LocalController(val player: ExoPlayer) : VideoController, VideoSta
     AndroidView(modifier = modifier, factory = { PlayerView(it).apply { useController = true } }, update = { it.player = controller.player }, onRelease = { it.player = null })
 }
 
-@Composable actual fun rememberMediaPicker(kind: MediaFileKind, onPicked: (String?) -> Unit): () -> Unit {
-    val context = LocalContext.current
-    val callback by rememberUpdatedState(onPicked)
-    val scope = rememberCoroutineScope()
-    val launcher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
-        if (uri == null) callback(null) else scope.launch {
-            val path = withContext(Dispatchers.IO) { runCatching {
-                val name = context.contentResolver.query(uri, arrayOf(android.provider.OpenableColumns.DISPLAY_NAME), null, null, null)?.use {
-                    if (it.moveToFirst()) it.getString(0) else null
-                }.orEmpty()
-                val ext = name.substringAfterLast('.', "").lowercase()
-                require(ext in if (kind == MediaFileKind.VIDEO) listOf("mp4", "m4v", "mov") else listOf("srt", "vtt"))
-                val directory = File(context.filesDir, "watch").apply { mkdirs() }
-                val file = File.createTempFile("import-", ".$ext", directory)
-                try {
-                    context.contentResolver.openInputStream(uri)!!.use { input -> file.outputStream().use { input.copyTo(it) } }
-                    File(file.path + ".title").writeText(name.substringBeforeLast('.'))
-                    file.path
-                } catch (e: Exception) { file.delete(); throw e }
-            }.getOrNull() }
-            callback(path)
-        }
-    }
-    return { launcher.launch(if (kind == MediaFileKind.VIDEO) arrayOf("video/mp4", "video/x-m4v", "video/quicktime") else arrayOf("text/*", "application/x-subrip")) }
-}
+@Composable actual fun rememberMediaPicker(kind: MediaFileKind, onPicked: (String?) -> Unit): () -> Unit =
+    com.ziaee.zabankhan.files.rememberFilePicker(listOf(if (kind == MediaFileKind.VIDEO)
+        com.ziaee.zabankhan.files.FileKind.VIDEO else com.ziaee.zabankhan.files.FileKind.SUBTITLE)) { onPicked(it?.path) }

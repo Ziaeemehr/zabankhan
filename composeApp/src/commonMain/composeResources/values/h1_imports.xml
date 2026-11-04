@@ -1,0 +1,15 @@
+<resources>
+    <string name="h1_import_text">TXT / Markdown</string>
+    <string name="h1_import_epub">EPUB book</string>
+    <string name="h1_import_image">Image → text (OCR)</string>
+    <string name="h1_import_csv">Words CSV</string>
+    <string name="h1_import_anki">Anki JSON</string>
+    <string name="h1_sample_csv">Sample CSV</string>
+    <string name="h1_imported_words">Imported words</string>
+    <string name="h1_ocr_preview">Review extracted text</string>
+    <string name="h1_keep_progress">Keep review progress</string>
+    <string name="h1_import">Import</string>
+    <string name="h1_import_complete">Import complete</string>
+    <string name="h1_import_counts">%1$d imported · %2$d skipped</string>
+    <string name="h1_copy">Copy</string>
+</resources>

@@ -1,0 +1,7 @@
+<resources>
+    <string name="h1_reminder_title">Rappels de révision</string>
+    <string name="h1_reminder_daily">Notification quotidienne de révision</string>
+    <string name="h1_reminder_hour">Heure</string>
+    <string name="h1_reminder_minute">Minute</string>
+    <string name="h1_reminder_waiting">%1$d cartes vous attendent</string>
+</resources>

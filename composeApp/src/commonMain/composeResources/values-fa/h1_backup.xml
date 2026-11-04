@@ -1,0 +1,10 @@
+<resources>
+    <string name="backup_heading">پشتیبان‌ها</string>
+    <string name="backup_export">خروجی پشتیبان ZIP</string>
+    <string name="backup_restore">بازیابی پشتیبان ZIP</string>
+    <string name="backup_replace_warning">همهٔ متن‌ها، واژه‌ها، تنظیمات، PDFها و ویدیوهای کنونی جایگزین می‌شوند و برنامه دوباره بارگذاری می‌شود. ادامه می‌دهید؟</string>
+    <string name="backup_failed">پشتیبان‌گیری ناموفق بود. فایل و فضای خالی را بررسی و دوباره تلاش کنید.</string>
+    <string name="backup_exported">پشتیبان آماده است. محل ذخیره را در پنجرهٔ اشتراک‌گذاری انتخاب کنید.</string>
+    <string name="backup_automatic_help">در صورت امکان روزانه پشتیبان خودکار گرفته می‌شود. پنج نسخهٔ آخر نگه داشته می‌شوند.</string>
+    <string name="backup_too_large">پشتیبان بزرگ‌تر از ۲۵۶ مگابایت فعلاً پشتیبانی نمی‌شود. فایل‌های ویدیویی بزرگ به پشتیبان‌گیری جریانی نیاز دارند.</string>
+</resources>

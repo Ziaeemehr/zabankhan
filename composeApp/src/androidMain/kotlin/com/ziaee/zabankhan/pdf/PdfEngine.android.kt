@@ -129,34 +129,5 @@ actual fun cropPdfImage(image: ImageBitmap, rect: PdfRect): ImageBitmap {
     val h = ((rect.bottom * image.height).toInt() - y).coerceIn(1, image.height - y)
     return Bitmap.createBitmap(image.asAndroidBitmap(), x, y, w, h).asImageBitmap()
 }
-@Composable actual fun rememberPdfPicker(onPicked: (path: String?) -> Unit): () -> Unit {
-    val context = LocalContext.current
-    val callback by rememberUpdatedState(onPicked)
-    val scope = rememberCoroutineScope()
-    val launcher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
-        if (uri == null) callback(null) else scope.launch {
-            val path = withContext(Dispatchers.IO) { runCatching {
-                val directory = File(context.filesDir, "pdfs").apply { mkdirs() }
-                val temporary = File.createTempFile("import-", ".pdf", directory)
-                try {
-                    context.contentResolver.openInputStream(uri)!!.use { input -> temporary.outputStream().use { input.copyTo(it) } }
-                    val digest = java.security.MessageDigest.getInstance("SHA-256")
-                    temporary.inputStream().use { stream ->
-                        val bytes = ByteArray(8192)
-                        while (true) { val n = stream.read(bytes); if (n < 0) break; digest.update(bytes, 0, n) }
-                    }
-                    val target = File(directory, digest.digest().toByteString().hex() + ".pdf")
-                    if (!target.exists()) check(temporary.renameTo(target))
-                    // Retain source title separately while keeping the stored filename content-addressed.
-                    val name = context.contentResolver.query(uri, arrayOf(android.provider.OpenableColumns.DISPLAY_NAME), null, null, null)?.use {
-                        if (it.moveToFirst()) it.getString(0) else null
-                    } ?: "PDF"
-                    File(target.path + ".title").writeText(name.substringBeforeLast('.'))
-                    target.absolutePath
-                } finally { temporary.delete() }
-            }.getOrNull() }
-            callback(path)
-        }
-    }
-    return { launcher.launch(arrayOf("application/pdf")) }
-}
+@Composable actual fun rememberPdfPicker(onPicked: (path: String?) -> Unit): () -> Unit =
+    com.ziaee.zabankhan.files.rememberFilePicker(listOf(com.ziaee.zabankhan.files.FileKind.PDF)) { onPicked(it?.path) }

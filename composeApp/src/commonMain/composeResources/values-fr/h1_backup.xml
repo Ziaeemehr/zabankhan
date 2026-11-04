@@ -1,0 +1,10 @@
+<resources>
+    <string name="backup_heading">Sauvegardes</string>
+    <string name="backup_export">Exporter une sauvegarde ZIP</string>
+    <string name="backup_restore">Restaurer une sauvegarde ZIP</string>
+    <string name="backup_replace_warning">Tous les textes, mots, réglages, PDF et vidéos actuels seront remplacés. L’application sera rechargée. Continuer ?</string>
+    <string name="backup_failed">Échec de la sauvegarde. Vérifiez le fichier et l’espace disponible, puis réessayez.</string>
+    <string name="backup_exported">Sauvegarde prête. Choisissez où l’enregistrer dans la feuille de partage.</string>
+    <string name="backup_automatic_help">Une sauvegarde automatique est créée chaque jour si possible. Les cinq plus récentes sont conservées.</string>
+    <string name="backup_too_large">Les sauvegardes de plus de 256 Mio ne sont pas prises en charge actuellement. Les vidéos volumineuses nécessitent une sauvegarde en flux.</string>
+</resources>

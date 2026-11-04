@@ -1,0 +1,7 @@
+<resources>
+    <string name="h1_reminder_title">Review reminders</string>
+    <string name="h1_reminder_daily">Daily review notification</string>
+    <string name="h1_reminder_hour">Hour</string>
+    <string name="h1_reminder_minute">Minute</string>
+    <string name="h1_reminder_waiting">%1$d cards are waiting</string>
+</resources>
