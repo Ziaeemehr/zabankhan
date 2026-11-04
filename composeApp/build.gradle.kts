@@ -22,6 +22,11 @@ kotlin {
         }
     }
 
+    compilerOptions {
+        optIn.add("kotlin.time.ExperimentalTime")
+        freeCompilerArgs.add("-Xexpect-actual-classes")
+    }
+
     sourceSets {
         commonMain.dependencies {
             implementation(compose.runtime)
