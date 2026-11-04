@@ -40,3 +40,11 @@ class PdfWordsTest {
         assertEquals(1f, PdfReadingProgress(20, 12).fraction)
     }
 }
+
+class PdfLookupWordTest {
+    @kotlin.test.Test fun stripsElisionAndPunctuation() {
+        kotlin.test.assertEquals("appartement", pdfLookupWord("L'appartement", "fr"))
+        kotlin.test.assertEquals("grand", pdfLookupWord("grand.", "fr"))
+        kotlin.test.assertEquals("house", pdfLookupWord("house,", "en"))
+    }
+}

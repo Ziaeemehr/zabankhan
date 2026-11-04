@@ -1,6 +1,7 @@
 package com.ziaee.zabankhan.pdf
 
 import com.ziaee.zabankhan.lang.*
+import com.ziaee.zabankhan.translate.stripCombiningMarks
 
 
 /** Offsets are UTF-16, matching Compose's text offsets; end is exclusive. */
@@ -16,9 +17,7 @@ data class OcrCorrection(val text: String, val changes: List<OcrChange>) {
     }
 }
 
-private val ocrTokens = Regex("[\\p{L}\\p{N}]+")
-// Compiled once: the skeleton runs for every one of ~110k lexicon words while indexing.
-private val combiningMarks = Regex("\\p{M}+")
+private val ocrTokens = Regex("[\\p{L}\\p{Nd}]+")
 
 /** Simple word-level LCS diff. Replacements carry the previous form for individual reversion. */
 fun ocrWordDiff(original: String, corrected: String): OcrCorrection {
@@ -63,7 +62,7 @@ class OcrTextCorrector(forms: Set<String> = emptySet(), commonForms: Set<String>
     private val common = commonForms.mapTo(HashSet()) { it.lowercase() }
     // Canonical OCR families make the candidate search narrow even for multi-letter confusions.
     private fun skeleton(value: String): String = (language?.let { normalizeForMatch(value, it) } ?: value.lowercase())
-        .replace(combiningMarks, "").replace("rn", "m").replace("nn", "m")
+        .let { stripCombiningMarks(it) }.replace("rn", "m").replace("nn", "m")
         .replace("cl", "d").replace("li", "h").replace("ii", "n").replace("vv", "w")
         .replace('i', 'l').replace('n', 'u')
     private val buckets = lexicon.groupBy { skeleton(it) }

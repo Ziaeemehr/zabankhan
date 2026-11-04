@@ -13,7 +13,7 @@ import okio.FileSystem
 import okio.Path.Companion.toPath
 import org.jetbrains.compose.resources.stringResource
 
-@Composable fun PdfAddMenu(vm: AppViewModel, settings: AppSettings, addText: () -> Unit, open: (Long) -> Unit) {
+@Composable fun PdfAddMenu(vm: AppViewModel, settings: AppSettings, addText: () -> Unit, open: (Long) -> Unit, watch: (() -> Unit)? = null) {
     var expanded by remember { mutableStateOf(false) }
     val picker = rememberPdfPicker { path ->
         if (path != null) vm.action {
@@ -29,6 +29,7 @@ import org.jetbrains.compose.resources.stringResource
         DropdownMenu(expanded, { expanded = false }) {
             DropdownMenuItem(text = { Text(stringResource(Res.string.add_text)) }, onClick = { expanded = false; addText() })
             DropdownMenuItem(text = { Text(stringResource(Res.string.pdf_import)) }, onClick = { expanded = false; picker() })
+            if (watch != null) DropdownMenuItem(text = { Text(stringResource(Res.string.watch_video)) }, onClick = { expanded = false; watch() })
         }
     }
 }

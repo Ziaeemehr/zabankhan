@@ -54,3 +54,10 @@ fun normalizePdfBounds(bounds: PdfRect, pageWidth: Float, pageHeight: Float, tex
     return PdfRect(corners.minOf { it.first }.coerceIn(0f, 1f), corners.minOf { it.second }.coerceIn(0f, 1f),
         corners.maxOf { it.first }.coerceIn(0f, 1f), corners.maxOf { it.second }.coerceIn(0f, 1f))
 }
+
+
+/** PDF words keep punctuation and elisions ("L'appartement", "grand."); look up the bare word like the text reader does. */
+fun pdfLookupWord(raw: String, langCode: String): String {
+    val lang = com.ziaee.zabankhan.lang.Languages.byCode(langCode) ?: return raw
+    return com.ziaee.zabankhan.lang.tokenize(raw, lang).maxByOrNull { it.end - it.start }?.text ?: raw
+}

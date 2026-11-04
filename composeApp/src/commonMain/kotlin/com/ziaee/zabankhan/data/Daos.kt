@@ -12,6 +12,8 @@ import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface TextDao {
+    @Query("SELECT * FROM texts WHERE externalKey = :key LIMIT 1")
+    suspend fun getByExternalKey(key: String): TextDocument?
     @Query("SELECT * FROM texts WHERE lang = :lang ORDER BY pinned DESC, createdAtMs DESC")
     fun observeAll(lang: String): Flow<List<TextDocument>>
 

@@ -8,6 +8,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.style.TextDirection
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.ziaee.zabankhan.lang.*
 import com.ziaee.zabankhan.resources.*
@@ -18,7 +19,7 @@ import org.jetbrains.compose.resources.stringResource
     Languages.ENGLISH.code -> Res.string.language_english
     else -> Res.string.language_french
 })
-fun contentStyle(text: String) = TextStyle(textDirection = if (isRtlText(text)) TextDirection.Rtl else TextDirection.Ltr)
+fun contentStyle(text: String) = TextStyle(textDirection = TextDirection.Content, textAlign = TextAlign.Start)
 
 @Composable fun <T> Choice(label: String, value: T, options: List<Pair<T, String>>, onSelect: (T) -> Unit) {
     var expanded by remember { mutableStateOf(false) }

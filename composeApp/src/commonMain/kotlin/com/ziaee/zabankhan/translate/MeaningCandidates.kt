@@ -7,9 +7,14 @@ data class MeaningOption(val text: String, val gloss: String?, val partOfSpeech:
 
 data class MeaningCandidates(val best: String?, val options: List<MeaningOption>)
 
+// Kotlin/Native regex has no \p{M}; filter by category so this works on iOS too.
+internal fun stripCombiningMarks(text: String): String = text.filterNot {
+    it.category == CharCategory.NON_SPACING_MARK || it.category == CharCategory.COMBINING_SPACING_MARK || it.category == CharCategory.ENCLOSING_MARK
+}
+
 internal fun normalizePersian(text: String): String = text.replace('ي', 'ی').replace('ك', 'ک')
     .replace("\u200C", "")
-    .replace(Regex("\\p{M}+"), "")
+    .let(::stripCombiningMarks)
     .replace(Regex("\\s+"), " ").trim().lowercase()
 
 internal fun filterWordSenses(senses: List<WordSense>): List<WordSense> {
@@ -24,7 +29,7 @@ internal fun filterWordSenses(senses: List<WordSense>): List<WordSense> {
 }
 
 internal fun rankWordSenses(senses: List<WordSense>, translatedSentence: String?, guessedPos: String? = null): List<WordSense> {
-    fun words(text: String) = Regex("[\\p{L}\\p{N}]+").findAll(text.lowercase()).map { it.value }.toList()
+    fun words(text: String) = Regex("[\\p{L}\\p{Nd}]+").findAll(text.lowercase()).map { it.value }.toList()
     val sentenceWords = words(translatedSentence.orEmpty())
     val ignored = setOf("to", "a", "an", "the", "be")
     fun matches(sense: WordSense): Boolean {

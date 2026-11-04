@@ -119,7 +119,7 @@ private data class PdfRange(val page: Int, val first: Int, val last: Int, val wo
                     onError = { failed = true },
                     onTap = { words, word ->
                         range = null
-                        selection = ReaderSelection(word.text, sentenceAround(words, words.indexOf(word)), 0..0, false)
+                        selection = ReaderSelection(pdfLookupWord(word.text, text.lang), sentenceAround(words, words.indexOf(word)), 0..0, false)
                     },
                     onRange = { first, last, words -> selecting = true; range = PdfRange(index, first, last, words) },
                     onRangeEnd = { selecting = false },

@@ -47,6 +47,8 @@ kotlin {
             implementation(libs.kotlinx.datetime)
         }
         androidMain.dependencies {
+            implementation(libs.media3.exoplayer)
+            implementation(libs.media3.ui)
             implementation(libs.androidx.activity.compose)
             implementation(libs.pdfbox.android)
             implementation(libs.mlkit.text.recognition)
@@ -108,4 +110,9 @@ dependencies {
 
 compose.resources {
     packageOfResClass = "com.ziaee.zabankhan.resources"
+}
+
+// iOS simulator tests read fixtures from the host filesystem (simctl forwards SIMCTL_CHILD_* vars).
+tasks.withType<org.jetbrains.kotlin.gradle.targets.native.tasks.KotlinNativeSimulatorTest>().configureEach {
+    environment("SIMCTL_CHILD_PDF_FIXTURE", file("src/iosTest/resources/fr-sample.pdf").absolutePath)
 }

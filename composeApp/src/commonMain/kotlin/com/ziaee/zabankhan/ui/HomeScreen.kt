@@ -15,7 +15,7 @@ import com.ziaee.zabankhan.srs.*
 import kotlinx.coroutines.delay
 import org.jetbrains.compose.resources.stringResource
 
-@Composable fun HomeScreen(vm: AppViewModel, settings: AppSettings, open: (Long) -> Unit, add: () -> Unit, review: () -> Unit) {
+@Composable fun HomeScreen(vm: AppViewModel, settings: AppSettings, open: (Long) -> Unit, add: () -> Unit, review: () -> Unit, watch: () -> Unit) {
     val lang = requireNotNull(settings.learningLang)
     val recent by remember(lang) { vm.container.texts.observeRecent(lang) }.collectAsState(emptyList())
     val texts by remember(lang) { vm.container.texts.observeAll(lang) }.collectAsState(emptyList())
@@ -47,6 +47,12 @@ import org.jetbrains.compose.resources.stringResource
             }
         }
         com.ziaee.zabankhan.pdf.PdfAddMenu(vm, settings, add, open)
+        ElevatedCard(onClick = watch, modifier = Modifier.fillMaxWidth()) {
+            Column(Modifier.padding(20.dp)) {
+                Text(stringResource(Res.string.watch_video), style = MaterialTheme.typography.titleMedium)
+                Text(stringResource(Res.string.watch_home_hint))
+            }
+        }
         Text(stringResource(Res.string.recent_texts), style = MaterialTheme.typography.titleMedium)
         if (texts.isEmpty()) Text(stringResource(Res.string.empty_library))
         (recent.ifEmpty { texts }.take(5)).forEach { text -> TextCard(text, { open(text.id) }) }
@@ -56,8 +62,8 @@ import org.jetbrains.compose.resources.stringResource
     ElevatedCard(onClick = open, modifier = Modifier.fillMaxWidth()) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             if (text.pdfPath != null) Icon(Icons.Default.PictureAsPdf, "PDF")
-            Text(text.title, style = MaterialTheme.typography.titleMedium.merge(contentStyle(text.title)))
-            Text(text.body.take(180), maxLines = 3, style = contentStyle(text.body))
+            Text(text.title, modifier = Modifier.fillMaxWidth(), style = MaterialTheme.typography.titleMedium.merge(contentStyle(text.title)))
+            Text(text.body.take(180), modifier = Modifier.fillMaxWidth(), maxLines = 3, style = contentStyle(text.body))
             Text(kotlin.time.Instant.fromEpochMilliseconds(text.createdAtMs).toString().take(10), style = MaterialTheme.typography.labelSmall)
             actions()
         }

@@ -52,7 +52,8 @@ import org.jetbrains.compose.resources.stringResource
             Text(selection.word, style = MaterialTheme.typography.headlineSmall.merge(contentStyle(selection.word)))
             if (loading) CircularProgressIndicator()
             error?.let { TranslationError(it); TextButton(onClick = { attempt++ }) { Text(stringResource(Res.string.retry)) } }
-            lookup?.let { value ->
+            if (!loading && error == null && lookup?.primary.isNullOrBlank() && lookup?.senses.isNullOrEmpty()) Text(stringResource(Res.string.no_meaning))
+            lookup?.takeIf { it.primary.isNotBlank() || it.senses.isNotEmpty() }?.let { value ->
                 Text(value.primary, style = MaterialTheme.typography.titleLarge.merge(contentStyle(value.primary)))
                 value.senses.forEach { sense ->
                     // pos and meanings on separate lines: one mixed-direction line renders "x :noun".

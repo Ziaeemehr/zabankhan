@@ -56,7 +56,7 @@ data class ReaderSelection(val word: String, val sentence: String, val range: In
             TextButton(onClick = { vm.action { vm.container.settings.setReaderFontSize(settings.readerFontSize - 1) } }, modifier = Modifier.semantics { contentDescription = smallerLabel }, enabled = settings.readerFontSize > 12) { Text("A−", modifier = Modifier, style = MaterialTheme.typography.titleMedium) }
             TextButton(onClick = { vm.action { vm.container.settings.setReaderFontSize(settings.readerFontSize + 1) } }, modifier = Modifier.semantics { contentDescription = largerLabel }, enabled = settings.readerFontSize < 40) { Text("A+", style = MaterialTheme.typography.titleMedium) }
         }
-        Text(text.title, modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp), style = MaterialTheme.typography.titleLarge.merge(contentStyle(text.title)))
+        Text(text.title, modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 8.dp), style = MaterialTheme.typography.titleLarge.merge(contentStyle(text.title)))
         Text(stringResource(Res.string.reader_hint), modifier = Modifier.padding(horizontal = 20.dp), style = MaterialTheme.typography.bodySmall)
         LazyColumn(state = list, contentPadding = PaddingValues(20.dp), verticalArrangement = Arrangement.spacedBy(20.dp)) {
             itemsIndexed(parts, key = { _, part -> part.offset }) { _, part ->

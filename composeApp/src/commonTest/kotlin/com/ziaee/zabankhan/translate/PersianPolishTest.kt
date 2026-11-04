@@ -73,8 +73,7 @@ class PersianPolishTest {
 
     @Test fun longWordsWithoutSpacesStayFast() {
         val long = "ا".repeat(20_000)
-        val start = System.nanoTime()
-        assertEquals(long, polishPersian(long))
-        assertTrue((System.nanoTime() - start) / 1_000_000 < 200)
+        val elapsed = kotlin.time.measureTime { assertEquals(long, polishPersian(long)) }
+        assertTrue(elapsed.inWholeMilliseconds < 2000, "took $elapsed") // debug Kotlin/Native on the simulator is ~10x slower than JVM
     }
 }
