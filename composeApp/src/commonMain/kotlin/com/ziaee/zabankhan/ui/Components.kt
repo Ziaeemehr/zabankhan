@@ -30,7 +30,7 @@ fun contentStyle(text: String) = TextStyle(textDirection = if (isRtlText(text)) 
     }
 }
 @Composable fun Page(content: @Composable ColumnScope.() -> Unit) {
-    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(20.dp), verticalArrangement = Arrangement.spacedBy(16.dp), content = content)
+    Column(Modifier.fillMaxSize().safeDrawingPadding().verticalScroll(rememberScrollState()).padding(20.dp), verticalArrangement = Arrangement.spacedBy(16.dp), content = content)
 }
 @Composable fun Heading(text: String) { Text(text, style = MaterialTheme.typography.headlineSmall) }
 @Composable fun NameDialog(title: String, initial: String = "", onDismiss: () -> Unit, onSave: (String) -> Unit) {

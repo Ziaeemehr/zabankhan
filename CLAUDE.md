@@ -5,7 +5,7 @@
 - Build with JDK 17: `export JAVA_HOME=/opt/homebrew/opt/openjdk@17`. Android: `./gradlew :composeApp:assemblePlayDebug`. Tests: `./gradlew :composeApp:testPlayDebugUnitTest :composeApp:iosSimulatorArm64Test` (iOS test/link needs Xcode; `compileKotlinIosSimulatorArm64` works without it).
 - Android flavors: `play` (may use Google Play services) and `bazaar` (no GMS at all, for Cafe Bazaar/Myket).
 - Port logic from `/Users/ziaee/git/FrenchReaderSpike` (read-only reference; never modify it). Generalize every French assumption through `LanguageSpec`; no hardcoded "fr".
-- Shared code in commonMain must not use java.*, android.*, org.json; use kotlinx-datetime, kotlinx-serialization, Ktor, okio-free stdlib.
+- Shared code in commonMain must not use java.*, android.*, org.json; use kotlinx-datetime, kotlinx-serialization, Ktor, okio (already on the classpath via DataStore) for files.
 - Write implementation code via `codex exec` when practical; verify diffs and build yourself.
 - UI: never use horizontally scrolling menus or chip rows. Options wrap (`FlowRow`) or go in a dropdown.
 - Mixed RTL/LTR: direction follows the content (Persian RTL, French LTR) without flipping the whole screen.

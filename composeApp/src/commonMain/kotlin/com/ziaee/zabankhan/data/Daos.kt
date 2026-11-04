@@ -142,3 +142,12 @@ interface CacheDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun put(e: CacheEntry)
 }
+
+@Dao
+interface PdfHighlightDao {
+    @Query("SELECT * FROM pdf_highlights WHERE textId = :textId ORDER BY page, startWord")
+    fun observeForText(textId: Long): Flow<List<PdfHighlight>>
+    @Insert suspend fun insert(highlight: PdfHighlight): Long
+    @Query("DELETE FROM pdf_highlights WHERE id = :id")
+    suspend fun delete(id: Long)
+}

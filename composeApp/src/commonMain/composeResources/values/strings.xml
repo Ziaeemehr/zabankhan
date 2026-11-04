@@ -95,4 +95,13 @@
     <string name="error_response">Translation failed. Please try again.</string>
     <string name="error_save">Could not save your changes. Please try again.</string>
     <string name="not_found">This text is no longer available.</string>
+    <string name="pdf_import">Import PDF</string>
+    <string name="pdf_select_area">Select area</string>
+    <string name="pdf_area_text">Recognized text</string>
+    <string name="pdf_save_text">Save to library as text</string>
+    <string name="pdf_copy">Copy</string>
+    <string name="pdf_translate">Translate</string>
+    <string name="pdf_error">Unable to read this PDF or recognize its text.</string>
+    <string name="pdf_empty">No text recognized in this area.</string>
+    <string name="pdf_done">Done</string>
 </resources>

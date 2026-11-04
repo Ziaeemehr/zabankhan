@@ -95,4 +95,13 @@
     <string name="error_response">ترجمه انجام نشد. دوباره تلاش کنید.</string>
     <string name="error_save">تغییرات ذخیره نشد. دوباره تلاش کنید.</string>
     <string name="not_found">این متن دیگر در دسترس نیست.</string>
+    <string name="pdf_import">وارد کردن PDF</string>
+    <string name="pdf_select_area">انتخاب ناحیه</string>
+    <string name="pdf_area_text">متن شناسایی‌شده</string>
+    <string name="pdf_save_text">ذخیره در کتابخانه به صورت متن</string>
+    <string name="pdf_copy">کپی</string>
+    <string name="pdf_translate">ترجمه</string>
+    <string name="pdf_error">خواندن PDF یا شناسایی متن آن ممکن نشد.</string>
+    <string name="pdf_empty">متنی در این ناحیه شناسایی نشد.</string>
+    <string name="pdf_done">تمام</string>
 </resources>

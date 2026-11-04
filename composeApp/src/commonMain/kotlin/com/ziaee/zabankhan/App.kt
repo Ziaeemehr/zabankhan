@@ -43,13 +43,16 @@ import org.jetbrains.compose.resources.stringResource
                         icon = { Icon(icons[i], null) }, label = { Text(stringResource(labels[i]), maxLines = 1) }) }
                 }
             }) { padding ->
-                NavHost(nav, "home", Modifier.padding(padding)) {
-                    composable("home") { HomeScreen(vm, prefs, { nav.navigate("reader/$it") }, { nav.navigate("add") }, { nav.navigate("review") }) }
-                    composable("library") { LibraryScreen(vm, prefs, { nav.navigate("reader/$it") }, { nav.navigate("add") }) }
+                NavHost(nav, "home", Modifier.padding(padding).consumeWindowInsets(padding)) {
+                    composable("home") { HomeScreen(vm, prefs, { id -> vm.action { val doc = container.texts.getById(id); nav.navigate(if (doc?.pdfPath != null) "pdf/$id" else "reader/$id") } }, { nav.navigate("add") }, { nav.navigate("review") }) }
+                    composable("library") { LibraryScreen(vm, prefs, { id -> vm.action { val doc = container.texts.getById(id); nav.navigate(if (doc?.pdfPath != null) "pdf/$id" else "reader/$id") } }, { nav.navigate("add") }) }
                     composable("words") { WordsScreen(vm, prefs) }
                     composable("review") { ReviewScreen(container, prefs) }
                     composable("settings") { SettingsScreen(vm, prefs) }
                     composable("add") { AddTextScreen(vm, prefs, { nav.popBackStack() }) { id -> nav.navigate("reader/$id") { popUpTo("add") { inclusive = true } } } }
+                    composable("pdf/{id}", arguments = listOf(navArgument("id") { type = NavType.LongType })) {
+                        ReaderScreen(vm, prefs, requireNotNull(it.arguments?.read { getLong("id") })) { nav.popBackStack() }
+                    }
                     composable("reader/{id}", arguments = listOf(navArgument("id") { type = NavType.LongType })) {
                         ReaderScreen(vm, prefs, requireNotNull(it.arguments?.read { getLong("id") })) { nav.popBackStack() }
                     }

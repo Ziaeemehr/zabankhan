@@ -32,7 +32,7 @@ import org.jetbrains.compose.resources.stringResource
         item { OutlinedTextField(search, { search = it }, label = { Text(stringResource(Res.string.search)) }, singleLine = true, modifier = Modifier.fillMaxWidth()) }
         item { Choice(stringResource(Res.string.folder), folder, options) { folder = it } }
         item { FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Button(onClick = add) { Text(stringResource(Res.string.add_text)) }
+            com.ziaee.zabankhan.pdf.PdfAddMenu(vm, settings, add, open)
             OutlinedButton(onClick = { newFolder = true }) { Text(stringResource(Res.string.new_folder)) }
             folders.firstOrNull { it.id == folder }?.let { selected ->
                 TextButton(onClick = { folderDialog = selected }) { Text(stringResource(Res.string.rename)) }

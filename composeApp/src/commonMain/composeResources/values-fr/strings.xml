@@ -95,4 +95,13 @@
     <string name="error_response">La traduction a échoué. Réessayez.</string>
     <string name="error_save">Impossible d’enregistrer les modifications. Réessayez.</string>
     <string name="not_found">Ce texte n’est plus disponible.</string>
+    <string name="pdf_import">Importer un PDF</string>
+    <string name="pdf_select_area">Sélectionner une zone</string>
+    <string name="pdf_area_text">Texte reconnu</string>
+    <string name="pdf_save_text">Enregistrer comme texte</string>
+    <string name="pdf_copy">Copier</string>
+    <string name="pdf_translate">Traduire</string>
+    <string name="pdf_error">Impossible de lire ce PDF ou de reconnaître son texte.</string>
+    <string name="pdf_empty">Aucun texte reconnu dans cette zone.</string>
+    <string name="pdf_done">Terminé</string>
 </resources>

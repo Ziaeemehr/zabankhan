@@ -1,6 +1,7 @@
 package com.ziaee.zabankhan.data
 
 import androidx.room.ConstructedBy
+import androidx.room.AutoMigration
 import androidx.room.Database
 import androidx.room.RoomDatabase
 import androidx.room.RoomDatabaseConstructor
@@ -10,14 +11,16 @@ import kotlinx.coroutines.IO
 
 @Database(
     entities = [
-        TextDocument::class, LibraryFolder::class, VocabEntry::class, VocabList::class,
+        PdfHighlight::class, TextDocument::class, LibraryFolder::class, VocabEntry::class, VocabList::class,
         ReviewLogEntry::class, HighlightEntry::class, ActivityLogEntry::class, CacheEntry::class,
     ],
-    version = 1,
+    version = 2,
+    autoMigrations = [AutoMigration(from = 1, to = 2)],
     exportSchema = true,
 )
 @ConstructedBy(AppDatabaseConstructor::class)
 abstract class AppDatabase : RoomDatabase() {
+    abstract fun pdfHighlights(): PdfHighlightDao
     abstract fun texts(): TextDao
     abstract fun vocab(): VocabDao
     abstract fun highlights(): HighlightDao

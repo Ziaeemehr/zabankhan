@@ -83,7 +83,7 @@ import org.jetbrains.compose.resources.stringResource
                 } }) { Text(stringResource(if (selection.sentenceActions) Res.string.save_phrase else Res.string.save)) }
                 if (saved != null) OutlinedButton(enabled = !saving, onClick = { saving = true; vm.action { try { vm.container.vocab.delete(saved); dismiss() } finally { saving = false } } }) { Text(stringResource(Res.string.remove)) }
             }
-            if (selection.sentenceActions) {
+            if (selection.sentenceActions && text.pdfPath == null) {
                 Text(stringResource(Res.string.highlight))
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     listOf("primary" to Res.string.highlight_primary, "secondary" to Res.string.highlight_secondary, "tertiary" to Res.string.highlight_tertiary).forEach { (key, label) ->

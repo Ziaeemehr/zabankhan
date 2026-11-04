@@ -105,3 +105,14 @@ data class CacheEntry(
     val value: String,
     val updatedAtMs: Long = nowMs(),
 )
+
+@Entity(tableName = "pdf_highlights", indices = [Index("textId")])
+data class PdfHighlight(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val textId: Long,
+    val page: Int,
+    val startWord: Int,
+    val endWord: Int,
+    val colorKey: String,
+    val createdAtMs: Long = nowMs(),
+)

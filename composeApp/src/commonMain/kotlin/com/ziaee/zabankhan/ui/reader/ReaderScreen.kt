@@ -32,6 +32,7 @@ data class ReaderSelection(val word: String, val sentence: String, val range: In
     LaunchedEffect(id) { loaded = vm.container.texts.getById(id) == null }
     val text = document
     if (text == null) { Page { TextButton(onClick = back) { Text(stringResource(Res.string.back)) }; if (loaded) Text(stringResource(Res.string.not_found)) else CircularProgressIndicator() }; return }
+    if (text.pdfPath != null) { com.ziaee.zabankhan.pdf.PdfReaderScreen(vm, settings, text, back); return }
     val lang = requireNotNull(Languages.byCode(text.lang))
     val parts = remember(text.body) { paragraphs(text.body) }
     val words by remember(text.lang) { vm.container.vocab.observeAll(text.lang) }.collectAsState(emptyList())

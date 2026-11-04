@@ -2,6 +2,8 @@ package com.ziaee.zabankhan.ui
 
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.PictureAsPdf
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
@@ -44,7 +46,7 @@ import org.jetbrains.compose.resources.stringResource
                 Button(onClick = review) { Text(stringResource(Res.string.start_review)) }
             }
         }
-        Button(onClick = add) { Text(stringResource(Res.string.add_text)) }
+        com.ziaee.zabankhan.pdf.PdfAddMenu(vm, settings, add, open)
         Text(stringResource(Res.string.recent_texts), style = MaterialTheme.typography.titleMedium)
         if (texts.isEmpty()) Text(stringResource(Res.string.empty_library))
         (recent.ifEmpty { texts }.take(5)).forEach { text -> TextCard(text, { open(text.id) }) }
@@ -53,6 +55,7 @@ import org.jetbrains.compose.resources.stringResource
 @Composable fun TextCard(text: TextDocument, open: () -> Unit, actions: @Composable ColumnScope.() -> Unit = {}) {
     ElevatedCard(onClick = open, modifier = Modifier.fillMaxWidth()) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            if (text.pdfPath != null) Icon(Icons.Default.PictureAsPdf, "PDF")
             Text(text.title, style = MaterialTheme.typography.titleMedium.merge(contentStyle(text.title)))
             Text(text.body.take(180), maxLines = 3, style = contentStyle(text.body))
             Text(kotlin.time.Instant.fromEpochMilliseconds(text.createdAtMs).toString().take(10), style = MaterialTheme.typography.labelSmall)
