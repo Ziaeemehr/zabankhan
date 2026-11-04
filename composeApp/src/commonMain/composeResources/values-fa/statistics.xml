@@ -1,0 +1,21 @@
+<resources>
+    <string name="h2_progress">پیشرفت</string>
+    <string name="h2_streak">%1$d روز پیاپی فعالیت</string>
+    <string name="h2_today">امروز</string>
+    <string name="h2_seven_days">۷ روز گذشته</string>
+    <string name="h2_thirty_days">۳۰ روز گذشته</string>
+    <string name="h2_activity_minutes">مطالعه: %1$d دقیقه · شنیدن: %2$d دقیقه · تماشا: %3$d دقیقه</string>
+    <string name="h2_activity_chart">فعالیت ۷ روز گذشته (دقیقه)</string>
+    <string name="h2_reading">مطالعه</string>
+    <string name="h2_listening">شنیدن</string>
+    <string name="h2_watching">تماشا</string>
+    <string name="h2_reviews">مرور روزانه</string>
+    <string name="h2_review_day">%1$s: %2$d مرور · %3$d% پاسخ درست</string>
+    <string name="h2_shadow_score">تکرار گفتار: میانگین %1$d% · %2$d تلاش</string>
+    <string name="h2_library_counts">%1$d متن · %2$d واژه</string>
+    <string name="h2_box_count">جعبهٔ %1$d: %2$d واژه</string>
+    <string name="h2_goal_progress">امروز %1$d از %2$d دقیقه</string>
+    <string name="h2_daily_goal">هدف روزانه (دقیقه)</string>
+    <string name="h2_discover">کشف محتوا</string>
+    <string name="h2_find_content">یافتن محتوا</string>
+</resources>

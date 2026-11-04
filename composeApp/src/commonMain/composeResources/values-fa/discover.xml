@@ -1,0 +1,10 @@
+<resources>
+    <string name="discover_title">کشف محتوا</string>
+    <string name="discover_find_content">پیدا کردن محتوا</string>
+    <string name="discover_source">منبع</string>
+    <string name="discover_error">دریافت محتوا ممکن نشد. دوباره تلاش کنید.</string>
+    <string name="discover_empty">هنوز نتیجه‌ای نیست. منبعی انتخاب کنید یا موضوعی را جستجو کنید.</string>
+    <string name="discover_word_count">%1$d کلمه</string>
+    <string name="discover_add_library">افزودن به کتابخانه</string>
+    <string name="discover_preview_hint">هنگام افزودن، متن کامل مقاله دریافت می‌شود.</string>
+</resources>

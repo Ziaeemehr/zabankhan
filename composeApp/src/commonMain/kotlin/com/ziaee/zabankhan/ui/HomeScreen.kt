@@ -15,7 +15,7 @@ import com.ziaee.zabankhan.srs.*
 import kotlinx.coroutines.delay
 import org.jetbrains.compose.resources.stringResource
 
-@Composable fun HomeScreen(vm: AppViewModel, settings: AppSettings, open: (Long) -> Unit, add: () -> Unit, review: () -> Unit, watch: () -> Unit) {
+@Composable fun HomeScreen(vm: AppViewModel, settings: AppSettings, open: (Long) -> Unit, add: () -> Unit, review: () -> Unit, watch: () -> Unit, progress: () -> Unit = {}, discover: () -> Unit = {}, grammar: () -> Unit = {}, exams: () -> Unit = {}) {
     val lang = requireNotNull(settings.learningLang)
     val recent by remember(lang) { vm.container.texts.observeRecent(lang) }.collectAsState(emptyList())
     val texts by remember(lang) { vm.container.texts.observeAll(lang) }.collectAsState(emptyList())
@@ -36,6 +36,19 @@ import org.jetbrains.compose.resources.stringResource
             }
         }
         Text(stringResource(Res.string.greeting), style = MaterialTheme.typography.headlineSmall)
+        ElevatedCard(onClick = progress, modifier = Modifier.fillMaxWidth()) {
+            Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text(stringResource(Res.string.h2_progress), style = MaterialTheme.typography.titleMedium)
+                com.ziaee.zabankhan.statistics.DailyGoalCard(vm, settings)
+            }
+        }
+        ElevatedCard(onClick = discover, modifier = Modifier.fillMaxWidth()) {
+            Text(stringResource(Res.string.h2_discover), Modifier.padding(20.dp), style = MaterialTheme.typography.titleMedium)
+        }
+        if (com.ziaee.zabankhan.datapack.LanguageDataPacks.available(lang)) {
+            TextButton(onClick = grammar) { Text(stringResource(Res.string.pack_grammar)) }
+            TextButton(onClick = exams) { Text(stringResource(Res.string.pack_tcf)) }
+        }
         recent.firstOrNull()?.let { text ->
             Text(stringResource(Res.string.continue_reading), style = MaterialTheme.typography.titleMedium)
             TextCard(text, { open(text.id) })
@@ -59,11 +72,24 @@ import org.jetbrains.compose.resources.stringResource
     }
 }
 @Composable fun TextCard(text: TextDocument, open: () -> Unit, actions: @Composable ColumnScope.() -> Unit = {}) {
+    val container = com.ziaee.zabankhan.app.LocalAppContainer.current
+    val words by remember(text.lang) { container.vocab.observeAll(text.lang) }.collectAsState(emptyList())
+    val pack by produceState<com.ziaee.zabankhan.datapack.LanguageDataPack?>(null, text.lang) {
+        value = com.ziaee.zabankhan.datapack.LanguageDataPacks.load(text.lang)
+    }
+    val comprehension by produceState<Int?>(null, text.body, words, pack) {
+        val data = pack
+        val spec = Languages.byCode(text.lang)
+        value = if (data == null || spec == null) null else kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) {
+            ComprehensionAnalyzer(spec, data.lemmas).analyze(text.body, words.filter { it.learned || it.leitnerBox >= 3 }.map { it.word }.toSet()).knownWordPercent.toInt()
+        }
+    }
     ElevatedCard(onClick = open, modifier = Modifier.fillMaxWidth()) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             if (text.pdfPath != null) Icon(Icons.Default.PictureAsPdf, "PDF")
             Text(text.title, modifier = Modifier.fillMaxWidth(), style = MaterialTheme.typography.titleMedium.merge(contentStyle(text.title)))
             Text(text.body.take(180), modifier = Modifier.fillMaxWidth(), maxLines = 3, style = contentStyle(text.body))
+            comprehension?.let { Text(stringResource(Res.string.pack_comprehension, it), style = MaterialTheme.typography.labelMedium) }
             Text(kotlin.time.Instant.fromEpochMilliseconds(text.createdAtMs).toString().take(10), style = MaterialTheme.typography.labelSmall)
             actions()
         }

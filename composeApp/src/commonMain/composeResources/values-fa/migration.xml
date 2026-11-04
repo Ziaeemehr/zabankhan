@@ -1,0 +1,6 @@
+<resources>
+    <string name="migration_import">واردکردن پشتیبان French Reader</string>
+    <string name="migration_failed">واردکردن این پشتیبان French Reader ممکن نشد.</string>
+    <string name="migration_summary">%1$d متن، %2$d واژه، %3$d هایلایت و %4$d مرور وارد شد. %5$d مورد تکراری رد شد.</string>
+    <string name="migration_missing_pdfs">%1$d فایل PDF در پشتیبان وجود نداشت.</string>
+</resources>

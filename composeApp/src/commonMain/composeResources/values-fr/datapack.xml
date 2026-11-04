@@ -1,0 +1,23 @@
+<resources>
+    <string name="pack_back">Retour</string>
+    <string name="pack_grammar">Notes de grammaire</string>
+    <string name="pack_tcf">Entraînement TCF</string>
+    <string name="pack_search">Rechercher</string>
+    <string name="pack_all">Tout</string>
+    <string name="pack_level">Niveau</string>
+    <string name="pack_group">Groupe</string>
+    <string name="pack_basics">Bases</string>
+    <string name="pack_tenses">Temps</string>
+    <string name="pack_pronouns">Pronoms</string>
+    <string name="pack_structures">Structures</string>
+    <string name="pack_comparisons">Comparaisons</string>
+    <string name="pack_self_score_hint">Écrivez ou dites votre réponse, puis évaluez-la de 0 à 5.</string>
+    <string name="pack_task">Tâche</string>
+    <string name="pack_response">Votre réponse</string>
+    <string name="pack_self_score">Autoévaluation : %1$d / 5</string>
+    <string name="pack_previous">Précédent</string>
+    <string name="pack_next">Suivant</string>
+    <string name="pack_session_score">Score de la séance : %1$d / %2$d</string>
+    <string name="pack_comprehension">Vous connaissez environ %1$d% des mots</string>
+    <string name="pack_credits">Données linguistiques : Lexique 3.83 (CC BY-SA 4.0) ; Wiktionary/kaikki (CC BY-SA). Les contenus RFI, franceinfo, VOA et BBC appartiennent à leurs éditeurs.</string>
+</resources>

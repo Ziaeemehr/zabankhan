@@ -77,7 +77,7 @@ private class AndroidTts : Tts {
     }
     override fun setVoice(id: String?) { voiceId = id }
 }
-private val sharedTts: Tts by lazy { AndroidTts() }
+private val sharedTts: Tts by lazy { ActivityTts(AndroidTts()) }
 actual fun createTts(): Tts = sharedTts
 
 private class AndroidRecognizer : SpeechRecognizer {

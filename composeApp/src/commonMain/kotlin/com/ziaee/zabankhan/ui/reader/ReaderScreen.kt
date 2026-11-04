@@ -35,6 +35,10 @@ data class ReaderSelection(val word: String, val sentence: String, val range: In
     if (text == null) { Page { TextButton(onClick = back) { Text(stringResource(Res.string.back)) }; if (loaded) Text(stringResource(Res.string.not_found)) else CircularProgressIndicator() }; return }
     if (text.pdfPath != null) { com.ziaee.zabankhan.pdf.PdfReaderScreen(vm, settings, text, back); return }
     val lang = requireNotNull(Languages.byCode(text.lang))
+    val pack by produceState<com.ziaee.zabankhan.datapack.LanguageDataPack?>(null, lang) {
+        value = com.ziaee.zabankhan.datapack.LanguageDataPacks.load(lang.code)
+    }
+    val idioms = remember(pack, lang) { pack?.let { com.ziaee.zabankhan.watch.IdiomMatcher(it.idioms, lang, it.lemmas) } }
     val parts = remember(text.body) { paragraphs(text.body) }
     val words by remember(text.lang) { vm.container.vocab.observeAll(text.lang) }.collectAsState(emptyList())
     val highlights by remember(id) { vm.container.highlights.observeForText(id) }.collectAsState(emptyList())
@@ -44,6 +48,7 @@ data class ReaderSelection(val word: String, val sentence: String, val range: In
     val playback = remember(id, parts, lang) { ReaderPlayback(tts, parts.map { SpokenParagraph(it.text, it.offset) }, lang) }
     val speaking by tts.isSpeaking.collectAsState()
     val spokenSentence by playback.sentence.collectAsState()
+    com.ziaee.zabankhan.statistics.TrackActivity(vm.container, id, lang.code, com.ziaee.zabankhan.statistics.ActivityKind.READING, !speaking)
     var rate by remember { mutableFloatStateOf(settings.speechRate) }
     var shadowRange by remember(id) { mutableStateOf<IntRange?>(null) }
     LaunchedEffect(playback) { tts.speakingRange.collect { playback.rangeChanged(it) } }
@@ -76,7 +81,7 @@ data class ReaderSelection(val word: String, val sentence: String, val range: In
         Text(stringResource(Res.string.reader_hint), modifier = Modifier.padding(horizontal = 20.dp), style = MaterialTheme.typography.bodySmall)
         LazyColumn(state = list, contentPadding = PaddingValues(20.dp), verticalArrangement = Arrangement.spacedBy(20.dp)) {
             itemsIndexed(parts, key = { _, part -> part.offset }) { _, part ->
-                ReaderParagraph(part, lang, highlighter, words, highlights, settings.readerFontSize, spokenSentence, { y ->
+                ReaderParagraph(part, lang, highlighter, words, highlights, settings.readerFontSize, spokenSentence, pack?.lemmas, idioms, { y ->
                     val index = parts.indexOf(part)
                     if (index >= 0) list.animateScrollToItem(index, y)
                 }) { token, sentence, range, long ->
@@ -98,7 +103,7 @@ data class ReaderSelection(val word: String, val sentence: String, val range: In
 }
 
 @Composable private fun ReaderParagraph(part: Paragraph, lang: LanguageSpec, highlighter: VocabHighlighter,
-    words: List<VocabEntry>, highlights: List<HighlightEntry>, fontSize: Int, spokenSentence: IntRange?, scrollTo: suspend (Int) -> Unit, select: (String, String, IntRange, Boolean) -> Unit) {
+    words: List<VocabEntry>, highlights: List<HighlightEntry>, fontSize: Int, spokenSentence: IntRange?, lexicon: LemmaLexicon?, idioms: com.ziaee.zabankhan.watch.IdiomMatcher?, scrollTo: suspend (Int) -> Unit, select: (String, String, IntRange, Boolean) -> Unit) {
     var layout by remember { mutableStateOf<TextLayoutResult?>(null) }
     val matches = remember(part, highlighter) { highlighter.findMatches(part.text) }
     val colors = (1..5).associateWith { boxColor(it) }
@@ -120,6 +125,14 @@ data class ReaderSelection(val word: String, val sentence: String, val range: In
             val end = (range.last + 1 - part.offset).coerceAtMost(part.text.length)
             if (start < end) addStyle(SpanStyle(background = scheme.secondaryContainer), start, end)
         }
+        // Colour inflected forms by their saved lemma's Leitner box as well.
+        if (lexicon != null) {
+            val lemmaBoxes = words.flatMap { entry -> lexicon.lemmas(normalizeForMatch(entry.word, lang)).map { it to entry.leitnerBox.coerceIn(1, 5) } }.toMap()
+            tokenizeSurface(part.text, lang).forEach { token ->
+                val box = lexicon.lemmas(normalizeForMatch(token.text, lang)).mapNotNull { lemmaBoxes[it] }.minOrNull()
+                if (box != null) addStyle(SpanStyle(color = colors.getValue(box)), token.start, token.end)
+            }
+        }
         matches.forEach { match ->
             val box = savedBoxes[normalizeForMatch(part.text.substring(match.range), lang)] ?: 1
             addStyle(SpanStyle(color = colors.getValue(box)), match.range.first, match.range.last + 1)
@@ -135,9 +148,10 @@ data class ReaderSelection(val word: String, val sentence: String, val range: In
         val word = wordAt(part.text, offset, lang) ?: return
         val range = sentenceAround(part.text, offset, lang)
         if (range.isEmpty()) return
-        select(word.text, part.text.substring(range), (range.first + part.offset)..(range.last + part.offset), long)
+        val idiom = if (long) null else idioms?.match(part.text)?.firstOrNull { offset in it.startChar until it.endChar }
+        select(idiom?.expression ?: word.text, part.text.substring(range), (range.first + part.offset)..(range.last + part.offset), long)
     }
-    Text(annotated, modifier = Modifier.fillMaxWidth().pointerInput(part, lang) {
+    Text(annotated, modifier = Modifier.fillMaxWidth().pointerInput(part, lang, idioms) {
         detectTapGestures(onTap = { onPosition(it, false) }, onLongPress = { onPosition(it, true) })
     }, style = MaterialTheme.typography.bodyLarge.merge(contentStyle(part.text)).copy(fontSize = fontSize.sp, lineHeight = (fontSize * 1.7).sp), onTextLayout = { layout = it })
 }

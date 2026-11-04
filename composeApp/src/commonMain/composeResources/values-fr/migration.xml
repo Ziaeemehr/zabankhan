@@ -1,0 +1,6 @@
+<resources>
+    <string name="migration_import">Importer une sauvegarde French Reader</string>
+    <string name="migration_failed">Impossible d’importer cette sauvegarde French Reader.</string>
+    <string name="migration_summary">%1$d textes, %2$d mots, %3$d surlignages et %4$d révisions importés. %5$d doublons ignorés.</string>
+    <string name="migration_missing_pdfs">%1$d fichiers PDF ne figuraient pas dans la sauvegarde.</string>
+</resources>

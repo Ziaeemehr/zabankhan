@@ -1,0 +1,10 @@
+<resources>
+    <string name="discover_title">Découvrir</string>
+    <string name="discover_find_content">Trouver du contenu</string>
+    <string name="discover_source">Source</string>
+    <string name="discover_error">Impossible de charger ce contenu. Réessayez.</string>
+    <string name="discover_empty">Aucun résultat. Choisissez une source ou recherchez un sujet.</string>
+    <string name="discover_word_count">%1$d mots</string>
+    <string name="discover_add_library">Ajouter à la bibliothèque</string>
+    <string name="discover_preview_hint">L’article complet sera récupéré lors de l’ajout.</string>
+</resources>

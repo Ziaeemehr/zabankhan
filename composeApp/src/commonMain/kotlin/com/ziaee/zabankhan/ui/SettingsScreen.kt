@@ -47,7 +47,7 @@ import org.jetbrains.compose.resources.stringResource
 }
 
 @OptIn(ExperimentalLayoutApi::class)
-@Composable fun SettingsScreen(vm: AppViewModel, settings: AppSettings) {
+@Composable fun SettingsScreen(vm: AppViewModel, settings: AppSettings, progress: () -> Unit = {}, grammar: () -> Unit = {}, exams: () -> Unit = {}) {
     val repository = vm.container.settings
     val tts = remember { createTts() }
     val speaking by tts.isSpeaking.collectAsState()
@@ -67,6 +67,14 @@ import org.jetbrains.compose.resources.stringResource
     Page {
         Heading(stringResource(Res.string.nav_settings))
         com.ziaee.zabankhan.backup.BackupSettings(vm.container)
+        com.ziaee.zabankhan.backup.FrenchReaderImportSettings(vm.container)
+        TextButton(onClick = progress) { Text(stringResource(Res.string.h2_progress)) }
+        Text("${stringResource(Res.string.h2_daily_goal)}: ${settings.dailyGoalMinutes}")
+        Slider(settings.dailyGoalMinutes.toFloat(), { vm.action { repository.setDailyGoalMinutes(it.toInt()) } }, valueRange = 1f..120f, steps = 118)
+        if (com.ziaee.zabankhan.datapack.LanguageDataPacks.available(settings.learningLang.orEmpty())) {
+            TextButton(onClick = grammar) { Text(stringResource(Res.string.pack_grammar)) }
+            TextButton(onClick = exams) { Text(stringResource(Res.string.pack_tcf)) }
+        }
         com.ziaee.zabankhan.reminder.ReviewReminderSettings(vm, settings)
         Text(stringResource(Res.string.learning_languages), style = MaterialTheme.typography.titleMedium)
         FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -122,6 +130,7 @@ import org.jetbrains.compose.resources.stringResource
         HorizontalDivider()
         Text(stringResource(Res.string.about), style = MaterialTheme.typography.titleMedium)
         Text(stringResource(Res.string.version))
+        com.ziaee.zabankhan.datapack.DataPackCredits()
         TextButton(onClick = { uri.openUri("https://github.com/Ziaeemehr/zabankhan") }) { Text(stringResource(Res.string.github)) }
     }
 }

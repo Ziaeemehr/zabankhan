@@ -1,0 +1,6 @@
+<resources>
+    <string name="migration_import">Import from French Reader backup</string>
+    <string name="migration_failed">Could not import this French Reader backup.</string>
+    <string name="migration_summary">Imported %1$d texts, %2$d words, %3$d highlights and %4$d reviews. Skipped %5$d duplicates.</string>
+    <string name="migration_missing_pdfs">%1$d PDF files were not included in the backup.</string>
+</resources>

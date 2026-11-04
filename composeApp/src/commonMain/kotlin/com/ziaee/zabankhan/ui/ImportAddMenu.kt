@@ -25,7 +25,7 @@ import org.jetbrains.compose.resources.stringResource
 expect fun loadImportImage(path: String): ImageBitmap
 
 @Composable
-fun ImportAddMenu(vm: AppViewModel, settings: AppSettings, addText: () -> Unit, open: (Long) -> Unit, watch: () -> Unit) {
+fun ImportAddMenu(vm: AppViewModel, settings: AppSettings, addText: () -> Unit, open: (Long) -> Unit, watch: () -> Unit, discover: () -> Unit = {}) {
     var expanded by remember { mutableStateOf(false) }
     var busy by remember { mutableStateOf(false) }
     var preview by remember { mutableStateOf<String?>(null) }
@@ -68,6 +68,7 @@ fun ImportAddMenu(vm: AppViewModel, settings: AppSettings, addText: () -> Unit, 
         DropdownMenu(expanded, { expanded = false }) {
             val options = listOf(
                 Res.string.add_text to addText,
+                Res.string.h2_find_content to discover,
                 Res.string.pdf_import to pdf,
                 Res.string.h1_import_text to text,
                 Res.string.h1_import_epub to epub,

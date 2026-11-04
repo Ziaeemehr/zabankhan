@@ -15,7 +15,7 @@ import com.ziaee.zabankhan.resources.*
 import org.jetbrains.compose.resources.stringResource
 
 @OptIn(ExperimentalLayoutApi::class)
-@Composable fun LibraryScreen(vm: AppViewModel, settings: AppSettings, open: (Long) -> Unit, add: () -> Unit, watch: () -> Unit) {
+@Composable fun LibraryScreen(vm: AppViewModel, settings: AppSettings, open: (Long) -> Unit, add: () -> Unit, watch: () -> Unit, discover: () -> Unit = {}) {
     val lang = requireNotNull(settings.learningLang)
     val spec = requireNotNull(Languages.byCode(lang))
     val texts by remember(lang) { vm.container.texts.observeAll(lang) }.collectAsState(emptyList())
@@ -32,7 +32,7 @@ import org.jetbrains.compose.resources.stringResource
         item { OutlinedTextField(search, { search = it }, label = { Text(stringResource(Res.string.search)) }, singleLine = true, modifier = Modifier.fillMaxWidth()) }
         item { Choice(stringResource(Res.string.folder), folder, options) { folder = it } }
         item { FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            ImportAddMenu(vm, settings, add, open, watch)
+            ImportAddMenu(vm, settings, add, open, watch, discover)
             OutlinedButton(onClick = { newFolder = true }) { Text(stringResource(Res.string.new_folder)) }
             folders.firstOrNull { it.id == folder }?.let { selected ->
                 TextButton(onClick = { folderDialog = selected }) { Text(stringResource(Res.string.rename)) }

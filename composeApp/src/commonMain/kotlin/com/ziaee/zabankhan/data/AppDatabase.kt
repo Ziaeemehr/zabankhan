@@ -20,6 +20,7 @@ import kotlinx.coroutines.IO
 )
 @ConstructedBy(AppDatabaseConstructor::class)
 abstract class AppDatabase : RoomDatabase() {
+    abstract fun migration(): MigrationDao
     abstract fun shadowAttempts(): ShadowAttemptDao
     abstract fun pdfHighlights(): PdfHighlightDao
     abstract fun texts(): TextDao

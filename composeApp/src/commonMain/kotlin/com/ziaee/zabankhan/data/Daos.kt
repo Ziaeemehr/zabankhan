@@ -156,6 +156,8 @@ interface PdfHighlightDao {
 
 @Dao
 interface ShadowAttemptDao {
+    @Query("SELECT * FROM shadow_attempts WHERE lang = :lang ORDER BY timestampMs")
+    fun observe(lang: String): Flow<List<ShadowAttempt>>
     @Insert suspend fun insert(attempt: ShadowAttempt): Long
     @Query("SELECT * FROM shadow_attempts WHERE lang = :lang AND textId = :textId ORDER BY timestampMs, id")
     suspend fun forText(lang: String, textId: Long): List<ShadowAttempt>

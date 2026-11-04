@@ -34,6 +34,10 @@ data class AppOpenRequest(val text: String? = null, val review: Boolean = false,
             val prefs = settings
             if (prefs == null) { CircularProgressIndicator(); return@ZabankhanTheme }
             if (prefs.learningLang == null) { Onboarding(vm); return@ZabankhanTheme }
+            val tts = remember { com.ziaee.zabankhan.speech.createTts() }
+            val speaking by tts.isSpeaking.collectAsState()
+            val spokenLang by com.ziaee.zabankhan.speech.SpeechActivity.language.collectAsState()
+            spokenLang?.let { lang -> com.ziaee.zabankhan.statistics.TrackActivity(container, "tts", lang, com.ziaee.zabankhan.statistics.ActivityKind.LISTENING, speaking) }
             val nav = rememberNavController()
             val reminderOpen by com.ziaee.zabankhan.reminder.ReviewReminderNavigation.pending.collectAsState()
             LaunchedEffect(reminderOpen) {
@@ -69,15 +73,19 @@ data class AppOpenRequest(val text: String? = null, val review: Boolean = false,
                 }
             }) { padding ->
                 NavHost(nav, "home", Modifier.padding(padding).consumeWindowInsets(padding)) {
-                    composable("home") { HomeScreen(vm, prefs, { id -> vm.action { val doc = container.texts.getById(id); nav.navigate(if (doc?.pdfPath != null) "pdf/$id" else "reader/$id") } }, { nav.navigate("add") }, { nav.navigate("review") }, { nav.navigate("videos") }) }
-                    composable("library") { LibraryScreen(vm, prefs, { id -> vm.action { val doc = container.texts.getById(id); nav.navigate(if (doc?.pdfPath != null) "pdf/$id" else "reader/$id") } }, { nav.navigate("add") }, { nav.navigate("videos") }) }
+                    composable("home") { HomeScreen(vm, prefs, { id -> vm.action { val doc = container.texts.getById(id); nav.navigate(if (doc?.pdfPath != null) "pdf/$id" else "reader/$id") } }, { nav.navigate("add") }, { nav.navigate("review") }, { nav.navigate("videos") }, { nav.navigate("statistics") }, { nav.navigate("discover") }, { nav.navigate("grammar") }, { nav.navigate("exams") }) }
+                    composable("library") { LibraryScreen(vm, prefs, { id -> vm.action { val doc = container.texts.getById(id); nav.navigate(if (doc?.pdfPath != null) "pdf/$id" else "reader/$id") } }, { nav.navigate("add") }, { nav.navigate("videos") }, { nav.navigate("discover") }) }
                     composable("videos") { VideoPickerScreen(vm, prefs, { nav.popBackStack() }) { video, path, subs -> nav.navigate(watchRoute(video, path, subs)) } }
                     composable("watch?videoId={videoId}&path={path}&subs={subs}", arguments = listOf("videoId", "path", "subs").map { name -> navArgument(name) { type = NavType.StringType; defaultValue = "" } }) { entry ->
                         WatchScreen(vm, prefs, entry.arguments?.read { getString("videoId") }.orEmpty(), entry.arguments?.read { getString("path") }.orEmpty(), entry.arguments?.read { getString("subs") }.orEmpty()) { nav.popBackStack() }
                     }
+                    composable("statistics") { com.ziaee.zabankhan.statistics.StatisticsScreen(vm, prefs) { nav.popBackStack() } }
+                    composable("discover") { com.ziaee.zabankhan.discover.DiscoverScreen(vm, prefs, { nav.popBackStack() }, { nav.navigate("reader/$it") }) }
+                    composable("grammar") { com.ziaee.zabankhan.datapack.GrammarScreen(prefs.learningLang.orEmpty()) { nav.popBackStack() } }
+                    composable("exams") { com.ziaee.zabankhan.datapack.TcfPracticeScreen(prefs.learningLang.orEmpty()) { nav.popBackStack() } }
                     composable("words") { WordsScreen(vm, prefs) }
                     composable("review") { ReviewScreen(container, prefs) }
-                    composable("settings") { SettingsScreen(vm, prefs) }
+                    composable("settings") { SettingsScreen(vm, prefs, { nav.navigate("statistics") }, { nav.navigate("grammar") }, { nav.navigate("exams") }) }
                     composable("add") { AddTextScreen(vm, prefs, { sharedText = ""; nav.popBackStack() }, { id -> sharedText = ""; nav.navigate("reader/$id") { popUpTo("add") { inclusive = true } } }, initialText = sharedText) }
                     composable("pdf/{id}", arguments = listOf(navArgument("id") { type = NavType.LongType })) {
                         ReaderScreen(vm, prefs, requireNotNull(it.arguments?.read { getLong("id") })) { nav.popBackStack() }

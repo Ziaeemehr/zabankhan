@@ -1,4 +1,6 @@
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
+import org.gradle.api.attributes.Usage
+import org.gradle.api.tasks.testing.Test
 
 plugins {
     alias(libs.plugins.kotlinMultiplatform)
@@ -107,6 +109,24 @@ room {
 
 dependencies {
     listOf("kspAndroid", "kspIosArm64", "kspIosSimulatorArm64").forEach { add(it, libs.room.compiler) }
+}
+
+// Android's SQLite AAR contains device JNI libraries. Unit tests need the host
+// loader and native library; keep this configuration out of every APK dependency graph.
+val sqliteHostTestRuntime by configurations.creating {
+    isCanBeConsumed = false
+    isCanBeResolved = true
+    isTransitive = false
+    attributes.attribute(Usage.USAGE_ATTRIBUTE, objects.named(Usage.JAVA_RUNTIME))
+}
+dependencies {
+    add(sqliteHostTestRuntime.name, "androidx.sqlite:sqlite-bundled-jvm:${libs.versions.sqlite.get()}")
+}
+tasks.withType<Test>().matching { it.name.endsWith("UnitTest") }.configureEach {
+    inputs.files(sqliteHostTestRuntime)
+    // AGP assigns the final unit-test classpath after task configuration.
+    // Prepend at execution time so the host loader wins over the Android one.
+    doFirst { classpath = files(sqliteHostTestRuntime) + classpath }
 }
 
 compose.resources {

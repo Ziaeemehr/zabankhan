@@ -1,0 +1,23 @@
+<resources>
+    <string name="pack_back">بازگشت</string>
+    <string name="pack_grammar">یادداشت‌های دستور زبان</string>
+    <string name="pack_tcf">تمرین TCF</string>
+    <string name="pack_search">جستجو</string>
+    <string name="pack_all">همه</string>
+    <string name="pack_level">سطح</string>
+    <string name="pack_group">گروه</string>
+    <string name="pack_basics">مقدمات</string>
+    <string name="pack_tenses">زمان‌ها</string>
+    <string name="pack_pronouns">ضمیرها</string>
+    <string name="pack_structures">ساختارها</string>
+    <string name="pack_comparisons">مقایسه‌ها</string>
+    <string name="pack_self_score_hint">پاسخ را بنویسید یا بگویید، سپس از ۰ تا ۵ به خود نمره دهید.</string>
+    <string name="pack_task">تمرین</string>
+    <string name="pack_response">پاسخ شما</string>
+    <string name="pack_self_score">نمرهٔ شما: %1$d از ۵</string>
+    <string name="pack_previous">قبلی</string>
+    <string name="pack_next">بعدی</string>
+    <string name="pack_session_score">نمرهٔ جلسه: %1$d از %2$d</string>
+    <string name="pack_comprehension">حدود %1$d٪ کلمه‌ها را می‌دانید</string>
+    <string name="pack_credits">داده‌های زبان: Lexique 3.83 با مجوز CC BY-SA 4.0؛ Wiktionary/kaikki با مجوز CC BY-SA. محتوای RFI، franceinfo، VOA و BBC متعلق به ناشران آن‌هاست.</string>
+</resources>

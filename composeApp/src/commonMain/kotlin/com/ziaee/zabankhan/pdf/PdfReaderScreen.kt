@@ -66,6 +66,7 @@ private data class PdfRange(val page: Int, val first: Int, val last: Int, val wo
         Column { TextButton(onClick = back) { Text(stringResource(Res.string.back)) }; Text(stringResource(Res.string.pdf_empty)) }
         return
     }
+    com.ziaee.zabankhan.statistics.TrackActivity(vm.container, text.id, text.lang, com.ziaee.zabankhan.statistics.ActivityKind.READING)
     val list = rememberLazyListState(text.lastOffset.coerceIn(0, handle.pageCount - 1))
     val layout = remember(handle, text.lang) { PdfPageWords(path, handle, text.lang) }
     val vocab by remember(text.lang) { vm.container.vocab.observeAll(text.lang) }.collectAsState(emptyList())

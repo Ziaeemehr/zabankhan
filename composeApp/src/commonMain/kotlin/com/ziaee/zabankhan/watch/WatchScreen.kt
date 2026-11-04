@@ -50,6 +50,7 @@ import org.jetbrains.compose.resources.stringResource
     val offsets = remember(cueList) { transcriptOffsets(cueList) }
     val position by (controller?.positionMs ?: remember { kotlinx.coroutines.flow.MutableStateFlow(0L) }).collectAsState()
     val playing by (controller?.isPlaying ?: remember { kotlinx.coroutines.flow.MutableStateFlow(false) }).collectAsState()
+    com.ziaee.zabankhan.statistics.TrackActivity(vm.container, identity, lang.code, com.ziaee.zabankhan.statistics.ActivityKind.WATCHING, playing)
     val playerError by ((controller as? VideoStatus)?.error ?: remember { kotlinx.coroutines.flow.MutableStateFlow<String?>(null) }).collectAsState()
     val active = findCueIndex(cueList, position)
     var rate by remember { mutableFloatStateOf(1f) }
@@ -79,10 +80,9 @@ import org.jetbrains.compose.resources.stringResource
         finally { loading = false }
     }
     LaunchedEffect(lang) {
-        idiomMatcher = withContext(Dispatchers.IO) {
-            val tsv = runCatching { FileSystem.SYSTEM.read("${AppFiles.filesDir}/language-packs/${lang.code}/idioms.tsv".toPath()) { readUtf8() } }.getOrDefault("")
-            IdiomMatcher(loadIdiomLexicon(tsv, lang), lang)
-        }
+        val pack = com.ziaee.zabankhan.datapack.LanguageDataPacks.load(lang.code)
+        idiomMatcher = if (pack == null) IdiomMatcher(InMemoryIdiomLexicon(emptyList()), lang)
+            else IdiomMatcher(pack.idioms, lang, pack.lemmas)
     }
     LaunchedEffect(controller, identity, lang) {
         val player = controller ?: return@LaunchedEffect

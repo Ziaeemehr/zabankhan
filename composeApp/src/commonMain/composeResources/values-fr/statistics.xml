@@ -1,0 +1,21 @@
+<resources>
+    <string name="h2_progress">Progrès</string>
+    <string name="h2_streak">%1$d jours actifs consécutifs</string>
+    <string name="h2_today">Aujourd’hui</string>
+    <string name="h2_seven_days">7 derniers jours</string>
+    <string name="h2_thirty_days">30 derniers jours</string>
+    <string name="h2_activity_minutes">Lecture : %1$d min · Écoute : %2$d min · Vidéo : %3$d min</string>
+    <string name="h2_activity_chart">Activité sur 7 jours (minutes)</string>
+    <string name="h2_reading">Lecture</string>
+    <string name="h2_listening">Écoute</string>
+    <string name="h2_watching">Vidéo</string>
+    <string name="h2_reviews">Révisions par jour</string>
+    <string name="h2_review_day">%1$s : %2$d révisions · %3$d% de réussite</string>
+    <string name="h2_shadow_score">Répétition : moyenne %1$d% · %2$d essais</string>
+    <string name="h2_library_counts">%1$d textes · %2$d mots</string>
+    <string name="h2_box_count">Boîte %1$d : %2$d mots</string>
+    <string name="h2_goal_progress">%1$d / %2$d minutes aujourd’hui</string>
+    <string name="h2_daily_goal">Objectif quotidien (minutes)</string>
+    <string name="h2_discover">Découvrir</string>
+    <string name="h2_find_content">Trouver du contenu</string>
+</resources>

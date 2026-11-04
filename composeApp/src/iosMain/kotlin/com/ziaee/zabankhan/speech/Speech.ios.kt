@@ -29,7 +29,7 @@ private class IosTts : Tts {
         val utterance = AVSpeechUtterance.speechUtteranceWithString(text)
         utterance.voice = voiceId?.let { AVSpeechSynthesisVoice.voiceWithIdentifier(it) }
             ?.takeIf { it.language.substringBefore('-') == lang.code }
-            ?: AVSpeechSynthesisVoice.voiceWithLanguage(lang.ttsLocale)
+            ?: bestVoice(lang.ttsLocale, lang.code)
         utterance.rate = (AVSpeechUtteranceDefaultSpeechRate * rate).coerceIn(AVSpeechUtteranceMinimumSpeechRate, AVSpeechUtteranceMaximumSpeechRate)
         current = utterance; done = onDone; speaking.value = true
         engine.speakUtterance(utterance)
@@ -37,7 +37,9 @@ private class IosTts : Tts {
     override fun stop() { current = null; done = null; engine.stopSpeakingAtBoundary(AVSpeechBoundary.AVSpeechBoundaryImmediate); range.value = null; speaking.value = false }
     override fun voices(langCode: String): List<TtsVoice> {
         val code = learningSpeechLanguage(langCode).code
-        return AVSpeechSynthesisVoice.speechVoices().filterIsInstance<AVSpeechSynthesisVoice>().filter { it.language.substringBefore('-') == code }.map { TtsVoice(it.identifier, it.name) }
+        return AVSpeechSynthesisVoice.speechVoices().filterIsInstance<AVSpeechSynthesisVoice>().filter { it.language.substringBefore('-') == code }
+            .sortedByDescending { it.quality }
+            .map { TtsVoice(it.identifier, it.name + qualityLabel(it.quality)) }
     }
     override fun setVoice(id: String?) { voiceId = id }
     private val delegate = object : NSObject(), AVSpeechSynthesizerDelegateProtocol {
@@ -53,7 +55,7 @@ private class IosTts : Tts {
     }
     init { engine.delegate = delegate }
 }
-private val sharedTts: Tts by lazy { IosTts() }
+private val sharedTts: Tts by lazy { ActivityTts(IosTts()) }
 actual fun createTts(): Tts = sharedTts
 
 private suspend fun authorizeMic(): Boolean {
@@ -132,4 +134,17 @@ actual fun createSpeechRecognizer(): SpeechRecognizer = IosRecognizer()
         override val granted = granted
         override fun request() { scope.launch { granted = authorizeMic() } }
     }
+}
+
+// The default voice for a language is the low-quality "compact" one; prefer Premium/Enhanced when installed.
+private fun bestVoice(locale: String, code: String): AVSpeechSynthesisVoice? {
+    val all = AVSpeechSynthesisVoice.speechVoices().filterIsInstance<AVSpeechSynthesisVoice>()
+    fun pick(match: (AVSpeechSynthesisVoice) -> Boolean) = all.filter(match).maxByOrNull { it.quality }
+    return pick { it.language == locale } ?: pick { it.language.substringBefore('-') == code } ?: AVSpeechSynthesisVoice.voiceWithLanguage(locale)
+}
+
+private fun qualityLabel(q: AVSpeechSynthesisVoiceQuality): String = when (q) {
+    AVSpeechSynthesisVoiceQualityPremium -> " (Premium)"
+    AVSpeechSynthesisVoiceQualityEnhanced -> " (Enhanced)"
+    else -> ""
 }
