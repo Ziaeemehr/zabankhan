@@ -1,14 +1,25 @@
 package com.ziaee.zabankhan
 
+import android.app.Application
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import com.ziaee.zabankhan.app.AppContainer
+import com.ziaee.zabankhan.data.*
+import io.ktor.client.HttpClient
+import io.ktor.client.engine.okhttp.OkHttp
 
+class ZabankhanApp : Application() {
+    val container by lazy {
+        AppContainer(androidDatabase(this), SettingsRepository(createPrefsStore(androidPrefsPath(this))), HttpClient(OkHttp))
+    }
+}
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
-        enableEdgeToEdge()
         super.onCreate(savedInstanceState)
-        setContent { App() }
+        enableEdgeToEdge()
+        val container = (application as ZabankhanApp).container
+        setContent { App(container) }
     }
 }

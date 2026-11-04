@@ -1,80 +1,60 @@
 package com.ziaee.zabankhan
 
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.LibraryBooks
-import androidx.compose.material.icons.filled.Home
-import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material.icons.filled.Style
-import androidx.compose.material3.Icon
-import androidx.compose.material3.NavigationBar
-import androidx.compose.material3.NavigationBarItem
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Text
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.ui.Alignment
+import androidx.compose.material.icons.filled.*
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.navigation.compose.NavHost
-import androidx.navigation.compose.composable
-import androidx.navigation.compose.currentBackStackEntryAsState
-import androidx.navigation.compose.rememberNavController
-import com.ziaee.zabankhan.resources.Res
-import com.ziaee.zabankhan.resources.nav_home
-import com.ziaee.zabankhan.resources.nav_library
-import com.ziaee.zabankhan.resources.nav_review
-import com.ziaee.zabankhan.resources.nav_settings
-import com.ziaee.zabankhan.ui.theme.ZabankhanTheme
-import org.jetbrains.compose.resources.StringResource
+import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.savedstate.read
+import androidx.navigation.NavType
+import androidx.navigation.navArgument
+import androidx.navigation.compose.*
+import com.ziaee.zabankhan.app.*
+import com.ziaee.zabankhan.resources.*
+import com.ziaee.zabankhan.ui.*
+import com.ziaee.zabankhan.ui.reader.ReaderScreen
+import com.ziaee.zabankhan.ui.theme.*
 import org.jetbrains.compose.resources.stringResource
 
-private data class Tab(val route: String, val label: StringResource, val icon: ImageVector)
-
-private val tabs = listOf(
-    Tab("home", Res.string.nav_home, Icons.Filled.Home),
-    Tab("library", Res.string.nav_library, Icons.AutoMirrored.Filled.LibraryBooks),
-    Tab("review", Res.string.nav_review, Icons.Filled.Style),
-    Tab("settings", Res.string.nav_settings, Icons.Filled.Settings),
-)
-
-@Composable
-fun App() {
-    ZabankhanTheme {
-        val nav = rememberNavController()
-        val entry by nav.currentBackStackEntryAsState()
-        Scaffold(
-            bottomBar = {
-                NavigationBar {
-                    tabs.forEach { tab ->
-                        NavigationBarItem(
-                            selected = entry?.destination?.route == tab.route,
-                            onClick = {
-                                nav.navigate(tab.route) {
-                                    popUpTo("home") { saveState = true }
-                                    launchSingleTop = true
-                                    restoreState = true
-                                }
-                            },
-                            icon = { Icon(tab.icon, null) },
-                            label = { Text(stringResource(tab.label)) },
-                        )
-                    }
+@Composable fun App(container: AppContainer) {
+    val vm = viewModel { AppViewModel(container) }
+    val settings by vm.settings.collectAsState()
+    CompositionLocalProvider(LocalAppContainer provides container) {
+        ZabankhanTheme(ThemeMode.entries.firstOrNull { it.name == settings?.themeMode } ?: ThemeMode.SYSTEM) {
+            val prefs = settings
+            if (prefs == null) { CircularProgressIndicator(); return@ZabankhanTheme }
+            if (prefs.learningLang == null) { Onboarding(vm); return@ZabankhanTheme }
+            val nav = rememberNavController()
+            val entry by nav.currentBackStackEntryAsState()
+            val route = entry?.destination?.route
+            val labels = listOf(Res.string.nav_home, Res.string.nav_library, Res.string.nav_words, Res.string.nav_review, Res.string.nav_settings)
+            val routes = listOf("home", "library", "words", "review", "settings")
+            val icons = listOf(Icons.Default.Home, Icons.AutoMirrored.Filled.LibraryBooks, Icons.Default.Translate, Icons.Default.Style, Icons.Default.Settings)
+            val snackbar = remember { SnackbarHostState() }
+            val errorMessage = stringResource(Res.string.error_save)
+            LaunchedEffect(vm.failed) { if (vm.failed) { snackbar.showSnackbar(errorMessage); vm.clearError() } }
+            Scaffold(snackbarHost = { SnackbarHost(snackbar) }, bottomBar = {
+                if (route in routes) NavigationBar {
+                    routes.forEachIndexed { i, target -> NavigationBarItem(selected = route == target,
+                        onClick = { nav.navigate(target) { popUpTo("home") { saveState = true }; launchSingleTop = true; restoreState = true } },
+                        icon = { Icon(icons[i], null) }, label = { Text(stringResource(labels[i]), maxLines = 1) }) }
                 }
-            },
-        ) { padding ->
-            NavHost(nav, startDestination = "home", modifier = Modifier.padding(padding)) {
-                tabs.forEach { tab ->
-                    composable(tab.route) { Placeholder(stringResource(tab.label)) }
+            }) { padding ->
+                NavHost(nav, "home", Modifier.padding(padding)) {
+                    composable("home") { HomeScreen(vm, prefs, { nav.navigate("reader/$it") }, { nav.navigate("add") }, { nav.navigate("review") }) }
+                    composable("library") { LibraryScreen(vm, prefs, { nav.navigate("reader/$it") }, { nav.navigate("add") }) }
+                    composable("words") { WordsScreen(vm, prefs) }
+                    composable("review") { ReviewScreen(container, prefs) }
+                    composable("settings") { SettingsScreen(vm, prefs) }
+                    composable("add") { AddTextScreen(vm, prefs, { nav.popBackStack() }) { id -> nav.navigate("reader/$id") { popUpTo("add") { inclusive = true } } } }
+                    composable("reader/{id}", arguments = listOf(navArgument("id") { type = NavType.LongType })) {
+                        ReaderScreen(vm, prefs, requireNotNull(it.arguments?.read { getLong("id") })) { nav.popBackStack() }
+                    }
                 }
             }
         }
     }
-}
-
-@Composable
-private fun Placeholder(title: String) {
-    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Text(title) }
 }

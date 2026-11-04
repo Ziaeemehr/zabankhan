@@ -9,6 +9,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextDirection
 import com.ziaee.zabankhan.resources.Res
 import com.ziaee.zabankhan.resources.vazirmatn_medium
 import com.ziaee.zabankhan.resources.vazirmatn_regular
@@ -67,21 +68,21 @@ fun ZabankhanTheme(mode: ThemeMode = ThemeMode.SYSTEM, content: @Composable () -
     val family = appFontFamily()
     val base = Typography()
     val typography = Typography(
-        displayLarge = base.displayLarge.copy(fontFamily = family),
-        displayMedium = base.displayMedium.copy(fontFamily = family),
-        displaySmall = base.displaySmall.copy(fontFamily = family),
-        headlineLarge = base.headlineLarge.copy(fontFamily = family),
-        headlineMedium = base.headlineMedium.copy(fontFamily = family),
-        headlineSmall = base.headlineSmall.copy(fontFamily = family),
-        titleLarge = base.titleLarge.copy(fontFamily = family),
-        titleMedium = base.titleMedium.copy(fontFamily = family),
-        titleSmall = base.titleSmall.copy(fontFamily = family),
-        bodyLarge = base.bodyLarge.copy(fontFamily = family),
-        bodyMedium = base.bodyMedium.copy(fontFamily = family),
-        bodySmall = base.bodySmall.copy(fontFamily = family),
-        labelLarge = base.labelLarge.copy(fontFamily = family),
-        labelMedium = base.labelMedium.copy(fontFamily = family),
-        labelSmall = base.labelSmall.copy(fontFamily = family),
+        displayLarge = base.displayLarge.copy(fontFamily = family, textDirection = TextDirection.Content),
+        displayMedium = base.displayMedium.copy(fontFamily = family, textDirection = TextDirection.Content),
+        displaySmall = base.displaySmall.copy(fontFamily = family, textDirection = TextDirection.Content),
+        headlineLarge = base.headlineLarge.copy(fontFamily = family, textDirection = TextDirection.Content),
+        headlineMedium = base.headlineMedium.copy(fontFamily = family, textDirection = TextDirection.Content),
+        headlineSmall = base.headlineSmall.copy(fontFamily = family, textDirection = TextDirection.Content),
+        titleLarge = base.titleLarge.copy(fontFamily = family, textDirection = TextDirection.Content),
+        titleMedium = base.titleMedium.copy(fontFamily = family, textDirection = TextDirection.Content),
+        titleSmall = base.titleSmall.copy(fontFamily = family, textDirection = TextDirection.Content),
+        bodyLarge = base.bodyLarge.copy(fontFamily = family, textDirection = TextDirection.Content),
+        bodyMedium = base.bodyMedium.copy(fontFamily = family, textDirection = TextDirection.Content),
+        bodySmall = base.bodySmall.copy(fontFamily = family, textDirection = TextDirection.Content),
+        labelLarge = base.labelLarge.copy(fontFamily = family, textDirection = TextDirection.Content),
+        labelMedium = base.labelMedium.copy(fontFamily = family, textDirection = TextDirection.Content),
+        labelSmall = base.labelSmall.copy(fontFamily = family, textDirection = TextDirection.Content),
     )
     MaterialTheme(colorScheme = if (dark) DarkColors else LightColors, typography = typography, content = content)
 }

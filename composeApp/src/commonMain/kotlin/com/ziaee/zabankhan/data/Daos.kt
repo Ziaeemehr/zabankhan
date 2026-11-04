@@ -6,6 +6,7 @@ import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import androidx.room.Update
+import androidx.room.Transaction
 import androidx.room.Upsert
 import kotlinx.coroutines.flow.Flow
 
@@ -89,6 +90,21 @@ interface VocabDao {
 
     @Query("DELETE FROM vocab_lists WHERE id = :id")
     suspend fun deleteList(id: Long)
+
+    @Transaction
+    suspend fun recordReview(entry: VocabEntry, log: ReviewLogEntry): Long {
+        update(entry)
+        return insertReviewLog(log)
+    }
+
+    @Transaction
+    suspend fun undoReview(entry: VocabEntry, logId: Long) {
+        update(entry)
+        deleteReviewLog(logId)
+    }
+
+    @Query("DELETE FROM review_log WHERE id = :id")
+    suspend fun deleteReviewLog(id: Long)
 
     @Insert suspend fun insertReviewLog(entry: ReviewLogEntry): Long
 
