@@ -1,0 +1,8 @@
+<resources>
+    <string name="edge_engine">Moteur vocal</string>
+    <string name="edge_online">Voix naturelle en ligne (Microsoft Edge, connexion requise)</string>
+    <string name="edge_device">Voix de l’appareil (hors ligne)</string>
+    <string name="edge_preview">Écouter un extrait</string>
+    <string name="edge_fallback">Voix en ligne indisponible, utilisation de la voix de l’appareil</string>
+    <string name="edge_privacy">Pour la voix en ligne, le texte est envoyé à Microsoft.</string>
+</resources>

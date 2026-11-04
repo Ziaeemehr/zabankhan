@@ -22,6 +22,8 @@ data class LanguageSpec(
     val ttsLocale: String,
     val sttLocale: String,
     val dictionaryLinks: List<DictionaryLink>,
+    val onlineVoices: List<String> = emptyList(),
+    val voicePreview: String = "",
 )
 
 object Languages {
@@ -37,6 +39,8 @@ object Languages {
             DictionaryLink("Linguee", "https://www.linguee.com/french-english/search?source=auto&query={word}", setOf("en")),
             DictionaryLink("Wiktionary", "https://fr.wiktionary.org/wiki/{word}"),
         ),
+        onlineVoices = listOf("fr-FR-DeniseNeural", "fr-FR-HenriNeural", "fr-FR-VivienneMultilingualNeural", "fr-FR-RemyMultilingualNeural", "fr-CA-SylvieNeural", "fr-CA-AntoineNeural", "fr-BE-CharlineNeural", "fr-CH-ArianeNeural"),
+        voicePreview = "Bonjour ! Voici un exemple de cette voix naturelle.",
     )
     val ENGLISH = LanguageSpec(
         "en", "English", "English", Script.LATIN, TextDir.LTR, emptyList(), "en-US", "en-US", listOf(
@@ -46,6 +50,8 @@ object Languages {
             DictionaryLink("Wiktionary", "https://en.wiktionary.org/wiki/{word}"),
             DictionaryLink("Merriam-Webster", "https://www.merriam-webster.com/dictionary/{word}"),
         ),
+        onlineVoices = listOf("en-US-AriaNeural", "en-US-GuyNeural", "en-US-JennyNeural", "en-US-AvaMultilingualNeural", "en-US-AndrewMultilingualNeural", "en-GB-SoniaNeural", "en-GB-RyanNeural", "en-AU-NatashaNeural"),
+        voicePreview = "Hello! Here is a sample of this natural voice.",
     )
     val PERSIAN = LanguageSpec(
         "fa", "Persian", "فارسی", Script.ARABIC, TextDir.RTL, emptyList(), "fa-IR", "fa-IR", listOf(

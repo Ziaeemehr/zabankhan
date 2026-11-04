@@ -56,7 +56,7 @@ private class IosTts : Tts {
     init { engine.delegate = delegate }
 }
 private val sharedTts: Tts by lazy { ActivityTts(IosTts()) }
-actual fun createTts(): Tts = sharedTts
+actual fun createDeviceTts(): Tts = sharedTts
 
 private suspend fun authorizeMic(): Boolean {
     val speech = suspendCancellableCoroutine { continuation ->

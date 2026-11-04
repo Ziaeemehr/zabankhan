@@ -21,8 +21,8 @@ import java.util.Locale
 import kotlin.coroutines.resume
 import kotlin.time.TimeSource
 
-private lateinit var appContext: Context
-fun initializeSpeech(context: Context) { appContext = context.applicationContext }
+internal lateinit var speechContext: Context
+fun initializeSpeech(context: Context) { speechContext = context.applicationContext }
 private val main = Handler(Looper.getMainLooper())
 private class AndroidTts : Tts {
     private val range = MutableStateFlow<IntRange?>(null)
@@ -35,7 +35,7 @@ private class AndroidTts : Tts {
     private var done: (() -> Unit)? = null
     private var voiceId: String? = null
     private var sequence = 0
-    private val engine = TextToSpeech(appContext) { status -> main.post {
+    private val engine = TextToSpeech(speechContext) { status -> main.post {
         ready = status == TextToSpeech.SUCCESS; failed = !ready
         pending?.invoke(); pending = null
     } }.apply {
@@ -78,7 +78,7 @@ private class AndroidTts : Tts {
     override fun setVoice(id: String?) { voiceId = id }
 }
 private val sharedTts: Tts by lazy { ActivityTts(AndroidTts()) }
-actual fun createTts(): Tts = sharedTts
+actual fun createDeviceTts(): Tts = sharedTts
 
 private class AndroidRecognizer : SpeechRecognizer {
     private var engine: android.speech.SpeechRecognizer? = null
@@ -90,7 +90,7 @@ private class AndroidRecognizer : SpeechRecognizer {
         var duration: Long? = null
         try {
             withTimeout(maxMs) { suspendCancellableCoroutine { continuation ->
-                val recognizer = android.speech.SpeechRecognizer.createSpeechRecognizer(appContext).also { engine = it }
+                val recognizer = android.speech.SpeechRecognizer.createSpeechRecognizer(speechContext).also { engine = it }
                 fun finish(text: String?, error: Int? = null) {
                     if (!continuation.isActive) return
                     val value = text?.takeIf { it.isNotBlank() } ?: partial

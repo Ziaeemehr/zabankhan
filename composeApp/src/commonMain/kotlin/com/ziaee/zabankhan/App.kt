@@ -34,6 +34,7 @@ data class AppOpenRequest(val text: String? = null, val review: Boolean = false,
             val prefs = settings
             if (prefs == null) { CircularProgressIndicator(); return@ZabankhanTheme }
             if (prefs.learningLang == null) { Onboarding(vm); return@ZabankhanTheme }
+            SideEffect { com.ziaee.zabankhan.speech.SpeechEngine.configure(prefs) }
             val tts = remember { com.ziaee.zabankhan.speech.createTts() }
             val speaking by tts.isSpeaking.collectAsState()
             val spokenLang by com.ziaee.zabankhan.speech.SpeechActivity.language.collectAsState()
@@ -65,6 +66,9 @@ data class AppOpenRequest(val text: String? = null, val review: Boolean = false,
             val snackbar = remember { SnackbarHostState() }
             val errorMessage = stringResource(Res.string.error_save)
             LaunchedEffect(vm.failed) { if (vm.failed) { snackbar.showSnackbar(errorMessage); vm.clearError() } }
+            val unavailable by com.ziaee.zabankhan.speech.SpeechEngine.onlineUnavailable.collectAsState()
+            val fallbackMessage = stringResource(Res.string.edge_fallback)
+            LaunchedEffect(unavailable) { if (unavailable) snackbar.showSnackbar(fallbackMessage) }
             Scaffold(snackbarHost = { SnackbarHost(snackbar) }, bottomBar = {
                 if (route in routes) NavigationBar {
                     routes.forEachIndexed { i, target -> NavigationBarItem(selected = route == target,

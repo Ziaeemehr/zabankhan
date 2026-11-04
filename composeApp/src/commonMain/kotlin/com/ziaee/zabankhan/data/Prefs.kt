@@ -32,6 +32,7 @@ data class AppSettings(
     val dailyGoalMinutes: Int = 10,
     val readerFontSize: Int = 20,
     val speechRate: Float = 1f,
+    val voiceEngine: String = "online",
     val autoPronounceCards: Boolean = false,
     val ttsVoices: Map<String, String> = emptyMap(),
     val reminderEnabled: Boolean = false,
@@ -55,6 +56,7 @@ class SettingsRepository(private val store: DataStore<Preferences>, private val 
         val font = intPreferencesKey("reader_font_size")
         val speechRate = androidx.datastore.preferences.core.floatPreferencesKey("speech_rate")
         val autoCards = androidx.datastore.preferences.core.booleanPreferencesKey("auto_pronounce_cards")
+        val engine = stringPreferencesKey("voice_engine")
         val voices = stringPreferencesKey("tts_voices")
         val reminderEnabled = androidx.datastore.preferences.core.booleanPreferencesKey("review_reminder_enabled")
         val reminderHour = intPreferencesKey("review_reminder_hour")
@@ -78,6 +80,7 @@ class SettingsRepository(private val store: DataStore<Preferences>, private val 
             dailyGoalMinutes = (p[K.dailyGoal] ?: 10).coerceIn(1, 120),
             readerFontSize = p[K.font] ?: 20,
             speechRate = p[K.speechRate] ?: 1f,
+            voiceEngine = p[K.engine]?.takeIf { it == "device" } ?: "online",
             autoPronounceCards = p[K.autoCards] ?: false,
             ttsVoices = runCatching { kotlinx.serialization.json.Json.decodeFromString<Map<String, String>>(p[K.voices] ?: "{}") }.getOrDefault(emptyMap()),
             reminderEnabled = p[K.reminderEnabled] ?: false,
@@ -124,6 +127,10 @@ class SettingsRepository(private val store: DataStore<Preferences>, private val 
     suspend fun setReaderFontSize(sp: Int) = store.edit { it[K.font] = sp.coerceIn(12, 40) }
     suspend fun setSpeechRate(rate: Float) = store.edit { it[K.speechRate] = rate.coerceIn(.75f, 1.25f) }
     suspend fun setAutoPronounceCards(enabled: Boolean) = store.edit { it[K.autoCards] = enabled }
+    suspend fun setVoiceEngine(engine: String) = store.edit {
+        require(engine == "online" || engine == "device")
+        it[K.engine] = engine
+    }
     suspend fun setTtsVoice(lang: String, id: String?) = store.edit {
         com.ziaee.zabankhan.speech.learningSpeechLanguage(lang)
         val voices = runCatching { kotlinx.serialization.json.Json.decodeFromString<Map<String, String>>(it[K.voices] ?: "{}") }.getOrDefault(emptyMap())

@@ -1,0 +1,8 @@
+<resources>
+    <string name="edge_engine">موتور صدا</string>
+    <string name="edge_online">صدای طبیعی آنلاین (مایکروسافت اج، نیازمند اینترنت)</string>
+    <string name="edge_device">صدای دستگاه (آفلاین)</string>
+    <string name="edge_preview">پیش‌شنوی</string>
+    <string name="edge_fallback">صدای آنلاین در دسترس نیست؛ از صدای دستگاه استفاده می‌شود</string>
+    <string name="edge_privacy">برای صدای آنلاین، متن به مایکروسافت فرستاده می‌شود.</string>
+</resources>

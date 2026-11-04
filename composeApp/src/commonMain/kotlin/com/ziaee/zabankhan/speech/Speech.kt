@@ -13,8 +13,8 @@ interface Tts {
     fun voices(langCode: String): List<TtsVoice>
     fun setVoice(id: String?)
 }
-// shortcut: platform speech engines in Phase 4; edge-tts / XTTS and Vosk are deferred.
-expect fun createTts(): Tts
+expect fun createDeviceTts(): Tts
+fun createTts(): Tts = SpeechEngine.current ?: createDeviceTts()
 
 data class RecognizedSpeech(val text: String, val durationMs: Long)
 interface SpeechRecognizer {

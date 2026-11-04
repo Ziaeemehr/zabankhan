@@ -5,8 +5,19 @@ import com.ziaee.zabankhan.data.*
 import com.ziaee.zabankhan.translate.*
 import com.ziaee.zabankhan.translate.llm.*
 import io.ktor.client.HttpClient
+import io.ktor.client.plugins.websocket.WebSockets
+import com.ziaee.zabankhan.speech.*
+import com.ziaee.zabankhan.speech.edge.*
+import com.ziaee.zabankhan.pdf.AppFiles
+import kotlinx.coroutines.*
 
-class AppContainer(val database: AppDatabase, val settings: SettingsRepository, val http: HttpClient) {
+class AppContainer(val database: AppDatabase, val settings: SettingsRepository, http: HttpClient) {
+    val http = http.config { install(WebSockets) }
+    private val speechScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
+    init {
+        SpeechEngine.current?.stop()
+        SpeechEngine.current = SelectedTts(EdgeTts(EdgeTtsClient(this.http), TtsCache("${AppFiles.cacheDir}/tts"), createAudioPlayer(), speechScope), createDeviceTts(), speechScope)
+    }
     val texts = database.texts()
     val vocab = database.vocab()
     val highlights = database.highlights()

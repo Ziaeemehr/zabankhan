@@ -44,6 +44,7 @@ kotlin {
             implementation(libs.sqlite.bundled)
             implementation(libs.datastore.preferences)
             implementation(libs.ktor.client.core)
+            implementation("io.ktor:ktor-client-websockets:${libs.versions.ktor.get()}")
             implementation(libs.kotlinx.coroutines.core)
             implementation(libs.kotlinx.serialization.json)
             implementation(libs.kotlinx.datetime)

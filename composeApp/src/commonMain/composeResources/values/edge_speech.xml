@@ -1,0 +1,8 @@
+<resources>
+    <string name="edge_engine">Voice engine</string>
+    <string name="edge_online">Online natural voice (Microsoft Edge, needs internet)</string>
+    <string name="edge_device">Device voice (offline)</string>
+    <string name="edge_preview">Preview</string>
+    <string name="edge_fallback">Online voice unavailable, using device voice</string>
+    <string name="edge_privacy">For online voice, text is sent to Microsoft.</string>
+</resources>
