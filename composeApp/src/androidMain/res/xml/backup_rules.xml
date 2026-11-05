@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<full-backup-content>
+        <exclude domain="file" path="zabankhan.preferences_pb" />
+        <exclude domain="file" path="tts" />
+        <exclude domain="file" path="Backups" />
+        <exclude domain="external" path="Backups" />
+        <exclude domain="file" path="BackupExports" />
+        <exclude domain="file" path="restore-staging" />
+</full-backup-content>

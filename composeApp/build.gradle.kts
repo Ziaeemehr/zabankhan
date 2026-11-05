@@ -1,3 +1,4 @@
+import java.util.Properties
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 import org.gradle.api.attributes.Usage
 import org.gradle.api.tasks.testing.Test
@@ -77,8 +78,20 @@ android {
         applicationId = "com.ziaee.zabankhan"
         minSdk = 26
         targetSdk = 36
-        versionCode = 1
-        versionName = "0.1.0"
+        versionCode = providers.gradleProperty("APP_VERSION_CODE").get().toInt()
+        versionName = providers.gradleProperty("APP_VERSION_NAME").get()
+    }
+    val signingPropsFile = file(providers.gradleProperty("zabankhanSigningProps").getOrElse(
+        "${System.getProperty("user.home")}/.android/zabankhan-release.properties"
+    ))
+    if (signingPropsFile.exists()) {
+        val props = Properties().apply { signingPropsFile.inputStream().use { load(it) } }
+        signingConfigs.create("release") {
+            storeFile = file(props.getProperty("storeFile"))
+            storePassword = props.getProperty("storePassword")
+            keyAlias = props.getProperty("keyAlias")
+            keyPassword = props.getProperty("keyPassword")
+        }
     }
     buildTypes {
         debug {
@@ -86,7 +99,10 @@ android {
             versionNameSuffix = "-dev"
         }
         release {
-            isMinifyEnabled = false
+            signingConfig = signingConfigs.findByName("release")
+            isMinifyEnabled = true
+            isShrinkResources = true
+            proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
         }
     }
     flavorDimensions += "store"
