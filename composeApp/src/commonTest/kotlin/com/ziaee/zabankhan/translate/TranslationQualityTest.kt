@@ -71,6 +71,11 @@ class TranslationQualityTest {
             WordSense("verb", "ذخیره کردن", 0.0)), parseWordSenses(body))
     }
 
+    @Test fun dictionaryTermTakesMaddaFromDirectTranslation() {
+        val body = """[[["آپارتمان","apartment"]],[["noun",["اپارتمان","منزل"],[["اپارتمان",["apartment"],null,0.03],["منزل",["house"],null,0.001]],"apartment",1]],"en"]"""
+        assertEquals(listOf(WordSense("noun", "آپارتمان", 0.03), WordSense("noun", "منزل", 0.001)), parseWordSenses(body))
+    }
+
     @Test fun malformedDictionaryIsEmpty() {
         listOf("not json", "{}", "[[],[null]]", "[[],[[\"noun\",[],42]]]", "[[],[[\"noun\",[],[[\"term\"]]]]]").forEach {
             assertTrue(parseWordSenses(it).isEmpty())

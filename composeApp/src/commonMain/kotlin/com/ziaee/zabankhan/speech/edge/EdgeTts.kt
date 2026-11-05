@@ -56,9 +56,12 @@ class EdgeTts(
             }
         } finally {
             // Cancel and join the prefetch before releasing its lease.
-            coroutineContext[Job]?.children?.toList()?.forEach { it.cancelAndJoin() }
-            withContext(NonCancellable) { held.toList().forEach { cache.release(it) }; held.clear() }
-            player.stop(); range.value = null; speaking.value = false
+            val children = coroutineContext[Job]?.children?.toList().orEmpty()
+            withContext(NonCancellable) {
+                children.forEach { it.cancelAndJoin() }
+                try { held.toList().forEach { cache.release(it) }; held.clear() }
+                finally { player.stop(); range.value = null; speaking.value = false }
+            }
         }
     }
     private suspend fun loadResult(chunk: SpeechChunk, load: suspend (SpeechChunk) -> CachedSpeech): Result<CachedSpeech> =

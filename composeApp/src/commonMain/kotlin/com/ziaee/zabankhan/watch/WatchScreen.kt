@@ -58,9 +58,6 @@ import org.jetbrains.compose.resources.stringResource
     var follow by remember(identity) { mutableStateOf(true) }
     val list = rememberLazyListState()
     var showTranslation by remember { mutableStateOf(false) }
-    var translation by remember { mutableStateOf<String?>(null) }
-    var translating by remember { mutableStateOf(false) }
-    var translationFailed by remember { mutableStateOf(false) }
     var translationAttempt by remember { mutableIntStateOf(0) }
     val meaningLang = Languages.byCode(settings.meaningLang)?.takeIf { it in listOf(Languages.PERSIAN, Languages.ENGLISH) } ?: Languages.PERSIAN
     val subtitlePicker = rememberMediaPicker(MediaFileKind.SUBTITLES) { it?.let { subtitlePath = it } }
@@ -109,15 +106,8 @@ import org.jetbrains.compose.resources.stringResource
         val cue = loopIndex?.let { cueList.getOrNull(it) }
         if (playing && cue != null && position >= cue.endMs) controller?.seekTo(cue.startMs)
     }
-    LaunchedEffect(active, showTranslation, meaningLang, translationAttempt) {
-        translation = null; translationFailed = false
-        if (showTranslation && active >= 0) {
-            translating = true
-            try {
-                val result = vm.container.translations(settings).translateText(cueList[active].text, lang.code, meaningLang.code)
-                translation = result.getOrNull(); translationFailed = result.isFailure
-            } finally { translating = false }
-        }
+    val translationState = rememberSubtitleTranslation(active, cueList.getOrNull(active)?.text, lang.code, meaningLang.code, showTranslation, translationAttempt) { text, source, target ->
+        vm.container.translations(settings).translateText(text, source, target)
     }
     fun select(index: Int, offset: Int) {
         val cue = cueList[index]
@@ -151,9 +141,9 @@ import org.jetbrains.compose.resources.stringResource
             if (!follow) TextButton(onClick = { follow = true }) { Text(stringResource(Res.string.watch_back_current)) }
         }
         if (showTranslation) {
-            if (translating) LinearProgressIndicator(Modifier.fillMaxWidth())
-            translation?.let { Text(it, Modifier.fillMaxWidth().padding(12.dp), style = contentStyle(it)) }
-            if (translationFailed) TextButton(onClick = { translationAttempt++ }) { Text(stringResource(Res.string.retry)) }
+            if (translationState.loading) LinearProgressIndicator(Modifier.fillMaxWidth())
+            translationState.text?.let { Text(it, Modifier.fillMaxWidth().padding(12.dp), style = contentStyle(it)) }
+            if (translationState.failed) TextButton(onClick = { translationAttempt++ }) { Text(stringResource(Res.string.retry)) }
         }
         BoxWithConstraints(Modifier.weight(1f).fillMaxWidth()) {
             val wide = maxWidth >= 700.dp || maxWidth > maxHeight * 1.4f

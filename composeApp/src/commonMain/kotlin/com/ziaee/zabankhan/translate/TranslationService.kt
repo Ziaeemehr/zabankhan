@@ -117,6 +117,9 @@ internal fun parseGoogleResponse(body: String): String {
 internal fun parseWordSenses(body: String): List<WordSense> = runCatching {
     val outer = Json.parseToJsonElement(body).jsonArray
     val groups = outer.getOrNull(1)?.takeUnless { it is JsonNull }?.jsonArray ?: return@runCatching emptyList()
+    // Google's Persian dictionary data often drops the madda ("اپارتمان") that its own translation keeps.
+    val direct = runCatching { parseGoogleResponse(body) }.getOrNull()
+    fun spelled(term: String) = if (direct != null && term != direct && term == direct.replace('آ', 'ا')) direct else term
     val seen = mutableSetOf<String>()
     buildList {
         for (raw in groups) {
@@ -125,8 +128,8 @@ internal fun parseWordSenses(body: String): List<WordSense> = runCatching {
             val scored = group.getOrNull(2)?.takeUnless { it is JsonNull }?.jsonArray
             val senses = if (!scored.isNullOrEmpty()) scored.map {
                 val entry = it.jsonArray
-                WordSense(pos, entry[0].jsonPrimitive.content, entry[3].jsonPrimitive.double)
-            }.sortedByDescending { it.score } else group[1].jsonArray.map { WordSense(pos, it.jsonPrimitive.content, 0.0) }
+                WordSense(pos, spelled(entry[0].jsonPrimitive.content), entry[3].jsonPrimitive.double)
+            }.sortedByDescending { it.score } else group[1].jsonArray.map { WordSense(pos, spelled(it.jsonPrimitive.content), 0.0) }
             senses.filter { it.term.isNotBlank() && seen.add(it.term) }.forEach { add(it) }
         }
     }

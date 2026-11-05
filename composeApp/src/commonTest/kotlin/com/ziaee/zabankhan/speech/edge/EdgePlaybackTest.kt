@@ -14,6 +14,33 @@ import kotlin.test.*
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class EdgePlaybackTest {
+    @Test fun cancellingPlaybackReleasesCachedAudioAndResetsState() = runTest {
+        val dir = FileSystem.SYSTEM_TEMPORARY_DIRECTORY / "edge-cancel-${Random.nextLong()}"
+        val http = HttpClient(MockEngine { error("Not used") })
+        try {
+            val prefetchStarted = CompletableDeferred<Unit>()
+            val client = object : EdgeTtsClient(http) {
+                override suspend fun synthesize(text: String, voice: String, locale: String, ratePercent: Int): EdgeSpeech {
+                    if (text == "Salut.") {
+                        prefetchStarted.complete(Unit)
+                        try { awaitCancellation() }
+                        finally { withContext(NonCancellable) { delay(100) } }
+                    }
+                    return EdgeSpeech(byteArrayOf(1), listOf(Boundary(text, 0, 100, "SentenceBoundary")))
+                }
+            }
+            val player = Player()
+            val edge = EdgeTts(client, TtsCache(dir.toString(), maxBytes = 0), player, this)
+            val playback = launch { edge.playText("a".repeat(999) + ". Salut.", Languages.FRENCH.code, 1f) }
+            player.started.await()
+            prefetchStarted.await()
+            playback.cancelAndJoin()
+            assertTrue(FileSystem.SYSTEM.list(dir).isEmpty(), "Cancelled playback must release its cache lease")
+            assertTrue(player.stopped)
+            assertFalse(edge.isSpeaking.value)
+            assertNull(edge.speakingRange.value)
+        } finally { http.close(); FileSystem.SYSTEM.deleteRecursively(dir, mustExist = false) }
+    }
     private class Player : AudioPlayer {
         override val position = MutableStateFlow(0L)
         val started = CompletableDeferred<Unit>()

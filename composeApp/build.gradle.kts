@@ -115,6 +115,8 @@ android {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
     }
+    // Shared Compose runtime tests use Android Trace markers without a device runtime.
+    testOptions.unitTests.isReturnDefaultValues = true
     packaging {
         resources { excludes += "/META-INF/{AL2.0,LGPL2.1}" }
     }
