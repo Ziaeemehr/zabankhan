@@ -90,7 +90,7 @@ private data class PdfRange(val page: Int, val first: Int, val last: Int, val wo
     Column(Modifier.fillMaxSize()) {
         FlowRow(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             TextButton(onClick = back) { Text(stringResource(Res.string.back)) }
-            Text("${page + 1} / ${handle.pageCount}", Modifier.padding(vertical = 12.dp), style = contentStyle("1 / 2"))
+            Text("\u2066${page + 1} / ${handle.pageCount}\u2069", Modifier.padding(vertical = 12.dp), style = contentStyle("1 / 2"))
             FilterChip(selected = areaMode, enabled = !recognizing, onClick = { areaMode = !areaMode; range = null },
                 label = { Text(stringResource(Res.string.pdf_select_area)) })
         }

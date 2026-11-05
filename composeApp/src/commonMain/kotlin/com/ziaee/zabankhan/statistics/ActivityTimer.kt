@@ -6,6 +6,7 @@ import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.ziaee.zabankhan.app.AppContainer
 import com.ziaee.zabankhan.data.ActivityLogEntry
+import com.ziaee.zabankhan.data.ActivityDao
 import kotlinx.coroutines.*
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -61,24 +62,35 @@ enum class ActivityKind { READING, LISTENING, WATCHING }
 private val writes = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 private val writeMutex = Mutex()
 
-@Composable fun TrackActivity(container: AppContainer, key: Any, lang: String, kind: ActivityKind, eligible: Boolean = true) {
+internal suspend fun writeActivity(dao: ActivityDao, rows: Map<String, Long>, lang: String, kind: ActivityKind) {
+    try {
+        writeMutex.withLock {
+            rows.forEach { (date, ms) ->
+                val row = dao.get(date, lang) ?: ActivityLogEntry(date, lang)
+                dao.upsert(when (kind) {
+                    ActivityKind.READING -> row.copy(readingMs = row.readingMs + ms)
+                    ActivityKind.LISTENING -> row.copy(listeningMs = row.listeningMs + ms)
+                    ActivityKind.WATCHING -> row.copy(watchingMs = row.watchingMs + ms)
+                })
+            }
+        }
+    } catch (cancelled: CancellationException) {
+        throw cancelled
+    } catch (_: Exception) {
+        // Restore can close the old database before a disposed screen's final flush runs.
+        // Activity accounting is best effort and must not crash the app in that race.
+    }
+}
+
+/** Returns the timer so screens can report interaction; reading counts only up to 60 s after the last one. */
+@Composable fun TrackActivity(container: AppContainer, key: Any, lang: String, kind: ActivityKind, eligible: Boolean = true): ScreenActivityTimer {
     val lifecycle = LocalLifecycleOwner.current.lifecycle
     val timer = remember(container, key, lang, kind) {
         val origin = TimeSource.Monotonic.markNow()
-        // Visible reader time is requested for H2; interaction expiry remains available in ActivityTimer.
-        ScreenActivityTimer(ActivityTimer(false, { origin.elapsedNow().inWholeMilliseconds }, { Clock.System.now().toEpochMilliseconds() })) { rows ->
+        // An idle open reader must not count as study time.
+        ScreenActivityTimer(ActivityTimer(kind == ActivityKind.READING, { origin.elapsedNow().inWholeMilliseconds }, { Clock.System.now().toEpochMilliseconds() })) { rows ->
             if (rows.isNotEmpty()) writes.launch {
-                writeMutex.withLock {
-                    val dao = container.database.activity()
-                    rows.forEach { (date, ms) ->
-                        val row = dao.get(date, lang) ?: ActivityLogEntry(date, lang)
-                        dao.upsert(when (kind) {
-                            ActivityKind.READING -> row.copy(readingMs = row.readingMs + ms)
-                            ActivityKind.LISTENING -> row.copy(listeningMs = row.listeningMs + ms)
-                            ActivityKind.WATCHING -> row.copy(watchingMs = row.watchingMs + ms)
-                        })
-                    }
-                }
+                writeActivity(container.database.activity(), rows, lang, kind)
             }
         }
     }
@@ -90,4 +102,5 @@ private val writeMutex = Mutex()
         onDispose { timer.setResumed(false); lifecycle.removeObserver(observer) }
     }
     LaunchedEffect(timer) { while (true) { delay(15_000); timer.flush() } }
+    return timer
 }

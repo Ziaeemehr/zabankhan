@@ -11,6 +11,20 @@ import kotlinx.coroutines.test.runTest
 import kotlin.test.*
 
 class SettingsLearningLanguageTest {
+    @Test fun restoredMeaningLanguageMustBeSupportedAndDifferentFromLearningLanguage() = runTest {
+        for ((learning, meaning, expected) in listOf(
+            Triple(Languages.FRENCH.code, "unsupported", Languages.PERSIAN.code),
+            Triple(Languages.ENGLISH.code, Languages.ENGLISH.code, Languages.PERSIAN.code),
+            Triple(Languages.FRENCH.code, Languages.ENGLISH.code, Languages.ENGLISH.code),
+        )) {
+            val repository = SettingsRepository(MemoryStore(preferencesOf(
+                stringPreferencesKey("learning_lang") to learning,
+                stringPreferencesKey("meaning_lang") to meaning,
+            )))
+            assertEquals(expected, repository.current().meaningLang)
+        }
+    }
+
     private class MemoryStore(initial: Preferences = emptyPreferences()) : DataStore<Preferences> {
         override val data = MutableStateFlow(initial)
         override suspend fun updateData(transform: suspend (t: Preferences) -> Preferences): Preferences =

@@ -58,7 +58,7 @@ class ReviewViewModel(private val container: AppContainer, private val settings:
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable fun ReviewScreen(container: AppContainer, settings: AppSettings) {
-    val vm = viewModel(key = "review:${settings.learningLang}:${settings.dailyNewCards}") { ReviewViewModel(container, settings) }
+    val vm = viewModel(key = "review:${container.hashCode()}:${settings.learningLang}:${settings.dailyNewCards}") { ReviewViewModel(container, settings) }
     LaunchedEffect(vm) { if (vm.session?.cards?.isEmpty() == true) vm.load() }
     val tts = remember { createTts() }
     var shadow by remember { mutableStateOf<VocabEntry?>(null) }
@@ -90,15 +90,15 @@ class ReviewViewModel(private val container: AppContainer, private val settings:
                 Button(enabled = !vm.busy, onClick = vm::load) { Text(stringResource(Res.string.start_review)) }
             }
         } else {
-            Text("${session.answers.size + 1} / ${session.cards.size}")
+            Text("\u2066${session.answers.size + 1} / ${session.cards.size}\u2069") // LTR isolate: RTL UI showed "3 / 1"
             ElevatedCard(onClick = { vm.flipped = !vm.flipped }, modifier = Modifier.fillMaxWidth()) {
                 Column(Modifier.padding(24.dp).heightIn(min = 220.dp), verticalArrangement = Arrangement.spacedBy(20.dp)) {
-                    Text(card.word, style = MaterialTheme.typography.headlineLarge.merge(contentStyle(card.word)))
+                    Text(card.word, Modifier.fillMaxWidth(), style = MaterialTheme.typography.headlineLarge.merge(contentStyle(card.word)))
                     Text(stringResource(Res.string.box_label, card.leitnerBox))
                     val spec = Languages.byCode(card.lang)!!
                     val matches = VocabHighlighter(listOf(SavedVocab(card.word, card.srsState().status())), spec).findMatches(card.sentence)
-                    Text(buildAnnotatedString { append(card.sentence); matches.forEach { addStyle(SpanStyle(fontWeight = FontWeight.Bold), it.range.first, it.range.last + 1) } }, style = contentStyle(card.sentence))
-                    if (vm.flipped) Text(card.meaning.orEmpty(), style = MaterialTheme.typography.titleLarge.merge(contentStyle(card.meaning.orEmpty())))
+                    Text(buildAnnotatedString { append(card.sentence); matches.forEach { addStyle(SpanStyle(fontWeight = FontWeight.Bold), it.range.first, it.range.last + 1) } }, Modifier.fillMaxWidth(), style = contentStyle(card.sentence))
+                    if (vm.flipped) Text(card.meaning.orEmpty(), Modifier.fillMaxWidth(), style = MaterialTheme.typography.titleLarge.merge(contentStyle(card.meaning.orEmpty())))
                     else Text(stringResource(Res.string.flip_hint), style = MaterialTheme.typography.labelLarge)
                 }
             }

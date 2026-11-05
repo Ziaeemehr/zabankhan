@@ -7,6 +7,23 @@ import kotlinx.coroutines.test.runTest
 import kotlin.test.*
 
 class FrenchReaderMigrationTest {
+    @Test fun keepsDistinctPdfsWithTheSameTitleAndEmptyBody() = runTest {
+        val lang = Languages.FRENCH.code
+        val dao = MemoryMigrationDao()
+        val snapshot = FrenchReaderSnapshot(
+            texts = listOf(
+                TextDocument(id = 1, lang = lang, title = "Scan", body = "", pdfPath = "/pdfs/one.pdf"),
+                TextDocument(id = 2, lang = lang, title = "Scan", body = "", pdfPath = "/pdfs/two.pdf"),
+            ),
+            folders = emptyList(), words = emptyList(), lists = emptyList(), reviews = emptyList(),
+            highlights = listOf(HighlightEntry(1, 1, 0, 1, "yellow"), HighlightEntry(2, 2, 0, 1, "yellow")),
+        )
+        assertEquals(2, dao.importSnapshot(snapshot).texts)
+        assertEquals(setOf("/pdfs/one.pdf", "/pdfs/two.pdf"), dao.texts.map { it.pdfPath }.toSet())
+        assertEquals(2, dao.highlights.map { it.textId }.toSet().size)
+        assertEquals(0, dao.importSnapshot(snapshot).texts)
+    }
+
     @Test fun readsLegacyColumnsAndFileBackedTextWithoutChangingSource() {
         BundledSQLiteDriver().open(":memory:").use { db ->
             listOf(
@@ -79,7 +96,7 @@ private class MemoryMigrationDao : MigrationDao() {
     val folders = mutableListOf<LibraryFolder>(); val lists = mutableListOf<VocabList>()
     val highlights = mutableListOf<HighlightEntry>(); val reviews = mutableListOf<ReviewLogEntry>()
     private var next = 100L
-    override suspend fun findText(lang: String, title: String, body: String) = texts.firstOrNull { it.lang == lang && it.title == title && it.body == body }?.id
+    override suspend fun findText(lang: String, title: String, body: String, pdfPath: String?) = texts.firstOrNull { it.lang == lang && it.title == title && it.body == body && it.pdfPath == pdfPath }?.id
     override suspend fun findWord(lang: String, word: String) = words.firstOrNull { it.lang == lang && it.word.lowercase() == word.lowercase() }?.id
     override suspend fun findFolder(lang: String, name: String, parent: Long?) = folders.firstOrNull { it.lang == lang && it.name == name && it.parentId == parent }?.id
     override suspend fun findList(lang: String, name: String) = lists.firstOrNull { it.lang == lang && it.name == name }?.id

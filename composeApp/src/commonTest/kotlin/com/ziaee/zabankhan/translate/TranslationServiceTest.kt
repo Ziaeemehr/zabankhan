@@ -8,6 +8,25 @@ import kotlinx.coroutines.test.runTest
 import kotlin.test.*
 
 class TranslationServiceTest {
+    @Test fun myMemoryRejectsProviderErrorsReturnedWithHttpSuccess() = runTest {
+        for (status in listOf(403, 429, 500)) {
+            val http = HttpClient(MockEngine { request ->
+                if (request.url.host == "api.mymemory.translated.net")
+                    respond("""{"responseStatus":$status,"responseData":{"translatedText":"QUERY LENGTH LIMIT EXCEEDED"}}""")
+                else respond("blocked", HttpStatusCode.Forbidden)
+            })
+            try {
+                assertFailsWith<IllegalStateException> { TranslationService(http).translate("hello", "fa", "en") }
+            } finally { http.close() }
+        }
+    }
+
+    @Test fun googleRejectsNonStringSegments() {
+        for (value in listOf("null", "123", "true")) {
+            assertFailsWith<IllegalStateException> { parseGoogleResponse("[[[$value,\"hello\"]],null,\"en\"]") }
+        }
+    }
+
     @Test fun gtxJoinsSegmentsAndPreservesLanguageParameters() = runTest {
         val http = HttpClient(MockEngine { request ->
             assertEquals("es", request.url.parameters["sl"])
@@ -35,7 +54,7 @@ class TranslationServiceTest {
         val http = HttpClient(MockEngine { request ->
             if (request.url.host == "api.mymemory.translated.net") {
                 assertEquals("en|fa", request.url.parameters["langpair"])
-                respond("""{"responseData":{"translatedText":"مي روم"}}""")
+                respond("""{"responseStatus":200,"responseData":{"translatedText":"مي روم"}}""")
             } else respond("blocked", HttpStatusCode.Forbidden)
         })
         try { assertEquals("می‌روم", TranslationService(http).translate("I go", "fa", "en")) }

@@ -50,7 +50,7 @@ import org.jetbrains.compose.resources.stringResource
     }
     ModalBottomSheet(onDismissRequest = dismiss) {
         Column(Modifier.fillMaxWidth().navigationBarsPadding().verticalScroll(rememberScrollState()).padding(24.dp).imePadding(), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-            Text(selection.word, style = MaterialTheme.typography.headlineSmall.merge(contentStyle(selection.word)))
+            Text(selection.word, Modifier.fillMaxWidth(), style = MaterialTheme.typography.headlineSmall.merge(contentStyle(selection.word)))
             FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 SpeakerButton(selection.word, text.lang, settings)
                 TextButton(onClick = { if (listen != null) listen() else createTts().pronounce(selection.sentence, text.lang, settings) }) { Text(stringResource(Res.string.speech_sentence)) }

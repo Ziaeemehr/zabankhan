@@ -11,8 +11,8 @@ import com.ziaee.zabankhan.lang.Languages
 /** Inserts the complete legacy snapshot atomically, preserving relationships after deduplication. */
 @Dao
 abstract class MigrationDao {
-    @Query("SELECT id FROM texts WHERE lang = :lang AND title = :title AND body = :body LIMIT 1")
-    abstract suspend fun findText(lang: String, title: String, body: String): Long?
+    @Query("SELECT id FROM texts WHERE lang = :lang AND title = :title AND body = :body AND (pdfPath = :pdfPath OR (pdfPath IS NULL AND :pdfPath IS NULL)) LIMIT 1")
+    abstract suspend fun findText(lang: String, title: String, body: String, pdfPath: String?): Long?
     @Query("SELECT id FROM vocab WHERE lang = :lang AND lower(word) = lower(:word) LIMIT 1")
     abstract suspend fun findWord(lang: String, word: String): Long?
     @Query("SELECT id FROM library_folders WHERE lang = :lang AND name = :name AND (parentId = :parent OR (parentId IS NULL AND :parent IS NULL)) LIMIT 1")
@@ -49,7 +49,7 @@ abstract class MigrationDao {
         var wordsAdded = 0
         var skipped = 0
         val texts = snapshot.texts.associate { old ->
-            val existing = findText(lang, old.title, old.body)
+            val existing = findText(lang, old.title, old.body, old.pdfPath)
             old.id to if (existing != null) { skipped++; existing } else {
                 textsAdded++
                 insertText(old.copy(id = 0, folderId = folders[old.folderId]))

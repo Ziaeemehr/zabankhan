@@ -30,7 +30,10 @@ class TranslationService(private val http: HttpClient) {
             } catch (cancelled: CancellationException) { throw cancelled
             } catch (_: Exception) {
                 val body = read("https://api.mymemory.translated.net/get?q=${encode(text)}&langpair=${encode(sourceLang)}|${encode(targetLang)}")
-                val primitive = Json.parseToJsonElement(body).jsonObject.getValue("responseData").jsonObject.getValue("translatedText") as? JsonPrimitive
+                val payload = Json.parseToJsonElement(body).jsonObject
+                val status = payload["responseStatus"]
+                check(status == null || (status as? JsonPrimitive)?.intOrNull == 200) { "MyMemory translation failed" }
+                val primitive = payload.getValue("responseData").jsonObject.getValue("translatedText") as? JsonPrimitive
                 check(primitive?.isString == true) { "Invalid MyMemory translation" }
                 val value = primitive.content
                 check(value.isNotBlank()) { "Empty translation from MyMemory" }
@@ -104,7 +107,9 @@ internal fun splitTranslatedLines(translated: String, count: Int): List<String>?
 
 internal fun parseGoogleResponse(body: String): String {
     val segments = Json.parseToJsonElement(body).jsonArray[0].jsonArray
-    val result = segments.mapNotNull { (it as? JsonArray)?.getOrNull(0)?.let { value -> (value as? JsonPrimitive)?.contentOrNull } }.joinToString("").trim()
+    val result = segments.mapNotNull { (it as? JsonArray)?.getOrNull(0)?.let { value ->
+        (value as? JsonPrimitive)?.takeIf { it.isString }?.contentOrNull
+    } }.joinToString("").trim()
     check(result.isNotEmpty()) { "Empty translation from Google endpoint" }
     return result
 }

@@ -24,7 +24,7 @@ data class AppSettings(
     /** Languages the user has added, comma-separated codes. */
     val learningLangs: List<String> = emptyList(),
     /** Language meanings are shown in ("fa" / "en"). */
-    val meaningLang: String = "fa",
+    val meaningLang: String = Languages.PERSIAN.code,
     /** UI language ("system", "en", "fa", "fr"). */
     val uiLang: String = "system",
     val themeMode: String = "SYSTEM",
@@ -73,7 +73,9 @@ class SettingsRepository(private val store: DataStore<Preferences>, private val 
         AppSettings(
             learningLang = active,
             learningLangs = (langs + listOfNotNull(active)).distinct(),
-            meaningLang = p[K.meaning] ?: "fa",
+            meaningLang = p[K.meaning]?.takeIf {
+                it == Languages.PERSIAN.code || (it == Languages.ENGLISH.code && it != active)
+            } ?: Languages.PERSIAN.code,
             uiLang = p[K.ui] ?: "system",
             themeMode = p[K.theme] ?: "SYSTEM",
             dailyNewCards = p[K.newCards] ?: 10,

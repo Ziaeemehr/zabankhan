@@ -5,6 +5,8 @@ import com.ziaee.zabankhan.data.nowMs
 import com.ziaee.zabankhan.lang.LanguageSpec
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.*
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 
 sealed interface ShadowPhase {
     data object Idle : ShadowPhase
@@ -24,6 +26,7 @@ class ShadowingController(
     private val mutablePhase = MutableStateFlow<ShadowPhase>(ShadowPhase.Idle)
     val phase: StateFlow<ShadowPhase> = mutablePhase.asStateFlow()
     private var job: Job? = null
+    private val microphone = Mutex()
     private var generation = 0
     private var expectedMs = 0L
     private var sentence = ""
@@ -39,6 +42,7 @@ class ShadowingController(
         val previous = job
         cancel()
         previous?.join() // native microphone/audio-session teardown must precede new audio
+        microphone.withLock { } // a cancelled retry may have been waiting on an older session
         mutablePhase.value = ShadowPhase.Playing
     }
     fun playbackFailed() { mutablePhase.value = ShadowPhase.Error(false) }
@@ -52,7 +56,9 @@ class ShadowingController(
         mutablePhase.value = ShadowPhase.Recording
         job = scope.launch {
             try {
-                val recording = recognizer.listenOnce(language.code).getOrThrow()
+                // Cancellation can suspend while native microphone resources are released.
+                // A retry must not replace the recognizer's engine before that cleanup ends.
+                val recording = microphone.withLock { recognizer.listenOnce(language.code).getOrThrow() }
                 if (token != generation) return@launch
                 if (recording.durationMs < 300) { mutablePhase.value = ShadowPhase.Idle; return@launch }
                 if (recording.text.isBlank()) { mutablePhase.value = ShadowPhase.Error(true); return@launch }

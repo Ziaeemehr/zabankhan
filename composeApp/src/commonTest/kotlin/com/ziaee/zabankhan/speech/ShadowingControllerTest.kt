@@ -18,6 +18,33 @@ private class FakeRecognizer(var next: RecognizedSpeech = RecognizedSpeech("le c
 }
 @OptIn(ExperimentalCoroutinesApi::class)
 class ShadowingControllerTest {
+    @Test fun retryWaitsForCancelledMicrophoneTeardown() = runTest {
+        var sessions = 0
+        var cleaning = false
+        val engine = object : SpeechRecognizer {
+            override suspend fun listenOnce(langCode: String, maxMs: Long): Result<RecognizedSpeech> {
+                assertFalse(cleaning, "Previous microphone session is still being released")
+                sessions++
+                try { awaitCancellation() }
+                finally {
+                    withContext(NonCancellable) {
+                        cleaning = true
+                        delay(100)
+                        cleaning = false
+                    }
+                }
+            }
+            override fun stop() = Unit
+        }
+        val controller = ShadowingController(this, engine, {})
+        controller.target(Languages.ENGLISH, null, "hello")
+        controller.listen(); runCurrent()
+        controller.retry(); controller.listen(); runCurrent()
+        assertEquals(1, sessions)
+        advanceTimeBy(100); runCurrent()
+        assertEquals(2, sessions)
+        controller.cancel(); advanceUntilIdle()
+    }
     @Test fun scoresSavesAndMeasuresPace() = runTest {
         val saved = mutableListOf<ShadowAttempt>()
         val c = ShadowingController(this, FakeRecognizer(), { saved += it }, { 1234 })
@@ -72,6 +99,8 @@ class ShadowingControllerTest {
         val controller = ShadowingController(this, engine, {})
         controller.target(Languages.ENGLISH, null, "hello")
         controller.listen(); runCurrent()
+        // A retry can itself be cancelled while the first session still owns the microphone.
+        controller.retry(); controller.listen(); runCurrent()
         val playback = launch { controller.preparePlayback(); assertTrue(cleaned) }
         runCurrent(); assertFalse(playback.isCompleted)
         advanceUntilIdle(); assertTrue(playback.isCompleted)

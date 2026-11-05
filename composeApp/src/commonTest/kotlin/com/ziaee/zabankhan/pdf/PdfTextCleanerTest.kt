@@ -5,6 +5,16 @@ import kotlin.test.Test
 
 class PdfTextCleanerTest {
     @Test
+    fun preservesRepeatedBodyLines() {
+        assertEquals(
+            "First paragraph. Repeated quotation. First ending.\n\nSecond paragraph. Repeated quotation. Second ending.",
+            PdfTextCleaner.cleanPages(listOf(
+                "First paragraph.\nRepeated quotation.\nFirst ending.",
+                "Second paragraph.\nRepeated quotation.\nSecond ending."
+            ))
+        )
+    }
+    @Test
     fun joinsWordsHyphenatedAcrossLineBreaks() {
         assertEquals("Un apprentissage utile.", PdfTextCleaner.clean("Un appren-\ntissage utile."))
     }

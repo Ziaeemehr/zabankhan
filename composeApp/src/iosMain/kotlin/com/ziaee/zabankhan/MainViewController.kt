@@ -22,7 +22,7 @@ private val containerState by lazy { mutableStateOf(newContainer()) }
 fun MainViewController(): platform.UIKit.UIViewController {
     initializeIosReviewReminders()
     BackupRuntime.onRestored = {
-        containerState.value.http.close()
+        containerState.value.close()
         containerState.value = newContainer()
     }
     installBackupLifecycle { containerState.value }

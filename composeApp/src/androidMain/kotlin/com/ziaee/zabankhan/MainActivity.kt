@@ -23,7 +23,7 @@ class ZabankhanApp : Application() {
         com.ziaee.zabankhan.pdf.initializePdf(this)
         initializeBackup(this)
         BackupRuntime.onRestored = {
-            container.http.close()
+            container.close()
             container = newContainer()
             val intent = packageManager.getLaunchIntentForPackage(packageName)
             intent?.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)

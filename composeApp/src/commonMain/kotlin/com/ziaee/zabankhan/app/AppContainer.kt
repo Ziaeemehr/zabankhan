@@ -12,11 +12,21 @@ import com.ziaee.zabankhan.pdf.AppFiles
 import kotlinx.coroutines.*
 
 class AppContainer(val database: AppDatabase, val settings: SettingsRepository, http: HttpClient) {
+    private val sourceHttp = http
     val http = http.config { install(WebSockets) }
     private val speechScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
+    private val tts = SelectedTts(EdgeTts(EdgeTtsClient(this.http), TtsCache("${AppFiles.cacheDir}/tts"), createAudioPlayer(), speechScope), createDeviceTts(), speechScope)
     init {
         SpeechEngine.current?.stop()
-        SpeechEngine.current = SelectedTts(EdgeTts(EdgeTtsClient(this.http), TtsCache("${AppFiles.cacheDir}/tts"), createAudioPlayer(), speechScope), createDeviceTts(), speechScope)
+        SpeechEngine.current = tts
+    }
+    /** Release container-owned background work before replacing it after restore. */
+    fun close() {
+        tts.stop()
+        if (SpeechEngine.current === tts) SpeechEngine.current = null
+        speechScope.cancel()
+        http.close()
+        sourceHttp.close()
     }
     val texts = database.texts()
     val vocab = database.vocab()

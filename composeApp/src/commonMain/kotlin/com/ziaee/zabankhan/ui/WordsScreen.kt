@@ -51,7 +51,7 @@ import org.jetbrains.compose.resources.stringResource
                 if (selected.isEmpty()) edit = word else selected = if (word.id in selected) selected - word.id else selected + word.id
             }, onLongClick = { selected = selected + word.id }), colors = CardDefaults.cardColors(containerColor = if (word.id in selected) MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.surfaceContainer)) {
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text(word.word, style = MaterialTheme.typography.titleLarge.merge(contentStyle(word.word)))
+                    Text(word.word, Modifier.fillMaxWidth(), style = MaterialTheme.typography.titleLarge.merge(contentStyle(word.word)))
                     Text(word.meaning.orEmpty(), style = contentStyle(word.meaning.orEmpty()))
                     Text(stringResource(Res.string.box_label, word.leitnerBox), color = boxColor(word.leitnerBox))
                 }

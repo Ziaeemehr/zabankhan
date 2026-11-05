@@ -56,7 +56,7 @@ data class ReaderSelection(val word: String, val sentence: String, val range: In
     val playback = remember(id, parts, lang) { ReaderPlayback(tts, parts.map { SpokenParagraph(it.text, it.offset) }, lang) }
     val speaking by tts.isSpeaking.collectAsState()
     val spokenSentence by playback.sentence.collectAsState()
-    com.ziaee.zabankhan.statistics.TrackActivity(vm.container, id, lang.code, com.ziaee.zabankhan.statistics.ActivityKind.READING, !speaking)
+    val activity = com.ziaee.zabankhan.statistics.TrackActivity(vm.container, id, lang.code, com.ziaee.zabankhan.statistics.ActivityKind.READING, !speaking)
     var rate by remember { mutableFloatStateOf(settings.speechRate) }
     var shadowRange by remember(id) { mutableStateOf<IntRange?>(null) }
     LaunchedEffect(playback) { tts.speakingRange.collect { playback.rangeChanged(it) } }
@@ -67,6 +67,7 @@ data class ReaderSelection(val word: String, val sentence: String, val range: In
         if (list.layoutInfo.visibleItemsInfo.none { it.index == index }) list.scrollToItem(index)
     }
     var selection by remember(id) { mutableStateOf<ReaderSelection?>(null) }
+    LaunchedEffect(activity, list) { activity.interact(); snapshotFlow { list.firstVisibleItemIndex to list.firstVisibleItemScrollOffset }.collect { activity.interact() } }
     LaunchedEffect(id) {
         snapshotFlow { list.firstVisibleItemIndex }.distinctUntilChanged().collect { index ->
             parts.getOrNull(index)?.let { vm.container.texts.savePosition(id, it.offset) }
@@ -108,7 +109,7 @@ data class ReaderSelection(val word: String, val sentence: String, val range: In
                     val index = parts.indexOf(part)
                     if (index >= 0) list.animateScrollToItem(index, y)
                 }) { token, sentence, range, long ->
-                    playback.stop()
+                    playback.stop(); activity.interact()
                     selection = ReaderSelection(if (long) sentence else token, sentence, range, long)
                 }
             }

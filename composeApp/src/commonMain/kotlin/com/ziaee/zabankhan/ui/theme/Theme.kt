@@ -1,7 +1,10 @@
 package com.ziaee.zabankhan.ui.theme
 
 import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
+import androidx.compose.ui.Modifier
 import androidx.compose.material3.Typography
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
@@ -84,5 +87,8 @@ fun ZabankhanTheme(mode: ThemeMode = ThemeMode.SYSTEM, content: @Composable () -
         labelMedium = base.labelMedium.copy(fontFamily = family, textDirection = TextDirection.Content),
         labelSmall = base.labelSmall.copy(fontFamily = family, textDirection = TextDirection.Content),
     )
-    MaterialTheme(colorScheme = if (dark) DarkColors else LightColors, typography = typography, content = content)
+    MaterialTheme(colorScheme = if (dark) DarkColors else LightColors, typography = typography) {
+        // Root surface: without it text uses the default black content colour and iOS shows a black window in dark mode.
+        Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background, content = content)
+    }
 }

@@ -13,16 +13,21 @@ object PdfTextCleaner {
         if (pages.isEmpty()) return ""
         val normalizedPages = pages.map { normalize(it).lines() }
         val frequency = normalizedPages
-            .flatMap { lines -> lines.map(String::trim).filter { it.isNotEmpty() }.distinct() }
+            .flatMap { lines ->
+                val content = lines.map(String::trim).filter { it.isNotEmpty() && !pageNumber.matches(it) }
+                listOfNotNull(content.firstOrNull(), content.lastOrNull()).distinct()
+            }
             .groupingBy { it }
             .eachCount()
         val repeatThreshold = maxOf(2, ceil(pages.size * 0.6).toInt())
         val repeated = frequency.filterValues { it >= repeatThreshold }.keys
 
         val keptPages = normalizedPages.map { lines ->
-            lines.filterNot { line ->
+            val first = lines.indexOfFirst { it.isNotBlank() && !pageNumber.matches(it) }
+            val last = lines.indexOfLast { it.isNotBlank() && !pageNumber.matches(it) }
+            lines.filterIndexed { index, line ->
                 val trimmed = line.trim()
-                pageNumber.matches(trimmed) || trimmed in repeated
+                !pageNumber.matches(trimmed) && !(index in listOf(first, last) && trimmed in repeated)
             }.joinToString("\n").trim()
         }.filter(String::isNotEmpty)
         // A page that doesn't end a sentence continues its paragraph (and any

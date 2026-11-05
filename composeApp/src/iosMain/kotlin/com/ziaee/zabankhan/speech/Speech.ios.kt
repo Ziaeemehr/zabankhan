@@ -91,7 +91,8 @@ private class IosRecognizer : SpeechRecognizer {
                     val engine = AVAudioEngine().also { audio = it }
                     val buffer = SFSpeechAudioBufferRecognitionRequest().also { request = it }
                     buffer.shouldReportPartialResults = true
-                    if (recognizer.supportsOnDeviceRecognition) buffer.requiresOnDeviceRecognition = true
+                    // Prefer on-device; devices without it fall back to Apple's server (disclosed in PRIVACY.md).
+                    buffer.requiresOnDeviceRecognition = recognizer.supportsOnDeviceRecognition
                     task = recognizer.recognitionTaskWithRequest(buffer) { result, error ->
                         if (result != null) {
                             val segments = result.bestTranscription.segments.filterIsInstance<SFTranscriptionSegment>()
@@ -106,7 +107,9 @@ private class IosRecognizer : SpeechRecognizer {
                         }
                     }
                     val input = engine.inputNode
-                    input.installTapOnBus(0u, bufferSize = 1024u, format = input.outputFormatForBus(0u)) { pcm, _ -> if (pcm != null) buffer.appendAudioPCMBuffer(pcm) }
+                    val format = input.outputFormatForBus(0u)
+                    check(format.sampleRate > 0 && format.channelCount > 0u) { "Microphone unavailable" }
+                    input.installTapOnBus(0u, bufferSize = 1024u, format = format) { pcm, _ -> if (pcm != null) buffer.appendAudioPCMBuffer(pcm) }
                     tapped = true
                     engine.prepare()
                     if (!engine.startAndReturnError(null)) continuation.resume(Result.failure(IllegalStateException("Microphone unavailable")))
