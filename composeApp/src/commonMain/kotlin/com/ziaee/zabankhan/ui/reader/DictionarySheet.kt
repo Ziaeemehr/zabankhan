@@ -1,6 +1,9 @@
 package com.ziaee.zabankhan.ui.reader
 
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.CornerSize
+import androidx.compose.ui.Alignment
+import com.ziaee.zabankhan.ui.theme.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
@@ -48,70 +51,89 @@ import org.jetbrains.compose.resources.stringResource
         }
         loading = false
     }
-    ModalBottomSheet(onDismissRequest = dismiss) {
-        Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).navigationBarsPadding().padding(24.dp).imePadding(), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-            Text(selection.word, Modifier.fillMaxWidth(), style = MaterialTheme.typography.headlineSmall.merge(contentStyle(selection.word)))
-            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+    ModalBottomSheet(onDismissRequest = dismiss, shape = MaterialTheme.shapes.extraLarge.copy(bottomStart = CornerSize(0.dp), bottomEnd = CornerSize(0.dp)), containerColor = MaterialTheme.colorScheme.surface) {
+        Column(Modifier.fillMaxWidth().navigationBarsPadding().imePadding()) {
+            Row(Modifier.fillMaxWidth().padding(horizontal = 24.dp), verticalAlignment = Alignment.CenterVertically) {
+                Text(selection.word, Modifier.weight(1f), style = editorialStyle(selection.word, if (selection.sentenceActions) EditorialRole.ArticleHeadline else EditorialRole.ReviewWord))
                 SpeakerButton(selection.word, text.lang, settings)
-                TextButton(onClick = { if (listen != null) listen() else createTts().pronounce(selection.sentence, text.lang, settings) }) { Text(stringResource(Res.string.speech_sentence)) }
-                if (selection.sentenceActions) {
-                    if (listenFromHere != null) TextButton(onClick = listenFromHere) { Text(stringResource(Res.string.speech_from_here)) }
-                    if (shadow != null) TextButton(onClick = shadow) { Text(stringResource(Res.string.speech_shadow)) }
-                }
-            }
-            if (loading) CircularProgressIndicator()
-            error?.let { TranslationError(it); TextButton(onClick = { attempt++ }) { Text(stringResource(Res.string.retry)) } }
-            if (!loading && error == null && lookup?.primary.isNullOrBlank() && lookup?.senses.isNullOrEmpty()) Text(stringResource(Res.string.no_meaning))
-            lookup?.takeIf { it.primary.isNotBlank() || it.senses.isNotEmpty() }?.let { value ->
-                Text(value.primary, modifier = Modifier.fillMaxWidth(), style = MaterialTheme.typography.titleLarge.merge(contentStyle(value.primary)))
-                value.senses.forEach { sense ->
-                    // pos and meanings on separate lines: one mixed-direction line renders "x :noun".
-                    if (sense.pos.isNotBlank()) Text(partOfSpeechResource(sense.pos)?.let { stringResource(it) } ?: sense.pos, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    Text(sense.meanings.joinToString("، "), modifier = Modifier.fillMaxWidth(), style = contentStyle(sense.meanings.joinToString()))
-                }
-            }
-            if (!selection.sentenceActions) {
-                Text(selection.sentence, modifier = Modifier.fillMaxWidth(), style = contentStyle(selection.sentence))
-                TextButton(enabled = !sentenceLoading, onClick = { scope.launch {
-                    sentenceLoading = true; sentenceError = null
-                    try { val result = repository.translateText(selection.sentence, text.lang, target); translated = result.getOrNull(); sentenceError = result.exceptionOrNull() }
-                    finally { sentenceLoading = false }
-                } }) { Text(stringResource(Res.string.translate_sentence)) }
-                if (sentenceLoading) CircularProgressIndicator()
-                translated?.let { Text(it, modifier = Modifier.fillMaxWidth(), style = contentStyle(it)) }
-                sentenceError?.let { TranslationError(it) }
-            }
-            saved?.let { Text(stringResource(Res.string.box_label, it.leitnerBox), color = boxColor(it.leitnerBox)) }
-            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Button(enabled = lookup != null && !saving, onClick = { saving = true; vm.action {
+                EditorialPrimaryButton(text = stringResource(if (saved != null) Res.string.ed_saved else if (selection.sentenceActions) Res.string.save_phrase else Res.string.save), enabled = lookup != null, loading = saving, onClick = { saving = true; vm.action {
                     try {
                     val entry = saved?.copy(meaning = lookup!!.primary, meaningLang = target, sentence = selection.sentence, textId = text.id)
                         ?: VocabEntry(lang = text.lang, word = selection.word, sentence = selection.sentence, meaning = lookup!!.primary, meaningLang = target, textId = text.id)
                     if (saved == null) vm.container.vocab.insert(entry) else vm.container.vocab.update(entry)
                     dismiss()
                     } finally { saving = false }
-                } }) { Text(stringResource(if (selection.sentenceActions) Res.string.save_phrase else Res.string.save)) }
-                if (saved != null) OutlinedButton(enabled = !saving, onClick = { saving = true; vm.action { try { vm.container.vocab.delete(saved); dismiss() } finally { saving = false } } }) { Text(stringResource(Res.string.remove)) }
+                } })
             }
-            if (selection.sentenceActions && text.pdfPath == null) {
-                Text(stringResource(Res.string.highlight))
-                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    listOf("primary" to Res.string.highlight_primary, "secondary" to Res.string.highlight_secondary, "tertiary" to Res.string.highlight_tertiary).forEach { (key, label) ->
-                        OutlinedButton(onClick = { vm.action {
-                            highlights.filter { it.startOffset == selection.range.first && it.endOffset == selection.range.last + 1 }.forEach { vm.container.highlights.delete(it.id) }
-                            vm.container.highlights.insert(HighlightEntry(textId = text.id, startOffset = selection.range.first, endOffset = selection.range.last + 1, colorKey = key)); dismiss()
-                        } }) { Text(stringResource(label)) }
+            Column(Modifier.weight(1f, fill = false).verticalScroll(rememberScrollState()).padding(horizontal = 24.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                if (loading) CircularProgressIndicator()
+                error?.let { TranslationError(it); TextButton(onClick = { attempt++ }) { Text(stringResource(Res.string.retry)) } }
+                if (!loading && error == null && lookup?.primary.isNullOrBlank() && lookup?.senses.isNullOrEmpty()) Text(stringResource(Res.string.no_meaning))
+                lookup?.takeIf { it.primary.isNotBlank() || it.senses.isNotEmpty() }?.let { value ->
+                    Text(value.primary, modifier = Modifier.fillMaxWidth(), style = MaterialTheme.typography.titleLarge.merge(contentStyle(value.primary)))
+                    value.senses.forEach { sense ->
+                        // pos and meanings on separate lines: one mixed-direction line renders "x :noun".
+                        if (sense.pos.isNotBlank()) MetadataBadge(partOfSpeechResource(sense.pos)?.let { stringResource(it) } ?: sense.pos)
+                        Text(sense.meanings.joinToString("، "), modifier = Modifier.fillMaxWidth(), style = contentStyle(sense.meanings.joinToString()))
                     }
-                    if (highlights.any { it.startOffset < selection.range.last + 1 && it.endOffset > selection.range.first }) TextButton(onClick = { vm.action {
-                        highlights.filter { it.startOffset < selection.range.last + 1 && it.endOffset > selection.range.first }.forEach { vm.container.highlights.delete(it.id) }; dismiss()
-                    } }) { Text(stringResource(Res.string.remove_highlight)) }
                 }
-            } else FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                lang.dictionaryLinks.filter { it.supportsMeaningLanguage(target) }.forEach { link ->
-                    OutlinedButton(onClick = { uri.openUri(link.urlFor(selection.word)) }) { Text(link.name) }
+                if (!selection.sentenceActions) {
+                    EditorialCard(containerColor = MaterialTheme.colorScheme.surfaceVariant) {
+                        Text(selection.sentence, modifier = Modifier.fillMaxWidth().padding(16.dp), style = MaterialTheme.typography.bodyLarge.merge(contentStyle(selection.sentence)), color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
                 }
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    if (!selection.sentenceActions) {
+                    TextButton(enabled = !sentenceLoading, onClick = { scope.launch {
+                        sentenceLoading = true; sentenceError = null
+                        try { val result = repository.translateText(selection.sentence, text.lang, target); translated = result.getOrNull(); sentenceError = result.exceptionOrNull() }
+                        finally { sentenceLoading = false }
+                    } }) { Text(stringResource(Res.string.translate_sentence)) }
+                    }
+                    TextButton(onClick = { if (listen != null) listen() else createTts().pronounce(selection.sentence, text.lang, settings) }) { Text(stringResource(Res.string.speech_sentence)) }
+                    if (selection.sentenceActions) {
+                        if (listenFromHere != null) TextButton(onClick = listenFromHere) { Text(stringResource(Res.string.speech_from_here)) }
+                        if (shadow != null) TextButton(onClick = shadow) { Text(stringResource(Res.string.speech_shadow)) }
+                    }
+                }
+                if (!selection.sentenceActions) {
+                    if (sentenceLoading) CircularProgressIndicator()
+                    translated?.let { Text(it, modifier = Modifier.fillMaxWidth(), style = contentStyle(it)) }
+                    sentenceError?.let { TranslationError(it) }
+                }
+                saved?.let {
+                    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        MetadataBadge(stringResource(Res.string.ed_saved))
+                        MetadataBadge(stringResource(Res.string.box_label, it.leitnerBox))
+                    }
+                }
+                if (selection.sentenceActions && text.pdfPath == null) {
+                    Text(stringResource(Res.string.highlight))
+                    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        listOf("primary" to Res.string.highlight_primary, "secondary" to Res.string.highlight_secondary, "tertiary" to Res.string.highlight_tertiary).forEach { (key, label) ->
+                            OutlinedButton(onClick = { vm.action {
+                                highlights.filter { it.startOffset == selection.range.first && it.endOffset == selection.range.last + 1 }.forEach { vm.container.highlights.delete(it.id) }
+                                vm.container.highlights.insert(HighlightEntry(textId = text.id, startOffset = selection.range.first, endOffset = selection.range.last + 1, colorKey = key)); dismiss()
+                            } }) { Text(stringResource(label)) }
+                        }
+                        if (highlights.any { it.startOffset < selection.range.last + 1 && it.endOffset > selection.range.first }) TextButton(onClick = { vm.action {
+                            highlights.filter { it.startOffset < selection.range.last + 1 && it.endOffset > selection.range.first }.forEach { vm.container.highlights.delete(it.id) }; dismiss()
+                        } }) { Text(stringResource(Res.string.remove_highlight)) }
+                    }
+                } else {
+                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+                    EditorialSectionHeader(stringResource(Res.string.ed_dictionary_links))
+                    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        lang.dictionaryLinks.filter { it.supportsMeaningLanguage(target) }.forEach { link ->
+                            OutlinedButton(onClick = { uri.openUri(link.urlFor(selection.word)) }) { Text(link.name) }
+                        }
+                    }
+                }
+                Spacer(Modifier.height(16.dp))
             }
-            Spacer(Modifier.height(16.dp))
+            if (saved != null) Row(Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                OutlinedButton(enabled = !saving, onClick = { saving = true; vm.action { try { vm.container.vocab.delete(saved); dismiss() } finally { saving = false } } }) { Text(stringResource(Res.string.remove)) }
+            }
         }
     }
 }

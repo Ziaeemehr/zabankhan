@@ -1,0 +1,16 @@
+<resources>
+    <string name="ed_settings_general">عمومی</string>
+    <string name="ed_settings_appearance">ظاهر</string>
+    <string name="ed_settings_reading">مطالعه</string>
+    <string name="ed_settings_speech">گفتار</string>
+    <string name="ed_settings_dictionary">فرهنگ لغت و ترجمه</string>
+    <string name="ed_settings_review">مرور</string>
+    <string name="ed_settings_backup">پشتیبان‌گیری</string>
+    <string name="ed_saved">ذخیره‌شده</string>
+    <string name="ed_update_saved">به‌روزرسانی واژهٔ ذخیره‌شده</string>
+    <string name="ed_dictionary_links">فرهنگ‌های لغت</string>
+    <string name="ed_subtitles">زیرنویس‌ها</string>
+    <string name="ed_seek_backward">۵ ثانیه به عقب</string>
+    <string name="ed_seek_forward">۵ ثانیه به جلو</string>
+    <string name="ed_more_actions">گزینه‌های بیشتر</string>
+</resources>

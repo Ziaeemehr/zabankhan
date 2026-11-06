@@ -16,6 +16,7 @@ import com.ziaee.zabankhan.data.*
 import com.ziaee.zabankhan.lang.LanguageSpec
 import com.ziaee.zabankhan.resources.*
 import com.ziaee.zabankhan.ui.*
+import com.ziaee.zabankhan.ui.theme.*
 import kotlinx.coroutines.*
 import org.jetbrains.compose.resources.stringResource
 import kotlin.time.TimeSource
@@ -26,9 +27,7 @@ fun Tts.pronounce(text: String, lang: String, settings: AppSettings, done: () ->
 }
 @Composable fun SpeakerButton(text: String, lang: String, settings: AppSettings) {
     val tts = remember { createTts() }
-    IconButton(onClick = { tts.pronounce(text, lang, settings) }) {
-        Icon(Icons.AutoMirrored.Filled.VolumeUp, stringResource(Res.string.speech_listen))
-    }
+    EditorialIconButton({ tts.pronounce(text, lang, settings) }, Icons.AutoMirrored.Filled.VolumeUp, stringResource(Res.string.speech_listen))
 }
 
 /** [replay] supplies video-cue playback instead of TTS, returning its measured duration. */
@@ -70,12 +69,15 @@ fun Tts.pronounce(text: String, lang: String, settings: AppSettings, done: () ->
     }
     DisposableEffect(Unit) { onDispose { replayJob?.cancel(); controller.cancel(); tts.stop() } }
     fun finish() { replayJob?.cancel(); controller.cancel(); tts.stop(); if (attempts.isEmpty()) dismiss() else summary = true }
-    if (!summary) ModalBottomSheet(onDismissRequest = ::finish) {
+    if (!summary) ModalBottomSheet(onDismissRequest = ::finish, shape = MaterialTheme.shapes.extraLarge) {
         Column(Modifier.fillMaxWidth().navigationBarsPadding().verticalScroll(rememberScrollState()).padding(24.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-            Heading(stringResource(Res.string.speech_shadow))
-            Text(sentence, modifier = Modifier.fillMaxWidth(), style = MaterialTheme.typography.titleLarge.merge(contentStyle(sentence)))
+            EditorialTopAppBar(stringResource(Res.string.speech_shadow), ::finish)
+            EditorialCard(containerColor = MaterialTheme.colorScheme.surfaceVariant) {
+                Text(sentence, modifier = Modifier.fillMaxWidth().padding(16.dp), style = editorialStyle(sentence, EditorialRole.ArticleHeadline))
+            }
             val result = phase as? ShadowPhase.Result
             if (result != null) {
+                EditorialSectionHeader(stringResource(Res.string.speech_summary))
                 val matchedColor = MaterialTheme.colorScheme.primary
                 val missedColor = MaterialTheme.colorScheme.error
                 Text(buildAnnotatedString { result.alignment.words.forEach { word ->

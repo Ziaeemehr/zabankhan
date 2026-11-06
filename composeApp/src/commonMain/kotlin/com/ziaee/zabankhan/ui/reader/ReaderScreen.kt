@@ -11,7 +11,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.TextFields
+import androidx.compose.foundation.background
+import com.ziaee.zabankhan.ui.theme.*
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.TextDecrease
@@ -40,7 +42,7 @@ data class ReaderSelection(val word: String, val sentence: String, val range: In
     var loaded by remember(id) { mutableStateOf(false) }
     LaunchedEffect(id) { loaded = vm.container.texts.getById(id) == null }
     val text = document
-    if (text == null) { Page { TextButton(onClick = back) { Text(stringResource(Res.string.back)) }; if (loaded) Text(stringResource(Res.string.not_found)) else CircularProgressIndicator() }; return }
+    if (text == null) { Page { EditorialTopAppBar(stringResource(Res.string.nav_library), back); if (loaded) Text(stringResource(Res.string.not_found)) else CircularProgressIndicator() }; return }
     if (text.pdfPath != null) { com.ziaee.zabankhan.pdf.PdfReaderScreen(vm, settings, text, back); return }
     val lang = requireNotNull(Languages.byCode(text.lang))
     val pack by produceState<com.ziaee.zabankhan.datapack.LanguageDataPack?>(null, lang) {
@@ -78,16 +80,24 @@ data class ReaderSelection(val word: String, val sentence: String, val range: In
     }
     val smallerLabel = stringResource(Res.string.font_smaller)
     val largerLabel = stringResource(Res.string.font_larger)
-    Column(Modifier.fillMaxSize()) {
-        // Icon bar: one line on phones (text buttons wrapped onto two lines).
+    val rateLabel = stringResource(Res.string.speech_rate)
+    Column(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.surface)) {
         var rateMenu by remember { mutableStateOf(false) }
-        Row(Modifier.fillMaxWidth().padding(start = 4.dp, end = 12.dp), verticalAlignment = Alignment.CenterVertically) {
-            IconButton(onClick = back) { Icon(Icons.AutoMirrored.Filled.ArrowBack, stringResource(Res.string.back)) }
-            Spacer(Modifier.weight(1f))
-            IconButton(onClick = { vm.action { vm.container.settings.setReaderFontSize(settings.readerFontSize - 1) } }, enabled = settings.readerFontSize > 12) { Icon(Icons.Filled.TextDecrease, smallerLabel) }
-            IconButton(onClick = { vm.action { vm.container.settings.setReaderFontSize(settings.readerFontSize + 1) } }, enabled = settings.readerFontSize < 40) { Icon(Icons.Filled.TextIncrease, largerLabel) }
+        var fontMenu by remember { mutableStateOf(false) }
+        EditorialTopAppBar(text.title, back, actions = {
             Box {
-                TextButton(onClick = { rateMenu = true }) { Text("${rate}×") }
+                EditorialIconButton({ fontMenu = true }, Icons.Default.TextFields, stringResource(Res.string.font_size))
+                DropdownMenu(fontMenu, onDismissRequest = { fontMenu = false }) {
+                    DropdownMenuItem(text = { Text(smallerLabel) }, enabled = settings.readerFontSize > 12,
+                        leadingIcon = { Icon(Icons.Filled.TextDecrease, smallerLabel) },
+                        onClick = { vm.action { vm.container.settings.setReaderFontSize(settings.readerFontSize - 1) } })
+                    DropdownMenuItem(text = { Text(largerLabel) }, enabled = settings.readerFontSize < 40,
+                        leadingIcon = { Icon(Icons.Filled.TextIncrease, largerLabel) },
+                        onClick = { vm.action { vm.container.settings.setReaderFontSize(settings.readerFontSize + 1) } })
+                }
+            }
+            Box {
+                TextButton(onClick = { rateMenu = true }, modifier = Modifier.semantics { contentDescription = "$rateLabel: ${rate}×" }) { Text("${rate}×") }
                 DropdownMenu(rateMenu, onDismissRequest = { rateMenu = false }) {
                     listOf(.75f, 1f, 1.25f).forEach { r ->
                         DropdownMenuItem(text = { Text(stringResource(Res.string.speech_rate) + ": ${r}×") }, onClick = {
@@ -97,13 +107,22 @@ data class ReaderSelection(val word: String, val sentence: String, val range: In
                     }
                 }
             }
-            FilledTonalIconButton(onClick = { if (speaking) playback.stop() else playback.start(list.firstVisibleItemIndex, rate, settings.ttsVoices[lang.code]) }) {
+            FilledIconButton(onClick = { if (speaking) playback.stop() else playback.start(list.firstVisibleItemIndex, rate, settings.ttsVoices[lang.code]) }) {
                 Icon(if (speaking) Icons.Filled.Pause else Icons.Filled.PlayArrow, stringResource(if (speaking) Res.string.watch_pause else Res.string.watch_play))
             }
+        })
+        val progress by remember(list, parts) { derivedStateOf {
+            if (parts.isEmpty()) 0f else if (list.layoutInfo.totalItemsCount > 0 && !list.canScrollForward) 1f
+            else parts.getOrNull(list.firstVisibleItemIndex)?.offset?.toFloat()?.div(text.body.length.coerceAtLeast(1)) ?: 0f
+        } }
+        val progressLabel = stringResource(Res.string.ed_reading_progress, (progress * 100).toInt())
+        LinearProgressIndicator(progress = { progress }, modifier = Modifier.fillMaxWidth().height(2.dp).semantics { contentDescription = progressLabel },
+            color = MaterialTheme.colorScheme.tertiary, trackColor = MaterialTheme.colorScheme.surfaceVariant)
+        Column(Modifier.widthIn(max = ZabankhanDesign.sizes.readerMeasure).fillMaxWidth().align(Alignment.CenterHorizontally).padding(horizontal = 20.dp, vertical = 12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text(text.title, modifier = Modifier.fillMaxWidth(), style = editorialStyle(text.title, EditorialRole.ArticleHeadline))
+            Text(stringResource(Res.string.reader_hint), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
-        Text(text.title, modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 8.dp), style = MaterialTheme.typography.titleLarge.merge(contentStyle(text.title)))
-        Text(stringResource(Res.string.reader_hint), modifier = Modifier.padding(horizontal = 20.dp), style = MaterialTheme.typography.bodySmall)
-        LazyColumn(state = list, contentPadding = PaddingValues(20.dp), verticalArrangement = Arrangement.spacedBy(20.dp)) {
+        LazyColumn(state = list, modifier = Modifier.weight(1f).widthIn(max = ZabankhanDesign.sizes.readerMeasure).fillMaxWidth().align(Alignment.CenterHorizontally), contentPadding = PaddingValues(20.dp), verticalArrangement = Arrangement.spacedBy(24.dp)) {
             itemsIndexed(parts, key = { _, part -> part.offset }) { _, part ->
                 ReaderParagraph(part, lang, highlighter, words, highlights, settings.readerFontSize, spokenSentence, pack?.lemmas, idioms, { y ->
                     val index = parts.indexOf(part)

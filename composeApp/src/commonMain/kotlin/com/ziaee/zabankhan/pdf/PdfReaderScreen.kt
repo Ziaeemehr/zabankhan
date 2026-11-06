@@ -29,7 +29,15 @@ import com.ziaee.zabankhan.app.AppViewModel
 import com.ziaee.zabankhan.data.*
 import com.ziaee.zabankhan.lang.Languages
 import com.ziaee.zabankhan.resources.*
-import com.ziaee.zabankhan.ui.contentStyle
+import com.ziaee.zabankhan.ui.*
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Crop
+import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.contentDescription
 import com.ziaee.zabankhan.ui.reader.*
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.distinctUntilChanged
@@ -60,13 +68,13 @@ private data class PdfRange(val page: Int, val first: Int, val last: Int, val wo
     val handle = document
     if (handle == null) {
         Column {
-            TextButton(onClick = back) { Text(stringResource(Res.string.back)) }
+            EditorialTopAppBar(text.title, back)
             if (failed) Text(stringResource(Res.string.pdf_error)) else CircularProgressIndicator()
         }
         return
     }
     if (handle.pageCount == 0) {
-        Column { TextButton(onClick = back) { Text(stringResource(Res.string.back)) }; Text(stringResource(Res.string.pdf_empty)) }
+        Column { EditorialTopAppBar(text.title, back); Text(stringResource(Res.string.pdf_empty)) }
         return
     }
     com.ziaee.zabankhan.statistics.TrackActivity(vm.container, text.id, text.lang, com.ziaee.zabankhan.statistics.ActivityKind.READING)
@@ -114,24 +122,32 @@ private data class PdfRange(val page: Int, val first: Int, val last: Int, val wo
     }
     val clipboard = LocalClipboardManager.current
     Column(Modifier.fillMaxSize()) {
-        FlowRow(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            TextButton(onClick = back) { Text(stringResource(Res.string.back)) }
-            Text("\u2066${page + 1} / ${handle.pageCount}\u2069", Modifier.padding(vertical = 12.dp), style = contentStyle("1 / 2"))
-            FilterChip(selected = areaMode, enabled = !recognizing, onClick = { areaMode = !areaMode; penMode = false; range = null },
-                label = { Text(stringResource(Res.string.pdf_select_area)) })
-            FilterChip(selected = penMode, enabled = !recognizing && savedInk != null, onClick = { penMode = !penMode; areaMode = false; range = null },
-                label = { Text(stringResource(Res.string.pdf_pen)) })
-        }
-        if (penMode) FlowRow(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            listOf("primary" to Res.string.highlight_primary, "secondary" to Res.string.highlight_secondary, "tertiary" to Res.string.highlight_tertiary).forEach { (key, label) ->
-                FilterChip(selected = penColor == key && !eraser, onClick = { penColor = key; eraser = false },
-                    label = { Text(stringResource(label)) })
+        EditorialTopAppBar(text.title, back, subtitle = "\u2066${page + 1} / ${handle.pageCount}\u2069", actions = {
+            FilledIconToggleButton(modifier = Modifier.size(48.dp), checked = areaMode, enabled = !recognizing, onCheckedChange = { areaMode = !areaMode; penMode = false; range = null }) {
+                Icon(Icons.Default.Crop, stringResource(Res.string.pdf_select_area))
             }
-            FilterChip(selected = eraser, onClick = { eraser = !eraser }, label = { Text(stringResource(Res.string.pdf_pen_eraser)) })
-            FilterChip(selected = fingerInk, onClick = { fingerInk = !fingerInk }, label = { Text(stringResource(Res.string.pdf_pen_finger)) })
-            val undoPage = lastInkPage ?: page
-            TextButton(enabled = pageInk(undoPage).isNotEmpty(), onClick = { saveInk(undoPage, pageInk(undoPage).dropLast(1)) }) { Text(stringResource(Res.string.pdf_pen_undo)) }
-            TextButton(enabled = pageInk(page).isNotEmpty(), onClick = { saveInk(page, emptyList()) }) { Text(stringResource(Res.string.pdf_pen_clear)) }
+            FilledIconToggleButton(modifier = Modifier.size(48.dp), checked = penMode, enabled = !recognizing && savedInk != null, onCheckedChange = { penMode = !penMode; areaMode = false; range = null }) {
+                Icon(Icons.Default.Edit, stringResource(Res.string.pdf_pen))
+            }
+        })
+        if (penMode) Surface(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp), shape = MaterialTheme.shapes.large, color = MaterialTheme.colorScheme.surfaceVariant) {
+            FlowRow(Modifier.fillMaxWidth().padding(12.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                listOf("primary" to Res.string.highlight_primary, "secondary" to Res.string.highlight_secondary, "tertiary" to Res.string.highlight_tertiary).forEach { (key, label) ->
+                    val swatch = when (key) { "secondary" -> MaterialTheme.colorScheme.secondary; "tertiary" -> MaterialTheme.colorScheme.tertiary; else -> MaterialTheme.colorScheme.primary }
+                    val onSwatch = when (key) { "secondary" -> MaterialTheme.colorScheme.onSecondary; "tertiary" -> MaterialTheme.colorScheme.onTertiary; else -> MaterialTheme.colorScheme.onPrimary }
+                    val description = stringResource(label)
+                    IconToggleButton(checked = penColor == key && !eraser, onCheckedChange = { penColor = key; eraser = false }, modifier = Modifier.size(48.dp).semantics { contentDescription = description }) {
+                        Box(Modifier.size(28.dp).background(swatch, CircleShape), contentAlignment = Alignment.Center) {
+                            if (penColor == key && !eraser) Icon(Icons.Default.Check, null, tint = onSwatch, modifier = Modifier.size(18.dp))
+                        }
+                    }
+                }
+                FilterChip(selected = eraser, onClick = { eraser = !eraser }, label = { Text(stringResource(Res.string.pdf_pen_eraser)) })
+                FilterChip(selected = fingerInk, onClick = { fingerInk = !fingerInk }, label = { Text(stringResource(Res.string.pdf_pen_finger)) })
+                val undoPage = lastInkPage ?: page
+                TextButton(enabled = pageInk(undoPage).isNotEmpty(), onClick = { saveInk(undoPage, pageInk(undoPage).dropLast(1)) }) { Text(stringResource(Res.string.pdf_pen_undo)) }
+                TextButton(enabled = pageInk(page).isNotEmpty(), onClick = { saveInk(page, emptyList()) }) { Text(stringResource(Res.string.pdf_pen_clear)) }
+            }
         }
         if (recognizing) LinearProgressIndicator(Modifier.fillMaxWidth())
         if (failed) Row {
@@ -188,8 +204,8 @@ private data class PdfRange(val page: Int, val first: Int, val last: Int, val wo
     selection?.let { DictionarySheet(vm, settings, text, it, vocab, emptyList(), dismiss = { selection = null }) }
     areaText?.let { recognized ->
         ModalBottomSheet(onDismissRequest = { areaText = null }) {
-            Column(Modifier.verticalScroll(rememberScrollState()).padding(24.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                Text(stringResource(Res.string.pdf_area_text), style = MaterialTheme.typography.titleLarge)
+            Column(Modifier.navigationBarsPadding().verticalScroll(rememberScrollState()).padding(24.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                EditorialSectionHeader(stringResource(Res.string.pdf_area_text))
                 Text(recognized.ifBlank { stringResource(Res.string.pdf_empty) }, modifier = Modifier.fillMaxWidth(), style = contentStyle(recognized))
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     TextButton(enabled = recognized.isNotBlank(), onClick = { areaText = null; selection = ReaderSelection(recognized, recognized, 0..0, true) }) { Text(stringResource(Res.string.pdf_translate)) }

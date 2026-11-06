@@ -14,6 +14,7 @@ import com.ziaee.zabankhan.grammar.*
 import com.ziaee.zabankhan.exams.*
 import com.ziaee.zabankhan.resources.*
 import com.ziaee.zabankhan.ui.*
+import com.ziaee.zabankhan.ui.theme.*
 import kotlinx.coroutines.CancellationException
 import org.jetbrains.compose.resources.stringResource
 
@@ -37,29 +38,29 @@ fun searchGrammarNotes(notes: List<GrammarNote>, query: String, level: String = 
     var group by remember { mutableStateOf("") }
     val notes = pack?.grammar.orEmpty()
     Column(Modifier.fillMaxSize().padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        TextButton(onClick = { if (selected != null) selected = null else back() }) { Text(stringResource(Res.string.pack_back)) }
-        Heading(stringResource(Res.string.pack_grammar))
+        EditorialTopAppBar(stringResource(Res.string.pack_grammar), { if (selected != null) selected = null else back() })
         if (failed) Text(stringResource(Res.string.error_save))
         else if (pack == null && LanguageDataPacks.available(lang)) CircularProgressIndicator()
         val note = selected
         if (note == null) {
-            OutlinedTextField(query, { query = it }, label = { Text(stringResource(Res.string.pack_search)) }, modifier = Modifier.fillMaxWidth())
+            EditorialSearchEntry(query, { query = it })
             val all = stringResource(Res.string.pack_all)
             Choice(stringResource(Res.string.pack_level), level, listOf("" to all) + notes.map { it.level }.distinct().sorted().map { it to it }) { level = it }
             Choice(stringResource(Res.string.pack_group), group, listOf("" to all) + notes.map { it.group }.distinct().map { it to grammarGroupLabel(it) }) { group = it }
+            EditorialSectionHeader(stringResource(Res.string.ed_grammar_notes))
             LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 items(searchGrammarNotes(notes, query, level, group), key = { it.id }) { entry ->
-                    ElevatedCard(onClick = { selected = entry }, modifier = Modifier.fillMaxWidth()) {
+                    EditorialCard(onClick = { selected = entry }, modifier = Modifier.fillMaxWidth()) {
                         Column(Modifier.padding(16.dp)) {
-                            Text(entry.titleFr, modifier = Modifier.fillMaxWidth(), style = contentStyle(entry.titleFr)); Text(entry.titleFa, modifier = Modifier.fillMaxWidth(), style = contentStyle(entry.titleFa))
-                            Text(entry.level, style = MaterialTheme.typography.labelSmall)
+                            Text(entry.titleFr, modifier = Modifier.fillMaxWidth(), style = editorialStyle(entry.titleFr)); Text(entry.titleFa, modifier = Modifier.fillMaxWidth(), style = contentStyle(entry.titleFa))
+                            MetadataBadge(entry.level)
                         }
                     }
                 }
             }
         } else LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            item { Heading(note.titleFr); Text(note.titleFa, modifier = Modifier.fillMaxWidth(), style = contentStyle(note.titleFa)); Text(note.level) }
-            items(note.blocks) { block -> GrammarBlockView(block) }
+            item { EditorialSectionHeader(note.titleFr); Text(note.titleFa, modifier = Modifier.fillMaxWidth(), style = contentStyle(note.titleFa)); MetadataBadge(note.level) }
+            items(note.blocks) { block -> EditorialCard { Box(Modifier.padding(16.dp)) { GrammarBlockView(block) } } }
         }
     }
 }
@@ -119,15 +120,19 @@ fun searchGrammarNotes(notes: List<GrammarNote>, query: String, level: String = 
     val task = tasks.firstOrNull { it.id == taskId } ?: tasks.firstOrNull()
     val question = task?.items?.getOrNull(index)
     Page {
-        TextButton(onClick = back) { Text(stringResource(Res.string.pack_back)) }
-        Heading(stringResource(Res.string.pack_tcf))
+        EditorialTopAppBar(stringResource(Res.string.pack_tcf), back)
         if (failed) Text(stringResource(Res.string.error_save))
         else if (pack == null && LanguageDataPacks.available(lang)) CircularProgressIndicator()
         Text(stringResource(Res.string.pack_self_score_hint))
         if (task != null) Choice(stringResource(Res.string.pack_task), task.id, tasks.map { it.id to "${it.skill} ${it.task} — ${it.titleFr}" }) { taskId = it }
         if (question != null) {
-            Text("${index + 1} / ${task!!.items.size}")
-            question.texts.forEach { Markdown(it.fr); if (it.fa.isNotBlank()) Markdown(it.fa) }
+            EditorialProgressIndicator(index.toFloat() / task!!.items.size.coerceAtLeast(1), stringResource(Res.string.ed_review_progress, index + 1, task.items.size))
+            EditorialSectionHeader(task.titleFr)
+            EditorialCard {
+                Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    question.texts.forEach { Markdown(it.fr); if (it.fa.isNotBlank()) Markdown(it.fa) }
+                }
+            }
             OutlinedTextField(answers[question.id].orEmpty(), { answers[question.id] = it }, modifier = Modifier.fillMaxWidth().heightIn(min = 140.dp), label = { Text(stringResource(Res.string.pack_response)) })
             Text(stringResource(Res.string.pack_self_score, scores[question.id] ?: 0))
             Slider((scores[question.id] ?: 0).toFloat(), { scores[question.id] = it.toInt() }, valueRange = 0f..5f, steps = 4)

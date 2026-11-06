@@ -13,6 +13,9 @@ import com.ziaee.zabankhan.data.TextDocument
 import com.ziaee.zabankhan.lang.Languages
 import com.ziaee.zabankhan.resources.*
 import com.ziaee.zabankhan.ui.*
+import com.ziaee.zabankhan.ui.theme.*
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Explore
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.stringResource
@@ -44,11 +47,10 @@ private data class Preview(val title: String, val snippet: String, val url: Stri
         }
     }
     Page {
-        TextButton(onClick = back) { Text(stringResource(Res.string.back)) }
-        Heading(stringResource(Res.string.discover_title))
+        EditorialTopAppBar(stringResource(Res.string.discover_title), back)
         Choice(stringResource(Res.string.discover_source), sourceId, sources.map { it.id to it.name }) { sourceId = it }
         if (source is WikiSource) {
-            OutlinedTextField(query, { query = it }, label = { Text(stringResource(Res.string.search)) }, modifier = Modifier.fillMaxWidth(), singleLine = true)
+            EditorialSearchEntry(query, { query = it })
             Button(enabled = query.isNotBlank() && !busy, onClick = {
                 val selected = source
                 scope.launch {
@@ -66,19 +68,23 @@ private data class Preview(val title: String, val snippet: String, val url: Stri
             Text(stringResource(Res.string.discover_error), color = MaterialTheme.colorScheme.error)
             if (source is NewsSource) TextButton(onClick = { refresh++ }) { Text(stringResource(Res.string.retry)) }
         }
-        if (!busy && !error && headlines.isEmpty() && results.isEmpty()) Text(stringResource(Res.string.discover_empty))
+        if (!busy && !error && headlines.isEmpty() && results.isEmpty()) EditorialEmptyState(Icons.Default.Explore,
+            stringResource(Res.string.discover_empty), stringResource(Res.string.discover_hint), Modifier.heightIn(min = 240.dp))
+        if (headlines.isNotEmpty() || results.isNotEmpty()) EditorialSectionHeader(source?.name.orEmpty())
         headlines.forEach { item ->
-            ElevatedCard(onClick = { source?.let { preview = Preview(item.title, item.snippet, item.link, it) } }, modifier = Modifier.fillMaxWidth()) {
+            EditorialCard(onClick = { source?.let { preview = Preview(item.title, item.snippet, item.link, it) } }, modifier = Modifier.fillMaxWidth()) {
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text(item.title, modifier = Modifier.fillMaxWidth(), style = MaterialTheme.typography.titleMedium.merge(contentStyle(item.title)))
+                    source?.let { MetadataBadge(it.name) }
+                    Text(item.title, modifier = Modifier.fillMaxWidth(), style = editorialStyle(item.title))
                     Text(item.snippet, modifier = Modifier.fillMaxWidth(), maxLines = 3, style = contentStyle(item.snippet))
                 }
             }
         }
         results.forEach { item ->
-            ElevatedCard(onClick = { (source as? WikiSource)?.let { preview = Preview(item.title, item.snippet, it.articleUrl(item.title), it, item.pageId) } }, modifier = Modifier.fillMaxWidth()) {
+            EditorialCard(onClick = { (source as? WikiSource)?.let { preview = Preview(item.title, item.snippet, it.articleUrl(item.title), it, item.pageId) } }, modifier = Modifier.fillMaxWidth()) {
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text(item.title, modifier = Modifier.fillMaxWidth(), style = MaterialTheme.typography.titleMedium.merge(contentStyle(item.title)))
+                    source?.let { MetadataBadge(it.name) }
+                    Text(item.title, modifier = Modifier.fillMaxWidth(), style = editorialStyle(item.title))
                     Text(item.snippet, modifier = Modifier.fillMaxWidth(), maxLines = 3, style = contentStyle(item.snippet))
                     Text(stringResource(Res.string.discover_word_count, item.wordCount), style = MaterialTheme.typography.labelSmall)
                 }
@@ -88,12 +94,12 @@ private data class Preview(val title: String, val snippet: String, val url: Stri
     preview?.let { item ->
         ModalBottomSheet(onDismissRequest = { if (!busy) preview = null }) {
             Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                Text(item.title, modifier = Modifier.fillMaxWidth(), style = MaterialTheme.typography.titleLarge.merge(contentStyle(item.title)))
-                Text(item.source.name, style = MaterialTheme.typography.labelMedium)
+                MetadataBadge(item.source.name)
+                Text(item.title, modifier = Modifier.fillMaxWidth(), style = editorialStyle(item.title, EditorialRole.SectionTitle))
                 Text(item.snippet, modifier = Modifier.fillMaxWidth(), style = contentStyle(item.snippet))
                 Text(stringResource(Res.string.discover_preview_hint), style = MaterialTheme.typography.bodySmall)
                 if (error) Text(stringResource(Res.string.discover_error), color = MaterialTheme.colorScheme.error)
-                Button(enabled = !busy, onClick = {
+                EditorialPrimaryButton(stringResource(Res.string.discover_add_library), loading = busy, onClick = {
                     scope.launch {
                         busy = true; error = false
                         try {
@@ -111,7 +117,7 @@ private data class Preview(val title: String, val snippet: String, val url: Stri
                         } catch (e: CancellationException) { throw e } catch (_: Exception) { error = true }
                         finally { busy = false }
                     }
-                }) { Text(stringResource(Res.string.discover_add_library)) }
+                })
                 if (busy) LinearProgressIndicator(Modifier.fillMaxWidth())
                 Spacer(Modifier.height(24.dp))
             }

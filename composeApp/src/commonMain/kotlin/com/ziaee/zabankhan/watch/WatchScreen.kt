@@ -1,6 +1,5 @@
 package com.ziaee.zabankhan.watch
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.interaction.DragInteraction
 import androidx.compose.foundation.layout.*
@@ -8,8 +7,17 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.*
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Subtitles
+import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Pause
+import androidx.compose.material.icons.filled.Replay5
+import androidx.compose.material.icons.filled.Forward5
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.*
 import androidx.compose.ui.unit.dp
@@ -117,28 +125,48 @@ import org.jetbrains.compose.resources.stringResource
         selection = ReaderSelection(idiom?.expression ?: word, cue.text, offsets[index] until offsets[index] + cue.text.length, false)
     }
     Column(Modifier.fillMaxSize()) {
-        FlowRow(Modifier.fillMaxWidth().padding(horizontal = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            TextButton(onClick = back) { Text(stringResource(Res.string.back)) }
-            TextButton(onClick = subtitlePicker) { Text(stringResource(Res.string.watch_add_subtitles)) }
-        }
-        captions?.let { Text(it.title, Modifier.fillMaxWidth().padding(horizontal = 16.dp), style = MaterialTheme.typography.titleMedium.merge(contentStyle(it.title))) }
+        EditorialTopAppBar(captions?.title ?: stringResource(Res.string.watch_video), back, actions = {
+            EditorialIconButton(subtitlePicker, Icons.Default.Subtitles, stringResource(Res.string.watch_add_subtitles))
+        })
         if (loading) LinearProgressIndicator(Modifier.fillMaxWidth())
         if (failed) Row { Text(stringResource(Res.string.watch_caption_error), Modifier.weight(1f)); TextButton(onClick = { attempt++ }) { Text(stringResource(Res.string.retry)) } }
         if (playerError != null) Text(stringResource(Res.string.watch_player_error, playerError.orEmpty()), color = MaterialTheme.colorScheme.error)
-        FlowRow(Modifier.padding(horizontal = 8.dp), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-            TextButton(onClick = { controller?.seekTo(position - 5_000) }) { Text("−5s") }
-            TextButton(onClick = { if (playing) controller?.pause() else controller?.play() }) { Text(stringResource(if (playing) Res.string.watch_pause else Res.string.watch_play)) }
-            TextButton(onClick = { controller?.seekTo(position + 5_000) }) { Text("+5s") }
-            Choice(stringResource(Res.string.watch_rate), rate, listOf(0.75f, 1f, 1.25f).map { it to "${it}×" }) { rate = it; controller?.setRate(it) }
-            TextButton(enabled = active >= 0 || loopIndex != null, onClick = {
-                loopIndex = if (loopIndex != null) null else active.takeIf { it >= 0 }
-                loopIndex?.let { controller?.seekTo(cueList[it].startMs); controller?.play() }
-            }) { Text(stringResource(if (loopIndex != null) Res.string.watch_stop_repeat else Res.string.watch_repeat)) }
-            TextButton(enabled = active >= 0, onClick = {
-                loopIndex = null; controller?.pause(); shadowIndex = active
-            }) { Text(stringResource(Res.string.speech_shadow)) }
-            TextButton(onClick = { showTranslation = !showTranslation }) { Text(stringResource(if (showTranslation) Res.string.watch_hide_translation else Res.string.watch_translation)) }
-            if (!follow) TextButton(onClick = { follow = true }) { Text(stringResource(Res.string.watch_back_current)) }
+        EditorialCard(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp), containerColor = MaterialTheme.colorScheme.surfaceVariant) {
+            FlowRow(Modifier.fillMaxWidth().padding(8.dp), horizontalArrangement = Arrangement.spacedBy(4.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                EditorialIconButton({ controller?.seekTo(position - 5_000) }, Icons.Default.Replay5, stringResource(Res.string.ed_seek_backward))
+                FilledIconButton(onClick = { if (playing) controller?.pause() else controller?.play() }) {
+                    Icon(if (playing) Icons.Default.Pause else Icons.Default.PlayArrow, stringResource(if (playing) Res.string.watch_pause else Res.string.watch_play))
+                }
+                EditorialIconButton({ controller?.seekTo(position + 5_000) }, Icons.Default.Forward5, stringResource(Res.string.ed_seek_forward))
+                var rateMenu by remember { mutableStateOf(false) }
+                Box {
+                    val rateLabel = stringResource(Res.string.watch_rate)
+                    TextButton(onClick = { rateMenu = true }, modifier = Modifier.semantics { contentDescription = "$rateLabel: ${rate}×" }) { Text("${rate}×") }
+                    DropdownMenu(rateMenu, onDismissRequest = { rateMenu = false }) {
+                        listOf(0.75f, 1f, 1.25f).forEach { speed ->
+                            DropdownMenuItem(text = { Text("${speed}×") }, onClick = { rateMenu = false; rate = speed; controller?.setRate(speed) })
+                        }
+                    }
+                }
+                var moreMenu by remember { mutableStateOf(false) }
+                Box {
+                    EditorialIconButton({ moreMenu = true }, Icons.Default.MoreVert, stringResource(Res.string.ed_more_actions))
+                    DropdownMenu(moreMenu, onDismissRequest = { moreMenu = false }) {
+                        DropdownMenuItem(text = { Text(stringResource(if (loopIndex != null) Res.string.watch_stop_repeat else Res.string.watch_repeat)) }, enabled = active >= 0 || loopIndex != null, onClick = {
+                            moreMenu = false
+                            loopIndex = if (loopIndex != null) null else active.takeIf { it >= 0 }
+                            loopIndex?.let { controller?.seekTo(cueList[it].startMs); controller?.play() }
+                        })
+                        DropdownMenuItem(text = { Text(stringResource(Res.string.speech_shadow)) }, enabled = active >= 0, onClick = {
+                            moreMenu = false; loopIndex = null; controller?.pause(); shadowIndex = active
+                        })
+                        DropdownMenuItem(text = { Text(stringResource(if (showTranslation) Res.string.watch_hide_translation else Res.string.watch_translation)) }, onClick = {
+                            moreMenu = false; showTranslation = !showTranslation
+                        })
+                        if (!follow) DropdownMenuItem(text = { Text(stringResource(Res.string.watch_back_current)) }, onClick = { moreMenu = false; follow = true })
+                    }
+                }
+            }
         }
         if (showTranslation) {
             if (translationState.loading) LinearProgressIndicator(Modifier.fillMaxWidth())
@@ -152,11 +180,16 @@ import org.jetbrains.compose.resources.stringResource
             }
             val transcript: @Composable (Modifier) -> Unit = { m ->
                 if (cueList.isEmpty()) Box(m.padding(16.dp)) { Text(stringResource(Res.string.watch_no_captions)) }
-                else LazyColumn(m, state = list, contentPadding = PaddingValues(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    itemsIndexed(cueList) { index, cue ->
-                        Column(Modifier.fillMaxWidth().background(if (index == active) MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.surface).padding(10.dp)) {
-                            TextButton(onClick = { controller?.seekTo(cue.startMs); follow = true }) { Text(videoTime(cue.startMs)) }
-                            CueWords(cue, lang, highlighter, words, settings.readerFontSize) { select(index, it) }
+                else Column(m) {
+                    EditorialSectionHeader(stringResource(Res.string.ed_subtitles), Modifier.padding(horizontal = 16.dp, vertical = 8.dp))
+                    LazyColumn(Modifier.weight(1f).fillMaxWidth(), state = list, contentPadding = PaddingValues(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        itemsIndexed(cueList) { index, cue ->
+                            EditorialCard(containerColor = if (index == active) MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.surface) {
+                                Column(Modifier.padding(12.dp)) {
+                                    TextButton(onClick = { controller?.seekTo(cue.startMs); follow = true }) { Text(videoTime(cue.startMs)) }
+                                    CueWords(cue, lang, highlighter, words, settings.readerFontSize) { select(index, it) }
+                                }
+                            }
                         }
                     }
                 }

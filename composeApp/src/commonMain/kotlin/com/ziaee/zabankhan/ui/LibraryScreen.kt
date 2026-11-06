@@ -2,6 +2,8 @@ package com.ziaee.zabankhan.ui
 
 import androidx.compose.ui.Alignment
 import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.MenuBook
+import com.ziaee.zabankhan.ui.theme.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -31,25 +33,37 @@ import org.jetbrains.compose.resources.stringResource
     var deleteText by remember { mutableStateOf<TextDocument?>(null) }
     val options = listOf(-1L to stringResource(Res.string.all), 0L to stringResource(Res.string.unfiled)) + folders.map { it.id to it.name }
     LazyColumn(Modifier.fillMaxSize().padding(horizontal = 20.dp), verticalArrangement = Arrangement.spacedBy(16.dp), contentPadding = PaddingValues(vertical = 20.dp)) {
-        item { Heading(stringResource(Res.string.nav_library)) }
-        item { OutlinedTextField(search, { search = it }, label = { Text(stringResource(Res.string.search)) }, singleLine = true, modifier = Modifier.fillMaxWidth()) }
-        item { Choice(stringResource(Res.string.folder), folder, options) { folder = it } }
-        item { FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            ImportAddMenu(vm, settings, add, open, watch, discover)
+        item {
+            val title = stringResource(Res.string.nav_library)
+            Text(title, style = editorialStyle(title, EditorialRole.ScreenTitle))
+        }
+        item { EditorialSearchEntry(search, { search = it }) }
+        item { FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Choice(stringResource(Res.string.folder), folder, options) { folder = it }
             OutlinedButton(onClick = { newFolder = true }) { Text(stringResource(Res.string.new_folder)) }
+            ImportAddMenu(vm, settings, add, open, watch, discover)
             folders.firstOrNull { it.id == folder }?.let { selected ->
-                TextButton(onClick = { folderDialog = selected }) { Text(stringResource(Res.string.rename)) }
-                TextButton(onClick = { deleteFolder = selected }) { Text(stringResource(Res.string.delete)) }
+                var menu by remember(selected.id) { mutableStateOf(false) }
+                Box {
+                    EditorialIconButton({ menu = true }, Icons.Filled.MoreVert, stringResource(Res.string.more_actions))
+                    DropdownMenu(menu, { menu = false }) {
+                        DropdownMenuItem(text = { Text(stringResource(Res.string.rename)) }, onClick = { menu = false; folderDialog = selected })
+                        DropdownMenuItem(text = { Text(stringResource(Res.string.delete), color = MaterialTheme.colorScheme.error) },
+                            onClick = { menu = false; deleteFolder = selected })
+                    }
+                }
             }
         } }
         val filtered = texts.filter { (folder == -1L || (it.folderId ?: 0L) == folder) &&
             normalizeForMatch(it.title + " " + it.body, spec).contains(normalizeForMatch(search, spec)) }
-        if (filtered.isEmpty()) item { Text(stringResource(Res.string.empty_library)) }
-        items(filtered, key = { it.id }) { text -> TextCard(text, { open(text.id) }) {
+        if (filtered.isEmpty()) item { EditorialEmptyState(Icons.Default.MenuBook,
+            stringResource(Res.string.empty_library), stringResource(Res.string.ed_library_empty_body),
+            Modifier.fillParentMaxHeight(.5f), stringResource(Res.string.add_text), add) }
+        items(filtered, key = { it.id }) { text -> TextCard(text, { open(text.id) }, trailing = {
             // One overflow menu instead of a row of buttons on every card.
             var menu by remember { mutableStateOf(false) }
-            Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.CenterEnd) {
-                IconButton(onClick = { menu = true }) { Icon(Icons.Filled.MoreVert, stringResource(Res.string.more_actions)) }
+            Box(contentAlignment = Alignment.CenterEnd) {
+                EditorialIconButton({ menu = true }, Icons.Filled.MoreVert, stringResource(Res.string.more_actions))
                 DropdownMenu(menu, onDismissRequest = { menu = false }) {
                     DropdownMenuItem(text = { Text(stringResource(if (text.pinned) Res.string.unpin else Res.string.pin)) },
                         onClick = { menu = false; vm.action { vm.container.texts.setPinned(text.id, !text.pinned) } })
@@ -61,7 +75,7 @@ import org.jetbrains.compose.resources.stringResource
                         onClick = { menu = false; deleteText = text })
                 }
             }
-        } }
+        }) }
     }
     if (newFolder) NameDialog(stringResource(Res.string.new_folder), onDismiss = { newFolder = false }) { name -> vm.action { vm.container.texts.insertFolder(LibraryFolder(lang = lang, name = name)) } }
     folderDialog?.let { selected -> NameDialog(stringResource(Res.string.rename), selected.name, { folderDialog = null }) { name -> vm.action { vm.container.texts.renameFolder(selected.id, name) } } }
@@ -78,14 +92,13 @@ import org.jetbrains.compose.resources.stringResource
     var body by rememberSaveable(initialText) { mutableStateOf(initialText) }
     var busy by remember { mutableStateOf(false) }
     Page {
-        TextButton(onClick = back) { Text(stringResource(Res.string.back)) }
-        Heading(stringResource(Res.string.add_text))
+        EditorialTopAppBar(stringResource(Res.string.add_text), back)
         OutlinedTextField(title, { title = it }, label = { Text(stringResource(Res.string.title)) }, modifier = Modifier.fillMaxWidth(), textStyle = contentStyle(title))
         // Content direction resolves at each paragraph, independently of the UI locale.
         OutlinedTextField(body, { body = it }, label = { Text(stringResource(Res.string.body)) }, modifier = Modifier.fillMaxWidth().heightIn(min = 240.dp), textStyle = androidx.compose.ui.text.TextStyle(textDirection = androidx.compose.ui.text.style.TextDirection.Content))
-        Button(enabled = title.isNotBlank() && body.isNotBlank() && !busy, onClick = {
+        EditorialPrimaryButton(stringResource(Res.string.save), enabled = title.isNotBlank() && body.isNotBlank(), loading = busy, onClick = {
             busy = true
             vm.action { try { open(vm.container.texts.insert(TextDocument(lang = requireNotNull(settings.learningLang), title = title.trim(), body = body))) } finally { busy = false } }
-        }) { Text(stringResource(Res.string.save)) }
+        })
     }
 }

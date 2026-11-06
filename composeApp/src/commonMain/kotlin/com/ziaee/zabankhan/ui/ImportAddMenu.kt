@@ -25,7 +25,11 @@ import org.jetbrains.compose.resources.stringResource
 expect fun loadImportImage(path: String): ImageBitmap
 
 @Composable
-fun ImportAddMenu(vm: AppViewModel, settings: AppSettings, addText: () -> Unit, open: (Long) -> Unit, watch: () -> Unit, discover: () -> Unit = {}) {
+fun ImportAddMenu(
+    vm: AppViewModel, settings: AppSettings, addText: () -> Unit, open: (Long) -> Unit,
+    watch: () -> Unit, discover: () -> Unit = {},
+    trigger: (@Composable (onClick: () -> Unit, busy: Boolean) -> Unit)? = null,
+) {
     var expanded by remember { mutableStateOf(false) }
     var busy by remember { mutableStateOf(false) }
     var preview by remember { mutableStateOf<String?>(null) }
@@ -64,7 +68,8 @@ fun ImportAddMenu(vm: AppViewModel, settings: AppSettings, addText: () -> Unit, 
     val csv = rememberFilePicker(listOf(FileKind.CSV), picked(FileKind.CSV))
     val json = rememberFilePicker(listOf(FileKind.JSON), picked(FileKind.JSON))
     Box {
-        Button(enabled = !busy, onClick = { expanded = true }) { if (busy) CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp) else Text(stringResource(Res.string.add_text)) }
+        if (trigger != null) trigger({ expanded = true }, busy)
+        else Button(enabled = !busy, onClick = { expanded = true }) { if (busy) CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp) else Text(stringResource(Res.string.add_text)) }
         DropdownMenu(expanded, { expanded = false }) {
             val options = listOf(
                 Res.string.add_text to addText,
@@ -99,7 +104,7 @@ fun ImportAddMenu(vm: AppViewModel, settings: AppSettings, addText: () -> Unit, 
             Row { Checkbox(keepProgress, { keepProgress = it }); Text(stringResource(Res.string.h1_keep_progress)) }
         }, confirmButton = { TextButton(onClick = { pendingAnki = null; vm.action { result = withContext(Dispatchers.IO) { repository.anki(jsonText, keepProgress) } } }) { Text(stringResource(Res.string.h1_import)) } }, dismissButton = { TextButton(onClick = { pendingAnki = null }) { Text(stringResource(Res.string.cancel)) } })
     }
-    result?.let { report -> AlertDialog(onDismissRequest = { result = null }, title = { Text(stringResource(Res.string.h1_import_complete)) }, text = { Text(stringResource(Res.string.h1_import_counts, report.imported, report.skipped)) }, confirmButton = { TextButton(onClick = { result = null }) { Text(stringResource(Res.string.back)) } }) }
+    result?.let { report -> AlertDialog(onDismissRequest = { result = null }, title = { EditorialTopAppBar(stringResource(Res.string.h1_import_complete), back = { result = null }) }, text = { Text(stringResource(Res.string.h1_import_counts, report.imported, report.skipped)) }, confirmButton = {}) }
     if (sample) {
         val clipboard = LocalClipboardManager.current
         val sampleText = "word,meaning,sentence,deck\nhello,سلام,Hello world!,Basics\n\"thank you\",متشکرم,Thank you for your help.,Basics\n"

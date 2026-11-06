@@ -5,6 +5,15 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.*
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.unit.sp
+import com.ziaee.zabankhan.ui.theme.*
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
@@ -65,78 +74,109 @@ import org.jetbrains.compose.resources.stringResource
     var model by remember(settings.llmModel) { mutableStateOf(settings.llmModel) }
     var customUrl by remember(settings.llmProvider) { mutableStateOf(settings.llmProvider.takeIf { it.startsWith("https://") }.orEmpty()) }
     Page {
-        Heading(stringResource(Res.string.nav_settings))
-        com.ziaee.zabankhan.backup.BackupSettings(vm.container)
-        com.ziaee.zabankhan.backup.FrenchReaderImportSettings(vm.container)
-        TextButton(onClick = progress) { Text(stringResource(Res.string.h2_progress)) }
-        Text("${stringResource(Res.string.h2_daily_goal)}: ${settings.dailyGoalMinutes}")
-        Slider(settings.dailyGoalMinutes.toFloat(), { vm.action { repository.setDailyGoalMinutes(it.toInt()) } }, valueRange = 1f..120f, steps = 118)
-        if (com.ziaee.zabankhan.datapack.LanguageDataPacks.available(settings.learningLang.orEmpty())) {
-            TextButton(onClick = grammar) { Text(stringResource(Res.string.pack_grammar)) }
-            TextButton(onClick = exams) { Text(stringResource(Res.string.pack_tcf)) }
-        }
-        com.ziaee.zabankhan.reminder.ReviewReminderSettings(vm, settings)
-        Text(stringResource(Res.string.learning_languages), style = MaterialTheme.typography.titleMedium)
-        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Languages.learnable.forEach { lang ->
-                val selected = lang.code in settings.learningLangs
-                FilterChip(selected, onClick = { vm.action {
-                    if (selected && settings.learningLangs.size > 1) repository.removeLearningLang(lang.code)
-                    else if (!selected) repository.addLearningLang(lang.code)
-                    val active = repository.current().learningLang
-                    if (active == settings.meaningLang) repository.setMeaningLang(if (active == Languages.PERSIAN.code) Languages.ENGLISH.code else Languages.PERSIAN.code)
-                } }, enabled = !selected || settings.learningLangs.size > 1, label = { Text(languageName(lang)) })
+        EditorialTopAppBar(stringResource(Res.string.nav_settings))
+        SettingsGroup(stringResource(Res.string.ed_settings_general)) {
+            Text(stringResource(Res.string.learning_languages), style = MaterialTheme.typography.titleMedium)
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Languages.learnable.forEach { lang ->
+                    val selected = lang.code in settings.learningLangs
+                    FilterChip(selected, onClick = { if (!selected || settings.learningLangs.size > 1) vm.action {
+                        if (selected && settings.learningLangs.size > 1) repository.removeLearningLang(lang.code)
+                        else if (!selected) repository.addLearningLang(lang.code)
+                        val active = repository.current().learningLang
+                        if (active == settings.meaningLang) repository.setMeaningLang(if (active == Languages.PERSIAN.code) Languages.ENGLISH.code else Languages.PERSIAN.code)
+                    } }, label = { Text(languageName(lang)) },
+                        leadingIcon = if (selected) ({ Icon(Icons.Default.Check, stringResource(Res.string.learning_languages), Modifier.size(18.dp)) }) else null,
+                        colors = FilterChipDefaults.filterChipColors(selectedContainerColor = MaterialTheme.colorScheme.primaryContainer, selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer, selectedLeadingIconColor = MaterialTheme.colorScheme.onPrimaryContainer))
+                }
+            }
+            if (com.ziaee.zabankhan.datapack.LanguageDataPacks.available(settings.learningLang.orEmpty())) {
+                EditorialListRow(stringResource(Res.string.pack_grammar), Icons.Default.MenuBook, grammar)
+                EditorialListRow(stringResource(Res.string.pack_tcf), Icons.Default.School, exams)
             }
         }
-        Choice(stringResource(Res.string.meaning_language), settings.meaningLang,
-            listOf(Languages.PERSIAN, Languages.ENGLISH).filter { it.code != settings.learningLang }.map { it.code to languageName(it) }) {
-            vm.action { repository.setMeaningLang(it) }
+        SettingsGroup(stringResource(Res.string.ed_settings_appearance)) {
+            Choice(stringResource(Res.string.theme), settings.themeMode,
+                listOf("SYSTEM" to stringResource(Res.string.system), "LIGHT" to stringResource(Res.string.light), "DARK" to stringResource(Res.string.dark))) {
+                vm.action { repository.setThemeMode(it) }
+            }
         }
-        Choice(stringResource(Res.string.theme), settings.themeMode,
-            listOf("SYSTEM" to stringResource(Res.string.system), "LIGHT" to stringResource(Res.string.light), "DARK" to stringResource(Res.string.dark))) {
-            vm.action { repository.setThemeMode(it) }
+        SettingsGroup(stringResource(Res.string.ed_settings_reading)) {
+            Text("${stringResource(Res.string.font_size)}: ${settings.readerFontSize}")
+            Slider(settings.readerFontSize.toFloat(), { vm.action { repository.setReaderFontSize(it.toInt()) } }, valueRange = 12f..40f, steps = 27, colors = SliderDefaults.colors(activeTickColor = Color.Transparent, inactiveTickColor = Color.Transparent))
+            val preview = Languages.byCode(settings.learningLang.orEmpty())?.voicePreview.orEmpty()
+            if (preview.isNotBlank()) Surface(shape = MaterialTheme.shapes.medium, color = MaterialTheme.colorScheme.surface) {
+                Text(preview, Modifier.fillMaxWidth().padding(16.dp), maxLines = 1, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.bodyLarge.merge(contentStyle(preview)).copy(fontSize = settings.readerFontSize.sp, lineHeight = (settings.readerFontSize * 1.7).sp))
+            }
         }
-        Choice(stringResource(Res.string.edge_engine), settings.voiceEngine,
-            listOf("online" to stringResource(Res.string.edge_online), "device" to stringResource(Res.string.edge_device))) {
-            vm.action { repository.setVoiceEngine(it) }
+        SettingsGroup(stringResource(Res.string.ed_settings_speech)) {
+            Choice(stringResource(Res.string.edge_engine), settings.voiceEngine,
+                listOf("online" to stringResource(Res.string.edge_online), "device" to stringResource(Res.string.edge_device))) {
+                vm.action { repository.setVoiceEngine(it) }
+            }
+            Choice(stringResource(Res.string.speech_rate), settings.speechRate, listOf(.75f, 1f, 1.25f).map { it to "${it}×" }) { vm.action { repository.setSpeechRate(it) } }
+            Languages.learnable.filter { it.code in settings.learningLangs }.forEach { lang ->
+                Choice("${languageName(lang)} — ${stringResource(Res.string.speech_voice)}", settings.ttsVoices[lang.code].orEmpty(),
+                    listOf("" to stringResource(Res.string.speech_default)) + voices[lang.code].orEmpty().map { it.id to it.name }) { id -> vm.action { repository.setTtsVoice(lang.code, id.ifBlank { null }) } }
+                TextButton(onClick = { tts.pronounce(lang.voicePreview, lang.code, settings) }) { Text(stringResource(Res.string.edge_preview)) }
+            }
         }
-        Choice(stringResource(Res.string.speech_rate), settings.speechRate, listOf(.75f, 1f, 1.25f).map { it to "${it}×" }) { vm.action { repository.setSpeechRate(it) } }
-        Row { Checkbox(settings.autoPronounceCards, { vm.action { repository.setAutoPronounceCards(it) } }); Text(stringResource(Res.string.speech_auto_cards)) }
-        Languages.learnable.filter { it.code in settings.learningLangs }.forEach { lang ->
-            Choice("${languageName(lang)} — ${stringResource(Res.string.speech_voice)}", settings.ttsVoices[lang.code].orEmpty(),
-                listOf("" to stringResource(Res.string.speech_default)) + voices[lang.code].orEmpty().map { it.id to it.name }) { id -> vm.action { repository.setTtsVoice(lang.code, id.ifBlank { null }) } }
-            TextButton(onClick = { tts.pronounce(lang.voicePreview, lang.code, settings) }) { Text(stringResource(Res.string.edge_preview)) }
+        SettingsGroup(stringResource(Res.string.ed_settings_dictionary)) {
+            Choice(stringResource(Res.string.meaning_language), settings.meaningLang,
+                listOf(Languages.PERSIAN, Languages.ENGLISH).filter { it.code != settings.learningLang }.map { it.code to languageName(it) }) {
+                vm.action { repository.setMeaningLang(it) }
+            }
+            Text(stringResource(Res.string.llm_settings), style = MaterialTheme.typography.titleMedium)
+            Choice(stringResource(Res.string.provider), provider,
+                listOf("" to stringResource(Res.string.disabled)) + LlmProvider.entries.map {
+                    it.name to if (it == LlmProvider.CUSTOM) stringResource(Res.string.custom) else it.name
+                } + if (provider.startsWith("https://")) listOf(provider to stringResource(Res.string.custom)) else emptyList()) {
+                provider = it
+                model = LlmProvider.entries.firstOrNull { p -> p.name == it }?.defaultModel.orEmpty()
+            }
+            val preset = LlmProvider.entries.firstOrNull { it.name == provider }
+            if (provider.isNotEmpty()) {
+                if (provider == LlmProvider.CUSTOM.name || provider.startsWith("https://")) {
+                    OutlinedTextField(customUrl, { customUrl = it }, label = { Text(stringResource(Res.string.base_url)) }, modifier = Modifier.fillMaxWidth(), singleLine = true)
+                } else Text(preset?.baseUrl.orEmpty(), style = MaterialTheme.typography.bodySmall)
+                OutlinedTextField(apiKey, { apiKey = it }, label = { Text(stringResource(Res.string.api_key)) }, visualTransformation = PasswordVisualTransformation(), modifier = Modifier.fillMaxWidth(), singleLine = true)
+                OutlinedTextField(model, { model = it }, label = { Text(stringResource(Res.string.model)) }, modifier = Modifier.fillMaxWidth(), singleLine = true)
+            }
+            EditorialPrimaryButton(text = stringResource(Res.string.save), enabled = (provider != LlmProvider.CUSTOM.name && !provider.startsWith("https://")) || customUrl.startsWith("https://"), onClick = { vm.action {
+                // Shortcut: DataStore stores the key for Phase 1. Move to Keychain / EncryptedPrefs later.
+                repository.setLlm(if (provider == LlmProvider.CUSTOM.name || provider.startsWith("https://")) customUrl.trim().trimEnd('/') else provider, apiKey.trim(), model.trim())
+            } })
         }
-        Text("${stringResource(Res.string.font_size)}: ${settings.readerFontSize}")
-        Slider(settings.readerFontSize.toFloat(), { vm.action { repository.setReaderFontSize(it.toInt()) } }, valueRange = 12f..40f, steps = 27)
-        Text("${stringResource(Res.string.daily_new)}: ${settings.dailyNewCards}")
-        Slider(settings.dailyNewCards.toFloat(), { vm.action { repository.setDailyNewCards(it.toInt()) } }, valueRange = 0f..100f, steps = 99)
-        HorizontalDivider()
-        Text(stringResource(Res.string.llm_settings), style = MaterialTheme.typography.titleMedium)
-        Choice(stringResource(Res.string.provider), provider,
-            listOf("" to stringResource(Res.string.disabled)) + LlmProvider.entries.map {
-                it.name to if (it == LlmProvider.CUSTOM) stringResource(Res.string.custom) else it.name
-            } + if (provider.startsWith("https://")) listOf(provider to stringResource(Res.string.custom)) else emptyList()) {
-            provider = it
-            model = LlmProvider.entries.firstOrNull { p -> p.name == it }?.defaultModel.orEmpty()
+        SettingsGroup(stringResource(Res.string.ed_settings_review)) {
+            TextButton(onClick = progress) { Text(stringResource(Res.string.h2_progress)) }
+            Text("${stringResource(Res.string.h2_daily_goal)}: ${settings.dailyGoalMinutes}")
+            Slider(settings.dailyGoalMinutes.toFloat(), { vm.action { repository.setDailyGoalMinutes(it.toInt()) } }, valueRange = 1f..120f, steps = 118)
+            Text("${stringResource(Res.string.daily_new)}: ${settings.dailyNewCards}")
+            Slider(settings.dailyNewCards.toFloat(), { vm.action { repository.setDailyNewCards(it.toInt()) } }, valueRange = 0f..100f, steps = 99)
+            val autoPronounceLabel = stringResource(Res.string.speech_auto_cards)
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                Text(autoPronounceLabel, Modifier.weight(1f))
+                Switch(settings.autoPronounceCards, { vm.action { repository.setAutoPronounceCards(it) } }, modifier = Modifier.semantics { contentDescription = autoPronounceLabel })
+            }
+            com.ziaee.zabankhan.reminder.ReviewReminderSettings(vm, settings)
         }
-        val preset = LlmProvider.entries.firstOrNull { it.name == provider }
-        if (provider.isNotEmpty()) {
-            if (provider == LlmProvider.CUSTOM.name || provider.startsWith("https://")) {
-                OutlinedTextField(customUrl, { customUrl = it }, label = { Text(stringResource(Res.string.base_url)) }, modifier = Modifier.fillMaxWidth(), singleLine = true)
-            } else Text(preset?.baseUrl.orEmpty(), style = MaterialTheme.typography.bodySmall)
-            OutlinedTextField(apiKey, { apiKey = it }, label = { Text(stringResource(Res.string.api_key)) }, visualTransformation = PasswordVisualTransformation(), modifier = Modifier.fillMaxWidth(), singleLine = true)
-            OutlinedTextField(model, { model = it }, label = { Text(stringResource(Res.string.model)) }, modifier = Modifier.fillMaxWidth(), singleLine = true)
+        SettingsGroup(stringResource(Res.string.ed_settings_backup)) {
+            com.ziaee.zabankhan.backup.BackupSettings(vm.container)
+            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+            com.ziaee.zabankhan.backup.FrenchReaderImportSettings(vm.container)
         }
-        Button(enabled = (provider != LlmProvider.CUSTOM.name && !provider.startsWith("https://")) || customUrl.startsWith("https://"), onClick = { vm.action {
-            // Shortcut: DataStore stores the key for Phase 1. Move to Keychain / EncryptedPrefs later.
-            repository.setLlm(if (provider == LlmProvider.CUSTOM.name || provider.startsWith("https://")) customUrl.trim().trimEnd('/') else provider, apiKey.trim(), model.trim())
-        } }) { Text(stringResource(Res.string.save)) }
-        HorizontalDivider()
-        Text(stringResource(Res.string.about), style = MaterialTheme.typography.titleMedium)
-        Text(stringResource(Res.string.version))
-        Text(stringResource(Res.string.edge_privacy))
-        com.ziaee.zabankhan.datapack.DataPackCredits()
-        TextButton(onClick = { uri.openUri("https://github.com/Ziaeemehr/zabankhan") }) { Text(stringResource(Res.string.github)) }
+        SettingsGroup(stringResource(Res.string.about)) {
+            Text(stringResource(Res.string.version))
+            Text(stringResource(Res.string.edge_privacy))
+            com.ziaee.zabankhan.datapack.DataPackCredits()
+            TextButton(onClick = { uri.openUri("https://github.com/Ziaeemehr/zabankhan") }) { Text(stringResource(Res.string.github)) }
+        }
+    }
+}
+
+@Composable private fun SettingsGroup(title: String, content: @Composable ColumnScope.() -> Unit) {
+    EditorialSectionHeader(title)
+    EditorialCard(containerColor = MaterialTheme.colorScheme.surfaceVariant) {
+        Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(16.dp), content = content)
     }
 }

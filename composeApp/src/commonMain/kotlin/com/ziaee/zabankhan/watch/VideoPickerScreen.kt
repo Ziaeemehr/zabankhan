@@ -42,33 +42,34 @@ fun watchRoute(videoId: String = "", path: String = "", subs: String = "") =
         catch (e: CancellationException) { throw e } catch (_: Exception) { failed = true }
         finally { loading = false }
     }
-    LazyColumn(Modifier.fillMaxSize().padding(horizontal = 20.dp), verticalArrangement = Arrangement.spacedBy(12.dp), contentPadding = PaddingValues(vertical = 12.dp)) {
-        item { TextButton(onClick = back) { Text(stringResource(Res.string.back)) } }
-        item { Heading(stringResource(Res.string.watch_video)) }
-        item { OutlinedTextField(url, { url = it; invalid = false }, label = { Text(stringResource(Res.string.watch_url)) }, isError = invalid, modifier = Modifier.fillMaxWidth(), textStyle = contentStyle(url), singleLine = true) }
-        if (invalid) item { Text(stringResource(Res.string.watch_invalid_url), color = MaterialTheme.colorScheme.error) }
-        item { Button(onClick = { val id = YoutubeUrl.videoId(url); if (id != null) open(id, "", "") else invalid = true }) { Text(stringResource(Res.string.watch_open_youtube)) } }
-        item { OutlinedButton(onClick = pickVideo) { Text(stringResource(Res.string.watch_open_local)) } }
-        if (importFailed) item { Text(stringResource(Res.string.watch_import_error)) }
-        if (localPath.isNotBlank()) {
-            item { Text(stringResource(Res.string.watch_local_ready)) }
-            item { OutlinedButton(onClick = pickSubtitles) { Text(stringResource(Res.string.watch_add_subtitles)) } }
-            if (subtitlePath.isNotBlank()) item { Text(stringResource(Res.string.watch_subtitles_ready)) }
-            item { Button(onClick = { open("", localPath, subtitlePath) }) { Text(stringResource(Res.string.watch_play)) } }
-        }
-        if (recent.isNotEmpty()) item { Heading(stringResource(Res.string.watch_history)) }
-        items(recent) { video ->
-            ElevatedCard(onClick = { open(video.videoId, video.path.orEmpty(), video.subs.orEmpty()) }, modifier = Modifier.fillMaxWidth()) {
-                Column(Modifier.padding(16.dp)) { Text(video.title, modifier = Modifier.fillMaxWidth(), style = contentStyle(video.title)); Text(videoTime(video.positionMs), style = MaterialTheme.typography.labelSmall) }
+    Column(Modifier.fillMaxSize()) {
+        EditorialTopAppBar(stringResource(Res.string.watch_video), back)
+        LazyColumn(Modifier.weight(1f).fillMaxWidth().padding(horizontal = 20.dp), verticalArrangement = Arrangement.spacedBy(12.dp), contentPadding = PaddingValues(vertical = 12.dp)) {
+            item { OutlinedTextField(url, { url = it; invalid = false }, label = { Text(stringResource(Res.string.watch_url)) }, isError = invalid, modifier = Modifier.fillMaxWidth(), textStyle = contentStyle(url), singleLine = true) }
+            if (invalid) item { Text(stringResource(Res.string.watch_invalid_url), color = MaterialTheme.colorScheme.error) }
+            item { EditorialPrimaryButton(stringResource(Res.string.watch_open_youtube), onClick = { val id = YoutubeUrl.videoId(url); if (id != null) open(id, "", "") else invalid = true }) }
+            item { OutlinedButton(onClick = pickVideo) { Text(stringResource(Res.string.watch_open_local)) } }
+            if (importFailed) item { Text(stringResource(Res.string.watch_import_error)) }
+            if (localPath.isNotBlank()) {
+                item { Text(stringResource(Res.string.watch_local_ready)) }
+                item { OutlinedButton(onClick = pickSubtitles) { Text(stringResource(Res.string.watch_add_subtitles)) } }
+                if (subtitlePath.isNotBlank()) item { Text(stringResource(Res.string.watch_subtitles_ready)) }
+                item { EditorialPrimaryButton(stringResource(Res.string.watch_play), onClick = { open("", localPath, subtitlePath) }) }
             }
-        }
-        item { Heading(stringResource(Res.string.watch_channels)) }
-        item { Choice(stringResource(Res.string.watch_channels), channel?.channelId.orEmpty(), listOf("" to stringResource(Res.string.watch_choose_channel)) + VideoCatalog.channels(lang).map { it.channelId to it.title }) { id -> channel = VideoCatalog.channels(lang).firstOrNull { it.channelId == id } } }
-        if (loading) item { LinearProgressIndicator(Modifier.fillMaxWidth()) }
-        if (failed) item { Text(stringResource(Res.string.watch_feed_error)); TextButton(onClick = { retry++ }) { Text(stringResource(Res.string.retry)) } }
-        items(videos, key = { it.videoId }) { video ->
-            ElevatedCard(onClick = { open(video.videoId, "", "") }, modifier = Modifier.fillMaxWidth()) {
-                Column(Modifier.padding(16.dp)) { Text(video.title, modifier = Modifier.fillMaxWidth(), style = contentStyle(video.title)); Text(video.published.take(10), style = MaterialTheme.typography.labelSmall) }
+            if (recent.isNotEmpty()) item { EditorialSectionHeader(stringResource(Res.string.watch_history)) }
+            items(recent) { video ->
+                EditorialCard(onClick = { open(video.videoId, video.path.orEmpty(), video.subs.orEmpty()) }, modifier = Modifier.fillMaxWidth()) {
+                    Column(Modifier.padding(16.dp)) { Text(video.title, modifier = Modifier.fillMaxWidth(), style = contentStyle(video.title)); Text(videoTime(video.positionMs), style = MaterialTheme.typography.labelSmall) }
+                }
+            }
+            item { EditorialSectionHeader(stringResource(Res.string.watch_channels)) }
+            item { Choice(stringResource(Res.string.watch_channels), channel?.channelId.orEmpty(), listOf("" to stringResource(Res.string.watch_choose_channel)) + VideoCatalog.channels(lang).map { it.channelId to it.title }) { id -> channel = VideoCatalog.channels(lang).firstOrNull { it.channelId == id } } }
+            if (loading) item { LinearProgressIndicator(Modifier.fillMaxWidth()) }
+            if (failed) item { Text(stringResource(Res.string.watch_feed_error)); TextButton(onClick = { retry++ }) { Text(stringResource(Res.string.retry)) } }
+            items(videos, key = { it.videoId }) { video ->
+                EditorialCard(onClick = { open(video.videoId, "", "") }, modifier = Modifier.fillMaxWidth()) {
+                    Column(Modifier.padding(16.dp)) { Text(video.title, modifier = Modifier.fillMaxWidth(), style = contentStyle(video.title)); Text(video.published.take(10), style = MaterialTheme.typography.labelSmall) }
+                }
             }
         }
     }

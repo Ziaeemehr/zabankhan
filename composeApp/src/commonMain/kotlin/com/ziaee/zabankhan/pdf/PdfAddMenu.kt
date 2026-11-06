@@ -2,6 +2,7 @@ package com.ziaee.zabankhan.pdf
 
 import androidx.compose.foundation.layout.Box
 import androidx.compose.material3.*
+import com.ziaee.zabankhan.ui.EditorialPrimaryButton
 import androidx.compose.runtime.*
 import com.ziaee.zabankhan.app.AppViewModel
 import com.ziaee.zabankhan.data.*
@@ -25,7 +26,7 @@ import org.jetbrains.compose.resources.stringResource
         }
     }
     Box {
-        Button(onClick = { expanded = true }) { Text(stringResource(Res.string.add_text)) }
+        EditorialPrimaryButton(stringResource(Res.string.add_text), onClick = { expanded = true })
         DropdownMenu(expanded, { expanded = false }) {
             DropdownMenuItem(text = { Text(stringResource(Res.string.add_text)) }, onClick = { expanded = false; addText() })
             DropdownMenuItem(text = { Text(stringResource(Res.string.pdf_import)) }, onClick = { expanded = false; picker() })

@@ -70,14 +70,19 @@ data class AppOpenRequest(val text: String? = null, val review: Boolean = false,
             val fallbackMessage = stringResource(Res.string.edge_fallback)
             LaunchedEffect(unavailable) { if (unavailable) snackbar.showSnackbar(fallbackMessage) }
             Scaffold(snackbarHost = { SnackbarHost(snackbar) }, bottomBar = {
-                if (route in routes) NavigationBar {
+                if (route in routes) NavigationBar(containerColor = MaterialTheme.colorScheme.surface) {
                     routes.forEachIndexed { i, target -> NavigationBarItem(selected = route == target,
                         onClick = { nav.navigate(target) { popUpTo("home") { saveState = true }; launchSingleTop = true; restoreState = true } },
-                        icon = { Icon(icons[i], null) }, label = { Text(stringResource(labels[i]), maxLines = 1) }) }
+                        icon = { Icon(icons[i], stringResource(labels[i])) }, label = { EditorialNavigationLabel(stringResource(labels[i])) },
+                        colors = NavigationBarItemDefaults.colors(
+                            selectedIconColor = MaterialTheme.colorScheme.primary, selectedTextColor = MaterialTheme.colorScheme.primary,
+                            unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant, unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                            indicatorColor = androidx.compose.ui.graphics.Color.Transparent,
+                        )) }
                 }
             }) { padding ->
                 NavHost(nav, "home", Modifier.padding(padding).consumeWindowInsets(padding)) {
-                    composable("home") { HomeScreen(vm, prefs, { id -> vm.action { val doc = container.texts.getById(id); nav.navigate(if (doc?.pdfPath != null) "pdf/$id" else "reader/$id") } }, { nav.navigate("add") }, { nav.navigate("review") }, { nav.navigate("videos") }, { nav.navigate("statistics") }, { nav.navigate("discover") }, { nav.navigate("grammar") }, { nav.navigate("exams") }) }
+                    composable("home") { HomeScreen(vm, prefs, { id -> vm.action { val doc = container.texts.getById(id); nav.navigate(if (doc?.pdfPath != null) "pdf/$id" else "reader/$id") } }, { nav.navigate("add") }, { nav.navigate("review") }, { nav.navigate("videos") }, { nav.navigate("statistics") }, { nav.navigate("discover") }, { nav.navigate("grammar") }, { nav.navigate("exams") }, { nav.navigate("settings") }) }
                     composable("library") { LibraryScreen(vm, prefs, { id -> vm.action { val doc = container.texts.getById(id); nav.navigate(if (doc?.pdfPath != null) "pdf/$id" else "reader/$id") } }, { nav.navigate("add") }, { nav.navigate("videos") }, { nav.navigate("discover") }) }
                     composable("videos") { VideoPickerScreen(vm, prefs, { nav.popBackStack() }) { video, path, subs -> nav.navigate(watchRoute(video, path, subs)) } }
                     composable("watch?videoId={videoId}&path={path}&subs={subs}", arguments = listOf("videoId", "path", "subs").map { name -> navArgument(name) { type = NavType.StringType; defaultValue = "" } }) { entry ->
@@ -87,7 +92,7 @@ data class AppOpenRequest(val text: String? = null, val review: Boolean = false,
                     composable("discover") { com.ziaee.zabankhan.discover.DiscoverScreen(vm, prefs, { nav.popBackStack() }, { nav.navigate("reader/$it") }) }
                     composable("grammar") { com.ziaee.zabankhan.datapack.GrammarScreen(prefs.learningLang.orEmpty()) { nav.popBackStack() } }
                     composable("exams") { com.ziaee.zabankhan.datapack.TcfPracticeScreen(prefs.learningLang.orEmpty()) { nav.popBackStack() } }
-                    composable("words") { WordsScreen(vm, prefs) }
+                    composable("words") { WordsScreen(vm, prefs) { nav.navigate("review") } }
                     composable("review") { ReviewScreen(container, prefs) }
                     composable("settings") { SettingsScreen(vm, prefs, { nav.navigate("statistics") }, { nav.navigate("grammar") }, { nav.navigate("exams") }) }
                     composable("add") { AddTextScreen(vm, prefs, { sharedText = ""; nav.popBackStack() }, { id -> sharedText = ""; nav.navigate("reader/$id") { popUpTo("add") { inclusive = true } } }, initialText = sharedText) }

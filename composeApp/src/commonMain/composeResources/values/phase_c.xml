@@ -1,0 +1,16 @@
+<resources>
+    <string name="ed_settings_general">General</string>
+    <string name="ed_settings_appearance">Appearance</string>
+    <string name="ed_settings_reading">Reading</string>
+    <string name="ed_settings_speech">Speech</string>
+    <string name="ed_settings_dictionary">Dictionary and translation</string>
+    <string name="ed_settings_review">Review</string>
+    <string name="ed_settings_backup">Backup</string>
+    <string name="ed_saved">Saved</string>
+    <string name="ed_update_saved">Update saved word</string>
+    <string name="ed_dictionary_links">Dictionaries</string>
+    <string name="ed_subtitles">Subtitles</string>
+    <string name="ed_seek_backward">Back 5 seconds</string>
+    <string name="ed_seek_forward">Forward 5 seconds</string>
+    <string name="ed_more_actions">More actions</string>
+</resources>

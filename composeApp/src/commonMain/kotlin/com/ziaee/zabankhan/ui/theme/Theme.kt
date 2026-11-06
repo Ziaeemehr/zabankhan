@@ -8,49 +8,53 @@ import androidx.compose.ui.Modifier
 import androidx.compose.material3.Typography
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDirection
 import com.ziaee.zabankhan.resources.Res
 import com.ziaee.zabankhan.resources.vazirmatn_medium
 import com.ziaee.zabankhan.resources.vazirmatn_regular
+import com.ziaee.zabankhan.resources.vazirmatn_semibold
+import com.ziaee.zabankhan.resources.vazirmatn_bold
 import org.jetbrains.compose.resources.Font
 
-// Palette taken from the app logo: deep navy, royal blue, white ribbon.
+// Editorial paper palette; the primary roles carry the logo’s lapis accent.
 val LightColors = lightColorScheme(
-    primary = Color(0xFF1F4FB5), onPrimary = Color.White,
-    primaryContainer = Color(0xFFDCE4FF), onPrimaryContainer = Color(0xFF0B1F5C),
-    secondary = Color(0xFF2E6F8E), onSecondary = Color.White,
-    secondaryContainer = Color(0xFFD3EAF5), onSecondaryContainer = Color(0xFF0E3446),
+    primary = Color(0xFF24418F), onPrimary = Color.White,
+    primaryContainer = Color(0xFFDFE5F6), onPrimaryContainer = Color(0xFF0F2560),
+    secondary = Color(0xFF2F6F6A), onSecondary = Color.White,
+    secondaryContainer = Color(0xFFD7ECE8), onSecondaryContainer = Color(0xFF163F3C),
     tertiary = Color(0xFFA66A16), onTertiary = Color.White,
     tertiaryContainer = Color(0xFFF9E3BB), onTertiaryContainer = Color(0xFF5D3908),
-    background = Color(0xFFF6F7FB), onBackground = Color(0xFF151A26),
-    surface = Color(0xFFFFFFFF), onSurface = Color(0xFF151A26),
-    surfaceVariant = Color(0xFFE6E9F2), onSurfaceVariant = Color(0xFF545B6E),
-    outline = Color(0xFF7D8499), outlineVariant = Color(0xFFCCD1DE),
+    background = Color(0xFFF7F1E7), onBackground = Color(0xFF211C19),
+    surface = Color(0xFFFFFBF4), onSurface = Color(0xFF211C19),
+    surfaceVariant = Color(0xFFEFE6D9), onSurfaceVariant = Color(0xFF655B55),
+    outline = Color(0xFF8C8178), outlineVariant = Color(0xFFD8CEC3),
     error = Color(0xFFBA1A1A), onError = Color.White,
-    surfaceContainerLowest = Color(0xFFFFFFFF), surfaceContainerLow = Color(0xFFF9FAFD),
-    surfaceContainer = Color(0xFFEFF2F9), surfaceContainerHigh = Color(0xFFE9ECF5),
-    surfaceContainerHighest = Color(0xFFE3E7F1),
+    surfaceContainerLowest = Color(0xFFFFFBF4), surfaceContainerLow = Color(0xFFFFFBF4),
+    surfaceContainer = Color(0xFFF7F1E7), surfaceContainerHigh = Color(0xFFF2EADF),
+    surfaceContainerHighest = Color(0xFFEFE6D9),
 )
 
 val DarkColors = darkColorScheme(
-    primary = Color(0xFFAFC4FF), onPrimary = Color(0xFF0B225F),
-    primaryContainer = Color(0xFF1C3C8F), onPrimaryContainer = Color(0xFFDCE4FF),
-    secondary = Color(0xFF93CDE6), onSecondary = Color(0xFF0B3446),
-    secondaryContainer = Color(0xFF1F4D63), onSecondaryContainer = Color(0xFFD3EAF5),
+    primary = Color(0xFFB4C5FF), onPrimary = Color(0xFF102A6B),
+    primaryContainer = Color(0xFF22397A), onPrimaryContainer = Color(0xFFDFE5F6),
+    secondary = Color(0xFF86BDB6), onSecondary = Color(0xFF0D3733),
+    secondaryContainer = Color(0xFF234F4B), onSecondaryContainer = Color(0xFFA1D8D1),
     tertiary = Color(0xFFE3B66F), onTertiary = Color(0xFF432C04),
     tertiaryContainer = Color(0xFF5D410D), onTertiaryContainer = Color(0xFFFFDEA3),
-    background = Color(0xFF0A1024), onBackground = Color(0xFFE4E8F4),
-    surface = Color(0xFF111A33), onSurface = Color(0xFFE4E8F4),
-    surfaceVariant = Color(0xFF1D2744), onSurfaceVariant = Color(0xFFBEC5D9),
-    outline = Color(0xFF8A92A8), outlineVariant = Color(0xFF353F5C),
+    background = Color(0xFF181513), onBackground = Color(0xFFF2EAE0),
+    surface = Color(0xFF211D1A), onSurface = Color(0xFFF2EAE0),
+    surfaceVariant = Color(0xFF2D2825), onSurfaceVariant = Color(0xFFD2C6BC),
+    outline = Color(0xFF9B9087), outlineVariant = Color(0xFF49413C),
     error = Color(0xFFFFB4AB), onError = Color(0xFF690005),
-    surfaceContainerLowest = Color(0xFF070C1C), surfaceContainerLow = Color(0xFF0E162D),
-    surfaceContainer = Color(0xFF141E3A), surfaceContainerHigh = Color(0xFF1A2544),
-    surfaceContainerHighest = Color(0xFF212D4F),
+    surfaceContainerLowest = Color(0xFF14110F), surfaceContainerLow = Color(0xFF211D1A),
+    surfaceContainer = Color(0xFF26211E), surfaceContainerHigh = Color(0xFF2D2825),
+    surfaceContainerHighest = Color(0xFF38312C),
 )
 
 enum class ThemeMode { SYSTEM, LIGHT, DARK }
@@ -59,6 +63,8 @@ enum class ThemeMode { SYSTEM, LIGHT, DARK }
 fun appFontFamily(): FontFamily = FontFamily(
     Font(Res.font.vazirmatn_regular, FontWeight.Normal),
     Font(Res.font.vazirmatn_medium, FontWeight.Medium),
+    Font(Res.font.vazirmatn_semibold, FontWeight.SemiBold),
+    Font(Res.font.vazirmatn_bold, FontWeight.Bold),
 )
 
 @Composable
@@ -80,15 +86,22 @@ fun ZabankhanTheme(mode: ThemeMode = ThemeMode.SYSTEM, content: @Composable () -
         titleLarge = base.titleLarge.copy(fontFamily = family, textDirection = TextDirection.Content),
         titleMedium = base.titleMedium.copy(fontFamily = family, textDirection = TextDirection.Content),
         titleSmall = base.titleSmall.copy(fontFamily = family, textDirection = TextDirection.Content),
-        bodyLarge = base.bodyLarge.copy(fontFamily = family, textDirection = TextDirection.Content),
+        bodyLarge = base.bodyLarge.copy(fontFamily = family, fontSize = 16.sp, lineHeight = 24.sp, textDirection = TextDirection.Content),
         bodyMedium = base.bodyMedium.copy(fontFamily = family, textDirection = TextDirection.Content),
-        bodySmall = base.bodySmall.copy(fontFamily = family, textDirection = TextDirection.Content),
-        labelLarge = base.labelLarge.copy(fontFamily = family, textDirection = TextDirection.Content),
+        bodySmall = base.bodySmall.copy(fontFamily = family, fontSize = 13.sp, lineHeight = 18.sp, textDirection = TextDirection.Content),
+        labelLarge = base.labelLarge.copy(fontFamily = family, fontWeight = FontWeight.Medium, fontSize = 14.sp, lineHeight = 20.sp, textDirection = TextDirection.Content),
         labelMedium = base.labelMedium.copy(fontFamily = family, textDirection = TextDirection.Content),
         labelSmall = base.labelSmall.copy(fontFamily = family, textDirection = TextDirection.Content),
     )
-    MaterialTheme(colorScheme = if (dark) DarkColors else LightColors, typography = typography) {
-        // Root surface: without it text uses the default black content colour and iOS shows a black window in dark mode.
-        Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background, content = content)
+    CompositionLocalProvider(
+        LocalAppSpacing provides AppSpacing(),
+        LocalAppSizes provides AppSizes(),
+        LocalAppElevations provides AppElevations(),
+        LocalEditorialFonts provides EditorialFonts(family, literataFontFamily()),
+    ) {
+        MaterialTheme(colorScheme = if (dark) DarkColors else LightColors, typography = typography, shapes = EditorialShapes) {
+            // Keep a root surface so content and the iOS window inherit the theme colours.
+            Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background, content = content)
+        }
     }
 }
