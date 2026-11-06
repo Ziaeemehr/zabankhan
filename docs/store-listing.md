@@ -81,11 +81,12 @@ Privacy
 
 ## Screenshot plan
 
-Use the same order for every store:
+Captured from the `fr_test` emulator (1080×2400) with the editorial design, one set per language (`fa-*`, `en-*`). Use the same order for every store:
 
-1. Home screen with review and progress
-2. Reader with the word meaning sheet open
-3. PDF page with highlights and pen notes
-4. Video with tappable subtitles
-5. Leitner review card
-6. Discover news list
+1. `1-home`: daily review, continue reading, resources
+2. `2-reader`: reader with the word meaning sheet open
+3. `3-pdf`: PDF page with pen notes
+4. `5-review`: Leitner review card
+5. `6-library`: library
+
+Still missing: a video-with-subtitles shot, and real reading content instead of the smoke-test PDF. Retake before submission if the UI changes.
