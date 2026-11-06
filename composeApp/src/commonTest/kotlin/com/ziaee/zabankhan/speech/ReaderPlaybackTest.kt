@@ -52,4 +52,53 @@ class ReaderPlaybackTest {
         tts.done(); assertEquals(listOf("Two.", "Three."), tts.prefetched)
         tts.done(); assertEquals(2, tts.prefetched.size) // last paragraph: nothing to fetch
     }
+    @Test fun navigationCrossesParagraphsAndClampsAtEnds() {
+        val tts = FakeTts()
+        val playback = ReaderPlayback(tts, listOf(SpokenParagraph("Hello. Goodbye.", 0), SpokenParagraph("Another.", 19)), Languages.ENGLISH)
+        playback.start(0, 1.25f, null)
+        playback.nextSentence(); assertEquals("Goodbye.", tts.text); assertEquals(7..14, playback.sentence.value)
+        val stale = tts.done
+        playback.nextSentence(); assertEquals("Another.", tts.text); assertEquals(19..26, playback.sentence.value)
+        stale(); assertEquals(19..26, playback.sentence.value)
+        playback.nextSentence(); assertEquals(19..26, playback.sentence.value)
+        playback.previousSentence(); assertEquals("Goodbye.", tts.text)
+        playback.previousSentence(); playback.previousSentence(); assertEquals(0..5, playback.sentence.value)
+        assertEquals(1.25f, tts.rate)
+    }
+    @Test fun pauseResumeAndNavigationKeepRepeatMode() {
+        val tts = FakeTts()
+        val playback = ReaderPlayback(tts, listOf(SpokenParagraph("Hello. Goodbye.", 0)), Languages.ENGLISH)
+        playback.start(0, .75f, null, 2)
+        playback.nextSentence()
+        playback.pause(); assertFalse(tts.isSpeaking.value)
+        playback.resume(0, .75f, null, 2); assertEquals("Goodbye.", tts.text)
+        tts.done(); assertEquals("Goodbye.", tts.text)
+        tts.done(); assertNull(playback.sentence.value)
+    }
+    @Test fun persianNavigationUsesOriginalOffsetsAndEmptyDocumentIsSafe() {
+        val tts = FakeTts()
+        val body = "سلام. خوبی؟"
+        val playback = ReaderPlayback(tts, listOf(SpokenParagraph(body, 12)), Languages.PERSIAN)
+        playback.start(0, 1f, null)
+        playback.nextSentence(); assertEquals("خوبی؟", tts.text); assertEquals(18..22, playback.sentence.value)
+        playback.previousSentence(); assertEquals("سلام.", tts.text)
+        val empty = ReaderPlayback(tts, emptyList(), Languages.PERSIAN)
+        empty.nextSentence(); empty.previousSentence(); assertNull(empty.sentence.value)
+    }
+    @Test fun navigationFromVisibleParagraphSkipsLeadingWhitespace() {
+        val tts = FakeTts()
+        val playback = ReaderPlayback(tts, listOf(SpokenParagraph("Before.", 0), SpokenParagraph("  First. Second.", 11)), Languages.ENGLISH)
+        playback.nextSentence(paragraph = 1)
+        assertEquals("Second.", tts.text)
+        assertEquals(20..26, playback.sentence.value)
+    }
+    @Test fun startAtUsesContainingSentenceAndContinuesThroughDocument() {
+        val tts = FakeTts()
+        val playback = ReaderPlayback(tts, listOf(SpokenParagraph("First. Second.", 3), SpokenParagraph("Third.", 20)), Languages.ENGLISH)
+        playback.startAt(13, 1.5f, null)
+        assertEquals("Second.", tts.text); assertEquals(10..16, playback.sentence.value)
+        tts.done(); assertEquals("Third.", tts.text)
+        val stale = tts.done
+        playback.stop(); stale(); assertNull(playback.sentence.value)
+    }
 }

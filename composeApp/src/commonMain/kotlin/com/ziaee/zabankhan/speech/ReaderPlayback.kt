@@ -13,6 +13,9 @@ class ReaderPlayback(private val tts: Tts, private val parts: List<SpokenParagra
     private var base = 0
     private var spoken = ""
     private var rate = 1f
+    private var voiceId: String? = null
+    private var pausedOffset: Int? = null
+    private val sentences = parts.flatMap { part -> splitSentences(part.text, lang).map { (it.first + part.offset)..(it.last + part.offset) } }
     private val current = MutableStateFlow<IntRange?>(null)
     val sentence: StateFlow<IntRange?> = current.asStateFlow()
     val isSpeaking = tts.isSpeaking
@@ -23,7 +26,7 @@ class ReaderPlayback(private val tts: Tts, private val parts: List<SpokenParagra
     }
     private var repeats = 1
     fun start(paragraph: Int, rate: Float, voiceId: String?, repeats: Int = 1) {
-        stop(); this.rate = rate; this.repeats = repeats.coerceIn(1, 3); tts.setVoice(voiceId)
+        stop(); this.voiceId = voiceId; this.rate = rate; this.repeats = repeats.coerceIn(1, 3); tts.setVoice(voiceId)
         speakParagraph(paragraph, generation)
     }
     private fun speakParagraph(next: Int, token: Int) {
@@ -51,9 +54,41 @@ class ReaderPlayback(private val tts: Tts, private val parts: List<SpokenParagra
         if (round == 1) sentences.getOrNull(sentence + 1)?.let { tts.prefetch(part.text.substring(it), lang.code, rate) }
     }
     fun sentenceOnly(text: String, offset: Int, rate: Float, voiceId: String?) {
-        stop(); val token = generation; index = 0; base = offset; spoken = text
+        stop(); this.rate = rate; this.voiceId = voiceId; val token = generation; index = 0; base = offset; spoken = text
         tts.setVoice(voiceId); rangeChanged(0..0)
         tts.speak(text, lang.code, rate) { if (token == generation) { current.value = null; index = -1 } }
     }
-    fun stop() { generation++; index = -1; current.value = null; tts.stop() }
+    /** Navigation uses the same sentence boundaries as highlighting and repeat playback. */
+    fun previousSentence(paragraph: Int = 0, rate: Float = this.rate, voiceId: String? = this.voiceId, repeats: Int = this.repeats) =
+        navigate(-1, paragraph, rate, voiceId, repeats)
+    fun nextSentence(paragraph: Int = 0, rate: Float = this.rate, voiceId: String? = this.voiceId, repeats: Int = this.repeats) =
+        navigate(1, paragraph, rate, voiceId, repeats)
+    private fun navigate(delta: Int, paragraph: Int, rate: Float, voiceId: String?, repeats: Int) {
+        if (sentences.isEmpty()) return
+        val fallback = parts.getOrNull(paragraph)?.let { part ->
+            splitSentences(part.text, lang).firstOrNull()?.let { it.first + part.offset }
+        }
+        val offset = current.value?.first ?: pausedOffset ?: fallback ?: sentences.first().first
+        val at = sentences.indexOfLast { it.first <= offset }.coerceAtLeast(0)
+        startAt(sentences[(at + delta).coerceIn(sentences.indices)].first, rate, voiceId, repeats)
+    }
+    fun startAt(offset: Int, rate: Float, voiceId: String?, repeats: Int = 1) {
+        stop(); this.rate = rate; this.voiceId = voiceId; this.repeats = repeats.coerceIn(1, 3); tts.setVoice(voiceId)
+        val paragraph = parts.indexOfLast { it.offset <= offset }.coerceAtLeast(0)
+        val part = parts.getOrNull(paragraph) ?: return
+        val ranges = splitSentences(part.text, lang)
+        val sentence = ranges.indexOfLast { it.first + part.offset <= offset }.coerceAtLeast(0)
+        index = paragraph
+        speakSentence(paragraph, ranges, sentence, 1, generation)
+    }
+    /** TTS has no portable pause; resume restarts the interrupted sentence. */
+    fun pause() {
+        pausedOffset = current.value?.first
+        generation++; index = -1; spoken = ""; tts.stop()
+    }
+    fun resume(paragraph: Int, rate: Float, voiceId: String?, repeats: Int = 1) {
+        val offset = pausedOffset
+        if (offset == null) start(paragraph, rate, voiceId, repeats) else startAt(offset, rate, voiceId, repeats)
+    }
+    fun stop() { generation++; index = -1; spoken = ""; pausedOffset = null; current.value = null; tts.stop() }
 }

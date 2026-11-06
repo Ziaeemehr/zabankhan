@@ -1,6 +1,17 @@
 package com.ziaee.zabankhan.ui.reader
 
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.foundation.shape.CornerSize
 import androidx.compose.ui.Alignment
 import com.ziaee.zabankhan.ui.theme.*
@@ -25,7 +36,7 @@ import org.jetbrains.compose.resources.stringResource
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable fun DictionarySheet(vm: AppViewModel, settings: AppSettings, text: TextDocument, selection: ReaderSelection,
     words: List<VocabEntry>, highlights: List<HighlightEntry>, dismiss: () -> Unit, listen: (() -> Unit)? = null, listenFromHere: (() -> Unit)? = null, shadow: (() -> Unit)? = null) {
-    ModalBottomSheet(onDismissRequest = dismiss, shape = MaterialTheme.shapes.extraLarge.copy(bottomStart = CornerSize(0.dp), bottomEnd = CornerSize(0.dp)), containerColor = MaterialTheme.colorScheme.surface) {
+    ModalBottomSheet(onDismissRequest = dismiss, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true), shape = MaterialTheme.shapes.extraLarge.copy(bottomStart = CornerSize(0.dp), bottomEnd = CornerSize(0.dp)), containerColor = MaterialTheme.colorScheme.surface) {
         DictionaryPane(vm, settings, text, selection, words, highlights, dismiss, listen, listenFromHere, shadow)
     }
 }
@@ -35,53 +46,94 @@ import org.jetbrains.compose.resources.stringResource
     words: List<VocabEntry>, highlights: List<HighlightEntry>, dismiss: () -> Unit, listen: (() -> Unit)? = null, listenFromHere: (() -> Unit)? = null, shadow: (() -> Unit)? = null, modifier: Modifier = Modifier) {
     val lang = Languages.byCode(text.lang)!!
     val target = settings.meaningLang.takeIf { it != text.lang } ?: if (text.lang == Languages.PERSIAN.code) Languages.ENGLISH.code else Languages.PERSIAN.code
-    val saved = words.firstOrNull { normalizeForMatch(it.word, lang) == normalizeForMatch(selection.word, lang) }
-    var lookup by remember(selection, target) { mutableStateOf<WordMeaning?>(null) }
-    var error by remember(selection, target) { mutableStateOf<Throwable?>(null) }
-    var loading by remember(selection, target) { mutableStateOf(true) }
-    var attempt by remember { mutableIntStateOf(0) }
+    var currentWord by remember(selection) { mutableStateOf(selection.word) }
+    var draft by remember(selection) { mutableStateOf(selection.word) }
+    val existing = words.firstOrNull { normalizeForMatch(it.word, lang) == normalizeForMatch(currentWord, lang) }
+    var justSaved by remember(selection, currentWord) { mutableStateOf<VocabEntry?>(null) }
+    val saved = justSaved ?: existing
+    var meaning by remember(selection, currentWord, target) { mutableStateOf(existing?.takeIf { it.meaningLang == target }?.meaning.orEmpty()) }
+    var meaningEdited by remember(selection, currentWord, target) { mutableStateOf(false) }
+    var savedMeaning by remember(selection, currentWord, target) { mutableStateOf(existing?.takeIf { it.meaningLang == target }?.meaning) }
+    val isSaved = saved != null && saved.meaningLang == target && savedMeaning == meaning
+    var attempt by remember(selection) { mutableIntStateOf(0) }
+    val focus = LocalFocusManager.current
+    val applyDraft: () -> Unit = {
+        val word = draft.trim()
+        if (word.isNotEmpty()) { currentWord = word; draft = word; attempt++; focus.clearFocus() }
+    }
+    var lookup by remember(selection, currentWord, target) { mutableStateOf<WordMeaning?>(null) }
+    var error by remember(selection, currentWord, target) { mutableStateOf<Throwable?>(null) }
+    var loading by remember(selection, currentWord, target) { mutableStateOf(true) }
     var saving by remember { mutableStateOf(false) }
-    var translated by remember(selection, target) { mutableStateOf<String?>(null) }
+    var translated by remember(selection, currentWord, target) { mutableStateOf<String?>(null) }
     var sentenceLoading by remember { mutableStateOf(false) }
-    var sentenceError by remember(selection, target) { mutableStateOf<Throwable?>(null) }
+    var sentenceError by remember(selection, currentWord, target) { mutableStateOf<Throwable?>(null) }
     val scope = rememberCoroutineScope()
     val uri = LocalUriHandler.current
     val repository = vm.container.translations(settings)
-    LaunchedEffect(selection, target, attempt, repository) {
-        loading = true; error = null
+    LaunchedEffect(selection, currentWord, target, attempt, repository) {
+        loading = true; error = null; lookup = null
         if (selection.sentenceActions) {
-            val result = repository.translateText(selection.word, text.lang, target)
+            val result = repository.translateText(currentWord, text.lang, target)
             lookup = result.getOrNull()?.let { WordMeaning(it, emptyList(), "") }
             error = result.exceptionOrNull()
         } else {
-            val result = repository.lookupWord(selection.word, selection.sentence, text.lang, target)
+            val result = repository.lookupWord(currentWord, selection.sentence, text.lang, target)
             lookup = result.getOrNull(); error = result.exceptionOrNull()
         }
+        if (!meaningEdited && (saved == null || saved.meaningLang != target)) meaning = lookup?.primary.orEmpty()
         loading = false
     }
         Column(modifier.fillMaxWidth().navigationBarsPadding().imePadding()) {
-            Row(Modifier.fillMaxWidth().padding(horizontal = 24.dp), verticalAlignment = Alignment.CenterVertically) {
-                Text(selection.word, Modifier.weight(1f), style = editorialStyle(selection.word, if (selection.sentenceActions) EditorialRole.ArticleHeadline else EditorialRole.ReviewWord))
-                SpeakerButton(selection.word, text.lang, settings)
-                EditorialPrimaryButton(text = stringResource(if (saved != null) Res.string.ed_saved else if (selection.sentenceActions) Res.string.save_phrase else Res.string.save), enabled = lookup != null, loading = saving, onClick = { saving = true; vm.action {
-                    try {
-                    val entry = saved?.copy(meaning = lookup!!.primary, meaningLang = target, sentence = selection.sentence, textId = text.id)
-                        ?: VocabEntry(lang = text.lang, word = selection.word, sentence = selection.sentence, meaning = lookup!!.primary, meaningLang = target, textId = text.id)
-                    if (saved == null) vm.container.vocab.insert(entry) else vm.container.vocab.update(entry)
-                    dismiss()
-                    } finally { saving = false }
-                } })
+            val lookupLabel = stringResource(Res.string.dictionary_lookup)
+            Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp), verticalAlignment = Alignment.CenterVertically) {
+                BasicTextField(draft, onValueChange = { draft = it }, enabled = !saving,
+                    modifier = Modifier.weight(1f).padding(vertical = 12.dp).semantics { contentDescription = lookupLabel },
+                    singleLine = true, textStyle = MaterialTheme.typography.titleLarge.merge(contentStyle(draft)).copy(color = MaterialTheme.colorScheme.onSurface),
+                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+                    keyboardActions = KeyboardActions(onSearch = { applyDraft() }),
+                    decorationBox = { inner -> Column { inner(); HorizontalDivider(Modifier.padding(top = 6.dp)) } })
+                if (draft.trim().isNotEmpty() && draft.trim() != currentWord) IconButton(onClick = applyDraft) {
+                    Icon(Icons.Default.Check, stringResource(Res.string.dictionary_lookup))
+                }
+                SpeakerButton(currentWord, text.lang, settings)
+                EditorialPrimaryButton(text = stringResource(if (isSaved) Res.string.ed_saved else Res.string.save),
+                    enabled = meaning.isNotBlank() && draft.trim() == currentWord && !isSaved, loading = saving, onClick = {
+                        val wordToSave = currentWord
+                        val meaningToSave = meaning.trim()
+                        val entry = saved?.copy(meaning = meaningToSave, meaningLang = target, sentence = selection.sentence, textId = text.id)
+                            ?: VocabEntry(lang = text.lang, word = wordToSave, sentence = selection.sentence, meaning = meaningToSave, meaningLang = target, textId = text.id)
+                        saving = true
+                        vm.action {
+                            try {
+                                val stored = if (saved == null) entry.copy(id = vm.container.vocab.insert(entry))
+                                    else { vm.container.vocab.update(entry); entry }
+                                if (currentWord == wordToSave) { justSaved = stored; savedMeaning = meaningToSave; meaning = meaningToSave }
+                            } finally { saving = false }
+                        }
+                    })
             }
             Column(Modifier.weight(1f, fill = false).verticalScroll(rememberScrollState()).padding(horizontal = 24.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
                 if (loading) CircularProgressIndicator()
                 error?.let { TranslationError(it); TextButton(onClick = { attempt++ }) { Text(stringResource(Res.string.retry)) } }
                 if (!loading && error == null && lookup?.primary.isNullOrBlank() && lookup?.senses.isNullOrEmpty()) Text(stringResource(Res.string.no_meaning))
-                lookup?.takeIf { it.primary.isNotBlank() || it.senses.isNotEmpty() }?.let { value ->
-                    Text(value.primary, modifier = Modifier.fillMaxWidth(), style = MaterialTheme.typography.titleLarge.merge(contentStyle(value.primary)))
-                    value.senses.forEach { sense ->
-                        // pos and meanings on separate lines: one mixed-direction line renders "x :noun".
-                        if (sense.pos.isNotBlank()) MetadataBadge(partOfSpeechResource(sense.pos)?.let { stringResource(it) } ?: sense.pos)
-                        Text(sense.meanings.joinToString("، "), modifier = Modifier.fillMaxWidth(), style = contentStyle(sense.meanings.joinToString()))
+                OutlinedTextField(meaning, onValueChange = { meaning = it; meaningEdited = true },
+                    modifier = Modifier.fillMaxWidth(), enabled = !saving, label = { Text(stringResource(Res.string.meaning)) },
+                    textStyle = MaterialTheme.typography.bodyLarge.merge(contentStyle(meaning)), minLines = 2,
+                    shape = MaterialTheme.shapes.medium)
+                val alternatives = lookup?.senses.orEmpty().flatMap { sense -> sense.meanings.map { sense.pos to it } }
+                    .filter { it.second.isNotBlank() }.distinctBy { it.second }
+                alternatives.forEach { (pos, alternative) ->
+                    Surface(shape = MaterialTheme.shapes.medium,
+                        color = if (meaning == alternative) MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.surfaceVariant,
+                        modifier = Modifier.fillMaxWidth().selectable(selected = meaning == alternative, enabled = !saving, role = Role.RadioButton, onClick = { meaning = alternative; meaningEdited = true })) {
+                        Row(Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                            RadioButton(selected = meaning == alternative, onClick = null)
+                            Column(Modifier.weight(1f)) {
+                                if (pos.isNotBlank()) Text(partOfSpeechResource(pos)?.let { stringResource(it) } ?: pos, style = MaterialTheme.typography.labelSmall)
+                                Text(alternative, style = contentStyle(alternative))
+                            }
+                        }
                     }
                 }
                 if (!selection.sentenceActions) {
@@ -98,24 +150,22 @@ import org.jetbrains.compose.resources.stringResource
                     } }) { Text(stringResource(Res.string.translate_sentence)) }
                     }
                     TextButton(onClick = { if (listen != null) listen() else createTts().pronounce(selection.sentence, text.lang, settings) }) { Text(stringResource(Res.string.speech_sentence)) }
-                    if (selection.sentenceActions) {
-                        if (listenFromHere != null) TextButton(onClick = listenFromHere) { Text(stringResource(Res.string.speech_from_here)) }
-                        if (shadow != null) TextButton(onClick = shadow) { Text(stringResource(Res.string.speech_shadow)) }
-                    }
+                    if (listenFromHere != null) TextButton(onClick = listenFromHere) { Text(stringResource(Res.string.speech_from_here)) }
+                    if (shadow != null) TextButton(onClick = shadow) { Text(stringResource(Res.string.speech_shadow)) }
                 }
                 if (!selection.sentenceActions) {
                     if (sentenceLoading) CircularProgressIndicator()
                     translated?.let { Text(it, modifier = Modifier.fillMaxWidth(), style = contentStyle(it)) }
                     sentenceError?.let { TranslationError(it) }
                 }
-                saved?.let {
+                saved?.takeIf { isSaved }?.let {
                     FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         MetadataBadge(stringResource(Res.string.ed_saved))
                         MetadataBadge(stringResource(Res.string.box_label, it.leitnerBox))
                     }
                 }
                 if (selection.sentenceActions && text.pdfPath == null) {
-                    Text(stringResource(Res.string.highlight))
+                    Text(stringResource(Res.string.reader_highlight_selection))
                     FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         listOf("primary" to Res.string.highlight_primary, "secondary" to Res.string.highlight_secondary, "tertiary" to Res.string.highlight_tertiary).forEach { (key, label) ->
                             OutlinedButton(onClick = { vm.action {
@@ -132,7 +182,7 @@ import org.jetbrains.compose.resources.stringResource
                     EditorialSectionHeader(stringResource(Res.string.ed_dictionary_links))
                     FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         lang.dictionaryLinks.filter { it.supportsMeaningLanguage(target) }.forEach { link ->
-                            OutlinedButton(onClick = { uri.openUri(link.urlFor(selection.word)) }) { Text(link.name) }
+                            OutlinedButton(onClick = { uri.openUri(link.urlFor(currentWord)) }) { Text(link.name) }
                         }
                     }
                 }

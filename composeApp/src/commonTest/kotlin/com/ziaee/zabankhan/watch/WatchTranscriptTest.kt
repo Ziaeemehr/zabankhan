@@ -11,6 +11,14 @@ class WatchTranscriptTest {
         assertEquals(listOf(0, 8), offsets)
         cues.forEachIndexed { i, cue -> assertEquals(cue.text, body.substring(offsets[i], offsets[i] + cue.text.length)) }
     }
+    @Test fun legacyCueBodyIsKeptSoHighlightsStayValid() {
+        val cues = listOf(SubtitleCue(0, 1000, "Hello"), SubtitleCue(1000, 2000, "world."))
+        val sentences = mergeSentenceUnits(cues, Languages.ENGLISH).units
+        assertEquals("Hello world.", transcriptBodyFor(null, sentences, cues))
+        assertEquals(transcriptBody(cues), transcriptBodyFor(transcriptBody(cues), sentences, cues))
+        assertEquals("Hello world.", transcriptBodyFor("Hello world.", sentences, cues))
+        assertEquals("Hello world.", transcriptBodyFor("edited elsewhere", sentences, cues))
+    }
     @Test fun emptyTranscriptHasNoOffsets() { assertEquals("", transcriptBody(emptyList())); assertTrue(transcriptOffsets(emptyList()).isEmpty()) }
     @Test fun timesIncludeHoursAndClampNegativePositions() {
         assertEquals("0:00", videoTime(-50))

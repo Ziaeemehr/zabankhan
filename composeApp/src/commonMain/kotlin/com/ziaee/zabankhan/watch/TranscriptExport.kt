@@ -63,7 +63,7 @@ internal fun transcriptFileName(title: String): String = title.map { char ->
             Text(stringResource(Res.string.watch_export), style = MaterialTheme.typography.titleLarge)
             TextButton(enabled = !saving, onClick = { export {
                 saveTranscript(vm.container.texts, identity, lang, captions.title,
-                    if (path.isBlank()) "https://www.youtube.com/watch?v=$videoId" else null, mergeSentenceUnits(captions.cues, lang).units)
+                    if (path.isBlank()) "https://www.youtube.com/watch?v=$videoId" else null, mergeSentenceUnits(captions.cues, lang).units, legacyCues = captions.cues)
                 added()
             } }) { Text(stringResource(Res.string.watch_export_library)) }
             TextButton(enabled = !saving, onClick = { export { share(transcriptBody(mergeSentenceUnits(captions.cues, lang).units), null) } }) {

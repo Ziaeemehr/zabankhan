@@ -55,7 +55,7 @@
     <string name="remove_highlight">Retirer le surlignage</string>
     <string name="saved">Enregistré</string>
     <string name="retry">Réessayer</string>
-    <string name="reader_hint">Touchez un mot pour sa traduction. Appuyez longuement pour agir sur la phrase.</string>
+    <string name="reader_hint">Touchez un mot pour voir son sens. Maintenez et faites glisser pour sélectionner une expression.</string>
     <string name="font_smaller">Réduire le texte</string>
     <string name="font_larger">Agrandir le texte</string>
     <string name="nothing_due">Tout est à jour. Revenez demain.</string>
@@ -179,4 +179,11 @@
     <string name="watch_export_share">Partager le texte de la transcription</string>
     <string name="watch_export_srt">Exporter les sous-titres SRT</string>
     <string name="watch_export_failed">Échec de l’exportation. Veuillez réessayer.</string>
+    <string name="reader_find">Rechercher dans le texte</string>
+    <string name="reader_find_count">%1$d / %2$d</string>
+    <string name="reader_find_previous">Résultat précédent</string>
+    <string name="reader_find_next">Résultat suivant</string>
+    <string name="reader_find_close">Fermer la recherche</string>
+    <string name="dictionary_lookup">Rechercher ce mot ou cette expression</string>
+    <string name="reader_highlight_selection">Surligner la sélection</string>
 </resources>

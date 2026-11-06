@@ -1,6 +1,7 @@
 package com.ziaee.zabankhan.watch
 
 import androidx.compose.animation.*
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.*
 import androidx.compose.foundation.interaction.DragInteraction
 import androidx.compose.foundation.layout.*
@@ -19,6 +20,7 @@ import androidx.compose.material.icons.filled.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.backhandler.BackHandler
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.graphics.*
@@ -47,7 +49,7 @@ import okio.Path.Companion.toPath
 import org.jetbrains.compose.resources.stringResource
 import kotlin.time.TimeSource
 
-@OptIn(ExperimentalLayoutApi::class, ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalLayoutApi::class, ExperimentalMaterial3Api::class, androidx.compose.ui.ExperimentalComposeUiApi::class)
 @Composable fun WatchScreen(vm: AppViewModel, settings: AppSettings, videoId: String, path: String, subs: String, back: () -> Unit) {
     val lang = Languages.learnable.firstOrNull { it.code == settings.learningLang } ?: return
     val identity = path.ifBlank { videoId }
@@ -118,7 +120,7 @@ import kotlin.time.TimeSource
             } else CaptionCache(vm.container.cache).load(videoId, lang, YoutubeCaptionFetcher(vm.container.http))
             if (path.isBlank() && subtitlePath.isNotBlank() && result.cues.isNotEmpty()) CaptionCache(vm.container.cache).write(videoId, lang, result, "file")
             captions = result
-            document = saveTranscript(vm.container.texts, identity, lang, result.title, if (path.isBlank()) "https://www.youtube.com/watch?v=$videoId" else null, mergeSentenceUnits(result.cues, lang).units)
+            document = saveTranscript(vm.container.texts, identity, lang, result.title, if (path.isBlank()) "https://www.youtube.com/watch?v=$videoId" else null, mergeSentenceUnits(result.cues, lang).units, legacyCues = result.cues)
             if (result.cues.isEmpty() && subtitlePath.isNotBlank()) failed = true
         } catch (e: CancellationException) { throw e } catch (_: Exception) { failed = true }
         finally { loading = false }
@@ -163,9 +165,8 @@ import kotlin.time.TimeSource
         if (lastTouch >= 0 && !gestureActive) { delay(4_000); following = true }
     }
     LaunchedEffect(sentences, sentenceIndex, settings.watchTranslationEnabled, translations) {
-        if (settings.watchTranslationEnabled) coroutineScope {
-            translationPrefetchWindow(sentences, sentenceIndex).forEach { text -> launch { translations.load(text) } }
-        }
+        // Screen scope: advancing a sentence must not cancel requests the next window still needs; load() dedups.
+        if (settings.watchTranslationEnabled) translationPrefetchWindow(sentences, sentenceIndex).forEach { text -> scope.launch { translations.load(text) } }
     }
     LaunchedEffect(sentenceIndex, following, gestureActive, viewport, heights[sentenceIndex], percent,
         settings.watchTranslationEnabled, translations.states[sentences.getOrNull(sentenceIndex)?.text], selection) {
@@ -191,6 +192,7 @@ import kotlin.time.TimeSource
         if (resumeAfterDictionary && shadowIndex == null) { freeze = freeze.resume(); gestureActive = false; controller?.play() }
         resumeAfterDictionary = false
     }
+    BackHandler(enabled = selection != null) { closeDictionary() }
     val clipboard = LocalClipboardManager.current
     val player = remember(identity) {
         movableContentOf<Modifier> { modifier ->
@@ -300,6 +302,8 @@ import kotlin.time.TimeSource
                             selection = ReaderSelection(query, sentence.text, offsets[index] until offsets[index] + sentence.text.length, false)
                         }
                         Column(Modifier.heightIn(max = itemHeight).onSizeChanged { innerHeight = it.height; heights[index] = it.height }.verticalScroll(scroll)) {
+                            if (!current) Text(videoTime(sentence.startMs), Modifier.clickable { playFromLine(index) }.padding(vertical = 2.dp),
+                                style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = .6f))
                             TranscriptSentence(sentence.text, lang, highlighter, idiomMatcher, subtitleStyle, current,
                                 if (current) activeRange else null, onLayout = { layout = it }, onLookup = ::lookup,
                                 onCopy = if (!current) null else ({

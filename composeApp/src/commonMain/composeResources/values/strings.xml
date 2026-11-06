@@ -55,7 +55,7 @@
     <string name="remove_highlight">Remove highlight</string>
     <string name="saved">Saved</string>
     <string name="retry">Retry</string>
-    <string name="reader_hint">Tap a word for its meaning. Hold to work with its sentence.</string>
+    <string name="reader_hint">Tap a word for its meaning. Hold and drag to select a phrase.</string>
     <string name="font_smaller">Smaller text</string>
     <string name="font_larger">Larger text</string>
     <string name="nothing_due">You’re up to date. Come back tomorrow.</string>
@@ -179,4 +179,11 @@
     <string name="watch_export_share">Share transcript text</string>
     <string name="watch_export_srt">Export SRT subtitles</string>
     <string name="watch_export_failed">Could not export. Please try again.</string>
+    <string name="reader_find">Find in text</string>
+    <string name="reader_find_count">%1$d / %2$d</string>
+    <string name="reader_find_previous">Previous match</string>
+    <string name="reader_find_next">Next match</string>
+    <string name="reader_find_close">Close find</string>
+    <string name="dictionary_lookup">Look up this word or phrase</string>
+    <string name="reader_highlight_selection">Highlight selection</string>
 </resources>
