@@ -135,6 +135,7 @@
     <string name="speech_from_here">شنیدن از اینجا</string>
     <string name="speech_shadow">تمرین شدوینگ جمله</string>
     <string name="speech_rate">سرعت گفتار</string>
+    <string name="speech_repeat">تکرار هر جمله</string>
     <string name="speech_voice">صدا</string>
     <string name="speech_default">پیش‌فرض سیستم</string>
     <string name="speech_auto_cards">تلفظ خودکار کارت‌ها</string>
@@ -159,4 +160,23 @@
     <string name="api_key_saved">•••• — کلید ذخیره شده</string>
     <string name="api_key_remove">حذف کلید API</string>
     <string name="api_key_storage">کلید به‌صورت امن در این دستگاه ذخیره می‌شود و در پشتیبان نیست. پس از بازیابی دوباره آن را وارد کنید.</string>
+    <string name="watch_compact_player">پخش‌کنندهٔ کوچک</string>
+    <string name="watch_full_player">پخش‌کنندهٔ کامل</string>
+    <string name="watch_subtitle_size">اندازهٔ زیرنویس</string>
+    <string name="watch_subtitle_size_percent">%1$d%%</string>
+    <string name="watch_subtitle_smaller">زیرنویس کوچک‌تر</string>
+    <string name="watch_subtitle_larger">زیرنویس بزرگ‌تر</string>
+    <string name="watch_export">خروجی گرفتن از متن</string>
+    <string name="watch_previous_sentence">جملهٔ قبلی</string>
+    <string name="watch_next_sentence">جملهٔ بعدی</string>
+    <string name="watch_translation_loading">در حال ترجمه…</string>
+    <string name="watch_translation_failed">ترجمه انجام نشد. برای تلاش دوباره بزنید.</string>
+    <string name="watch_translation_edit">ویرایش ترجمه</string>
+    <string name="watch_translation_automatic">ترجمهٔ خودکار</string>
+    <string name="watch_copy_sentence">کپی جمله</string>
+    <string name="watch_added">متن به کتابخانه اضافه شد</string>
+    <string name="watch_export_library">افزودن متن به کتابخانه</string>
+    <string name="watch_export_share">اشتراک‌گذاری متن</string>
+    <string name="watch_export_srt">خروجی زیرنویس SRT</string>
+    <string name="watch_export_failed">خروجی گرفتن انجام نشد. دوباره تلاش کنید.</string>
 </resources>

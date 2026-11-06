@@ -25,6 +25,14 @@ import org.jetbrains.compose.resources.stringResource
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable fun DictionarySheet(vm: AppViewModel, settings: AppSettings, text: TextDocument, selection: ReaderSelection,
     words: List<VocabEntry>, highlights: List<HighlightEntry>, dismiss: () -> Unit, listen: (() -> Unit)? = null, listenFromHere: (() -> Unit)? = null, shadow: (() -> Unit)? = null) {
+    ModalBottomSheet(onDismissRequest = dismiss, shape = MaterialTheme.shapes.extraLarge.copy(bottomStart = CornerSize(0.dp), bottomEnd = CornerSize(0.dp)), containerColor = MaterialTheme.colorScheme.surface) {
+        DictionaryPane(vm, settings, text, selection, words, highlights, dismiss, listen, listenFromHere, shadow)
+    }
+}
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable fun DictionaryPane(vm: AppViewModel, settings: AppSettings, text: TextDocument, selection: ReaderSelection,
+    words: List<VocabEntry>, highlights: List<HighlightEntry>, dismiss: () -> Unit, listen: (() -> Unit)? = null, listenFromHere: (() -> Unit)? = null, shadow: (() -> Unit)? = null, modifier: Modifier = Modifier) {
     val lang = Languages.byCode(text.lang)!!
     val target = settings.meaningLang.takeIf { it != text.lang } ?: if (text.lang == Languages.PERSIAN.code) Languages.ENGLISH.code else Languages.PERSIAN.code
     val saved = words.firstOrNull { normalizeForMatch(it.word, lang) == normalizeForMatch(selection.word, lang) }
@@ -51,8 +59,7 @@ import org.jetbrains.compose.resources.stringResource
         }
         loading = false
     }
-    ModalBottomSheet(onDismissRequest = dismiss, shape = MaterialTheme.shapes.extraLarge.copy(bottomStart = CornerSize(0.dp), bottomEnd = CornerSize(0.dp)), containerColor = MaterialTheme.colorScheme.surface) {
-        Column(Modifier.fillMaxWidth().navigationBarsPadding().imePadding()) {
+        Column(modifier.fillMaxWidth().navigationBarsPadding().imePadding()) {
             Row(Modifier.fillMaxWidth().padding(horizontal = 24.dp), verticalAlignment = Alignment.CenterVertically) {
                 Text(selection.word, Modifier.weight(1f), style = editorialStyle(selection.word, if (selection.sentenceActions) EditorialRole.ArticleHeadline else EditorialRole.ReviewWord))
                 SpeakerButton(selection.word, text.lang, settings)
@@ -135,7 +142,6 @@ import org.jetbrains.compose.resources.stringResource
                 OutlinedButton(enabled = !saving, onClick = { saving = true; vm.action { try { vm.container.vocab.delete(saved); dismiss() } finally { saving = false } } }) { Text(stringResource(Res.string.remove)) }
             }
         }
-    }
 }
 @Composable private fun TranslationError(error: Throwable) {
     val reason = if (error is LlmError) translationErrorReason(error.kind) else TranslationErrorReason.UNREACHABLE

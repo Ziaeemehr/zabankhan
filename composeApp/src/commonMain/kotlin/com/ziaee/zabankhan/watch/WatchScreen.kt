@@ -1,27 +1,36 @@
 package com.ziaee.zabankhan.watch
 
-import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.animation.*
+import androidx.compose.foundation.gestures.*
 import androidx.compose.foundation.interaction.DragInteraction
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.text.BasicText
+import androidx.compose.foundation.text.InlineTextContent
+import androidx.compose.foundation.text.appendInlineContent
 import androidx.compose.material3.*
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Subtitles
-import androidx.compose.material.icons.filled.MoreVert
-import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material.icons.filled.Pause
-import androidx.compose.material.icons.filled.Replay5
-import androidx.compose.material.icons.filled.Forward5
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.graphics.*
+import androidx.compose.ui.input.pointer.*
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.text.*
-import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.*
+import androidx.compose.ui.unit.*
 import com.ziaee.zabankhan.app.AppViewModel
 import com.ziaee.zabankhan.data.*
 import com.ziaee.zabankhan.lang.*
@@ -30,24 +39,28 @@ import com.ziaee.zabankhan.srs.*
 import com.ziaee.zabankhan.ui.*
 import com.ziaee.zabankhan.speech.*
 import com.ziaee.zabankhan.ui.reader.*
+import com.ziaee.zabankhan.translate.TranslationOverrides
 import kotlinx.coroutines.*
+import kotlinx.coroutines.flow.first
 import okio.FileSystem
 import okio.Path.Companion.toPath
-import com.ziaee.zabankhan.pdf.AppFiles
 import org.jetbrains.compose.resources.stringResource
+import kotlin.time.TimeSource
 
-@OptIn(ExperimentalLayoutApi::class)
+@OptIn(ExperimentalLayoutApi::class, ExperimentalMaterial3Api::class)
 @Composable fun WatchScreen(vm: AppViewModel, settings: AppSettings, videoId: String, path: String, subs: String, back: () -> Unit) {
     val lang = Languages.learnable.firstOrNull { it.code == settings.learningLang } ?: return
     val identity = path.ifBlank { videoId }
     val scope = rememberCoroutineScope()
+    val clock = remember { TimeSource.Monotonic.markNow() }
+    fun now() = clock.elapsedNow().inWholeMilliseconds
     var subtitlePath by remember(identity) { mutableStateOf(subs) }
     var controller by remember(identity) { mutableStateOf<VideoController?>(null) }
     var captions by remember(identity, lang) { mutableStateOf<VideoCaptions?>(null) }
     var document by remember(identity, lang) { mutableStateOf<TextDocument?>(null) }
-    var loading by remember { mutableStateOf(true) }
-    var failed by remember { mutableStateOf(false) }
-    var attempt by remember { mutableIntStateOf(0) }
+    var loading by remember(identity) { mutableStateOf(true) }
+    var failed by remember(identity) { mutableStateOf(false) }
+    var attempt by remember(identity) { mutableIntStateOf(0) }
     var shadowIndex by remember(identity) { mutableStateOf<Int?>(null) }
     var selection by remember(identity) { mutableStateOf<ReaderSelection?>(null) }
     var idiomMatcher by remember(lang) { mutableStateOf(IdiomMatcher(InMemoryIdiomLexicon(emptyList()), lang)) }
@@ -55,19 +68,45 @@ import org.jetbrains.compose.resources.stringResource
     val highlighter = remember(words, lang) { VocabHighlighter(words.map { SavedVocab(it.word, it.srsState().status()) }, lang) }
     val history = remember { WatchHistory(vm.container.cache) }
     val cueList = captions?.cues.orEmpty()
-    val offsets = remember(cueList) { transcriptOffsets(cueList) }
+    val merged = remember(cueList, lang) { mergeSentenceUnits(cueList, lang) }
+    val sentences = merged.units
+    val offsets = remember(sentences) { transcriptOffsets(sentences) }
     val position by (controller?.positionMs ?: remember { kotlinx.coroutines.flow.MutableStateFlow(0L) }).collectAsState()
     val playing by (controller?.isPlaying ?: remember { kotlinx.coroutines.flow.MutableStateFlow(false) }).collectAsState()
+    val latestPosition by rememberUpdatedState(position)
+    val latestPlaying by rememberUpdatedState(playing)
     com.ziaee.zabankhan.statistics.TrackActivity(vm.container, identity, lang.code, com.ziaee.zabankhan.statistics.ActivityKind.WATCHING, playing)
     val playerError by ((controller as? VideoStatus)?.error ?: remember { kotlinx.coroutines.flow.MutableStateFlow<String?>(null) }).collectAsState()
-    val active = findCueIndex(cueList, position)
-    var rate by remember { mutableFloatStateOf(1f) }
-    var loopIndex by remember(identity) { mutableStateOf<Int?>(null) }
-    var follow by remember(identity) { mutableStateOf(true) }
+    var rate by remember(identity) { mutableFloatStateOf(1f) }
+    var freeze by remember(identity) { mutableStateOf(PlaybackFreeze()) }
+    var gestureActive by remember(identity) { mutableStateOf(false) }
+    var playingBeforeTouch by remember(identity) { mutableStateOf(false) }
+    var resumeAfterDictionary by remember(identity) { mutableStateOf(false) }
+    var following by remember(identity) { mutableStateOf(true) }
+    var lastTouch by remember(identity) { mutableLongStateOf(-1L) }
+    val shownTime = freeze.cueTimeMs ?: position
+    val active = findCueIndex(cueList, shownTime).takeIf { it >= 0 } ?: cueList.indexOfLast { it.endMs <= shownTime }
+    val sentenceIndex = merged.unitIndex(active)
+    val activeRange = merged.cueTextRanges.getOrNull(active)
     val list = rememberLazyListState()
-    var showTranslation by remember { mutableStateOf(false) }
-    var translationAttempt by remember { mutableIntStateOf(0) }
+    val viewport by remember { derivedStateOf { list.layoutInfo.viewportSize.height } }
+    val density = LocalDensity.current
+    val padding = with(density) { transcriptEdgePadding(viewport, 8.dp.roundToPx()).toDp() }
+    val heights = remember(sentences) { mutableStateMapOf<Int, Int>() }
+    val sizes = remember { listOf(85, 100, 115, 130, 150, 175) }
+    val percent = settings.watchSubtitleSizePercent
+    val scale = percent / 100f
+    val subtitleStyle = MaterialTheme.typography.bodyLarge.let { it.copy(fontSize = it.fontSize * scale, lineHeight = it.lineHeight * scale, textDirection = TextDirection.Content) }
+    val translationStyle = MaterialTheme.typography.bodySmall.let { it.copy(fontSize = it.fontSize * scale, lineHeight = it.lineHeight * scale) }
     val meaningLang = Languages.byCode(settings.meaningLang)?.takeIf { it in listOf(Languages.PERSIAN, Languages.ENGLISH) } ?: Languages.PERSIAN
+    val repository = vm.container.translations(settings)
+    val translations = remember(identity, lang.code, meaningLang.code, repository) {
+        WatchTranslations(TranslationOverrides(vm.container.cache), lang.code, meaningLang.code) { text -> repository.translateText(text, lang.code, meaningLang.code) }
+    }
+    var editingTranslation by remember(identity) { mutableStateOf<String?>(null) }
+    var exportOpen by remember(identity) { mutableStateOf(false) }
+    val snackbar = remember { SnackbarHostState() }
+    val addedMessage = stringResource(Res.string.watch_added)
     val subtitlePicker = rememberMediaPicker(MediaFileKind.SUBTITLES) { it?.let { subtitlePath = it } }
     LaunchedEffect(controller, rate) { controller?.setRate(rate) }
     LaunchedEffect(identity, lang, subtitlePath, attempt) {
@@ -79,7 +118,7 @@ import org.jetbrains.compose.resources.stringResource
             } else CaptionCache(vm.container.cache).load(videoId, lang, YoutubeCaptionFetcher(vm.container.http))
             if (path.isBlank() && subtitlePath.isNotBlank() && result.cues.isNotEmpty()) CaptionCache(vm.container.cache).write(videoId, lang, result, "file")
             captions = result
-            document = saveTranscript(vm.container.texts, identity, lang, result.title, if (path.isBlank()) "https://www.youtube.com/watch?v=$videoId" else null, result.cues)
+            document = saveTranscript(vm.container.texts, identity, lang, result.title, if (path.isBlank()) "https://www.youtube.com/watch?v=$videoId" else null, mergeSentenceUnits(result.cues, lang).units)
             if (result.cues.isEmpty() && subtitlePath.isNotBlank()) failed = true
         } catch (e: CancellationException) { throw e } catch (_: Exception) { failed = true }
         finally { loading = false }
@@ -108,123 +147,238 @@ import org.jetbrains.compose.resources.stringResource
             if (player != null && c != null) vm.action { history.record(lang, RecentVideo(videoId, c.title, c.channel, player.positionMs.value, path.takeIf { it.isNotBlank() }, currentSubs.takeIf { it.isNotBlank() })) }
         }
     }
-    LaunchedEffect(list) { list.interactionSource.interactions.collect { if (it is DragInteraction.Start) follow = false } }
-    LaunchedEffect(active, follow) { if (follow && active >= 0) list.animateScrollToItem(active) }
-    LaunchedEffect(position, playing, loopIndex) {
-        val cue = loopIndex?.let { cueList.getOrNull(it) }
-        if (playing && cue != null && position >= cue.endMs) controller?.seekTo(cue.startMs)
+    var previousTime by remember(identity) { mutableLongStateOf(position) }
+    LaunchedEffect(position) {
+        freeze = freeze.onTime(previousTime, position, if (playing) 1 else 2, shadowIndex != null, now())
+        previousTime = position
     }
-    val translationState = rememberSubtitleTranslation(active, cueList.getOrNull(active)?.text, lang.code, meaningLang.code, showTranslation, translationAttempt) { text, source, target ->
-        vm.container.translations(settings).translateText(text, source, target)
+    LaunchedEffect(playing) {
+        if (playing) {
+            if (freeze.guardsPlaying(gestureActive, now())) controller?.pause()
+            else { freeze = freeze.resume(); following = true }
+        }
     }
-    fun select(index: Int, offset: Int) {
-        val cue = cueList[index]
-        val idiom = idiomMatcher.match(cue.text).firstOrNull { offset in it.startChar until it.endChar }
-        val word = wordAt(cue.text, offset, lang)?.text ?: return
-        controller?.pause()
-        selection = ReaderSelection(idiom?.expression ?: word, cue.text, offsets[index] until offsets[index] + cue.text.length, false)
+    LaunchedEffect(list) { list.interactionSource.interactions.collect { if (it is DragInteraction.Start) following = false } }
+    LaunchedEffect(lastTouch, gestureActive) {
+        if (lastTouch >= 0 && !gestureActive) { delay(4_000); following = true }
     }
-    Column(Modifier.fillMaxSize()) {
-        EditorialTopAppBar(captions?.title ?: stringResource(Res.string.watch_video), back, actions = {
-            EditorialIconButton(subtitlePicker, Icons.Default.Subtitles, stringResource(Res.string.watch_add_subtitles))
-        })
-        if (loading) LinearProgressIndicator(Modifier.fillMaxWidth())
-        if (failed) Row { Text(stringResource(Res.string.watch_caption_error), Modifier.weight(1f)); TextButton(onClick = { attempt++ }) { Text(stringResource(Res.string.retry)) } }
-        if (playerError != null) Text(stringResource(Res.string.watch_player_error, playerError.orEmpty()), color = MaterialTheme.colorScheme.error)
-        EditorialCard(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp), containerColor = MaterialTheme.colorScheme.surfaceVariant) {
-            FlowRow(Modifier.fillMaxWidth().padding(8.dp), horizontalArrangement = Arrangement.spacedBy(4.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                EditorialIconButton({ controller?.seekTo(position - 5_000) }, Icons.Default.Replay5, stringResource(Res.string.ed_seek_backward))
-                FilledIconButton(onClick = { if (playing) controller?.pause() else controller?.play() }) {
-                    Icon(if (playing) Icons.Default.Pause else Icons.Default.PlayArrow, stringResource(if (playing) Res.string.watch_pause else Res.string.watch_play))
+    LaunchedEffect(sentences, sentenceIndex, settings.watchTranslationEnabled, translations) {
+        if (settings.watchTranslationEnabled) coroutineScope {
+            translationPrefetchWindow(sentences, sentenceIndex).forEach { text -> launch { translations.load(text) } }
+        }
+    }
+    LaunchedEffect(sentenceIndex, following, gestureActive, viewport, heights[sentenceIndex], percent,
+        settings.watchTranslationEnabled, translations.states[sentences.getOrNull(sentenceIndex)?.text], selection) {
+        if (following && !gestureActive && selection == null && sentenceIndex in sentences.indices && viewport > 0) {
+            withFrameNanos { }
+            if (list.layoutInfo.visibleItemsInfo.none { it.index == sentenceIndex }) list.scrollToItem(sentenceIndex)
+            val info = snapshotFlow { list.layoutInfo }.first { layout -> layout.visibleItemsInfo.any { it.index == sentenceIndex } }
+            val item = info.visibleItemsInfo.first { it.index == sentenceIndex }
+            list.animateScrollToItem(sentenceIndex, transcriptCenterOffset(info.viewportSize.height, item.size, info.beforeContentPadding))
+        }
+    }
+    fun playFromLine(index: Int) {
+        val sentence = sentences.getOrNull(index) ?: return
+        freeze = freeze.resume(); gestureActive = false; following = true; lastTouch = -1
+        controller?.seekTo(sentence.startMs); controller?.play()
+    }
+    fun skip(delta: Long) {
+        freeze = freeze.resume(); gestureActive = false; following = true; lastTouch = -1
+        controller?.seekTo((position + delta).coerceAtLeast(0))
+    }
+    fun closeDictionary() {
+        selection = null; following = true; lastTouch = -1
+        if (resumeAfterDictionary && shadowIndex == null) { freeze = freeze.resume(); gestureActive = false; controller?.play() }
+        resumeAfterDictionary = false
+    }
+    val clipboard = LocalClipboardManager.current
+    val player = remember(identity) {
+        movableContentOf<Modifier> { modifier ->
+            if (path.isNotBlank()) LocalVideoPlayer(path, { controller = it }, modifier)
+            else YoutubePlayer(videoId, { controller = it }, modifier)
+        }
+    }
+    BoxWithConstraints(Modifier.fillMaxSize()) {
+        val playerHeight = if (settings.watchCompactPlayer) 96.dp else maxOf(96.dp, minOf(maxWidth * 9f / 16f, maxHeight * .35f))
+        val playerWidth = if (settings.watchCompactPlayer) minOf(playerHeight * 16f / 9f, maxWidth * .55f) else minOf(maxWidth, playerHeight * 16f / 9f)
+        Column(Modifier.fillMaxSize()) {
+            val controls: @Composable () -> Unit = {
+                IconButton(onClick = { if (selection != null) closeDictionary() else back() }, modifier = Modifier.size(36.dp)) {
+                    Icon(Icons.AutoMirrored.Filled.ArrowBack, stringResource(Res.string.back), Modifier.size(20.dp))
                 }
-                EditorialIconButton({ controller?.seekTo(position + 5_000) }, Icons.Default.Forward5, stringResource(Res.string.ed_seek_forward))
-                var rateMenu by remember { mutableStateOf(false) }
+                IconButton(onClick = { scope.launch { vm.container.settings.setWatchCompactPlayer(!settings.watchCompactPlayer) } }, modifier = Modifier.size(36.dp)) {
+                    Icon(if (settings.watchCompactPlayer) Icons.Default.Fullscreen else Icons.Default.FullscreenExit,
+                        stringResource(if (settings.watchCompactPlayer) Res.string.watch_full_player else Res.string.watch_compact_player), Modifier.size(20.dp))
+                }
+                IconToggleButton(checked = settings.watchTranslationEnabled,
+                    onCheckedChange = { scope.launch { vm.container.settings.setWatchTranslationEnabled(it) } }, modifier = Modifier.size(36.dp)) {
+                    Icon(Icons.Default.Translate, stringResource(Res.string.watch_translation), Modifier.size(20.dp))
+                }
+                var sizeMenu by remember { mutableStateOf(false) }
                 Box {
-                    val rateLabel = stringResource(Res.string.watch_rate)
-                    TextButton(onClick = { rateMenu = true }, modifier = Modifier.semantics { contentDescription = "$rateLabel: ${rate}×" }) { Text("${rate}×") }
-                    DropdownMenu(rateMenu, onDismissRequest = { rateMenu = false }) {
-                        listOf(0.75f, 1f, 1.25f).forEach { speed ->
-                            DropdownMenuItem(text = { Text("${speed}×") }, onClick = { rateMenu = false; rate = speed; controller?.setRate(speed) })
+                    IconButton(onClick = { sizeMenu = true }, modifier = Modifier.size(36.dp)) {
+                        Icon(Icons.Default.FormatSize, stringResource(Res.string.watch_subtitle_size), Modifier.size(20.dp))
+                    }
+                    DropdownMenu(sizeMenu, onDismissRequest = { sizeMenu = false }) {
+                        DropdownMenuItem(text = { Text(stringResource(Res.string.watch_subtitle_size_percent, percent)) }, enabled = false, onClick = {})
+                        fun setSize(size: Int) { scope.launch { vm.container.settings.setWatchSubtitleSizePercent(size) }; following = true; sizeMenu = false }
+                        DropdownMenuItem(text = { Text(stringResource(Res.string.watch_subtitle_smaller)) }, enabled = percent > sizes.first(), onClick = { setSize(sizes.lastOrNull { it < percent } ?: sizes.first()) })
+                        DropdownMenuItem(text = { Text(stringResource(Res.string.watch_subtitle_larger)) }, enabled = percent < sizes.last(), onClick = { setSize(sizes.firstOrNull { it > percent } ?: sizes.last()) })
+                        sizes.forEach { size -> DropdownMenuItem(text = { Text("$size%") }, onClick = { setSize(size) }) }
+                        HorizontalDivider()
+                        listOf(.75f, 1f, 1.25f).forEach { speed -> DropdownMenuItem(text = { Text("${stringResource(Res.string.watch_rate)}: $speed×") }, onClick = { rate = speed; sizeMenu = false }) }
+                    }
+                }
+                IconToggleButton(checked = shadowIndex != null, enabled = sentenceIndex >= 0, onCheckedChange = {
+                    if (it) { controller?.pause(); shadowIndex = sentenceIndex } else shadowIndex = null
+                }, modifier = Modifier.size(36.dp)) {
+                    Icon(Icons.Default.RecordVoiceOver, stringResource(Res.string.speech_shadow), Modifier.size(20.dp))
+                }
+                IconButton(onClick = { exportOpen = true }, enabled = cueList.isNotEmpty(), modifier = Modifier.size(36.dp)) {
+                    Icon(Icons.Default.IosShare, stringResource(Res.string.watch_export), Modifier.size(20.dp))
+                }
+                IconButton(onClick = subtitlePicker, enabled = !loading, modifier = Modifier.size(36.dp)) {
+                    Icon(Icons.Default.Subtitles, stringResource(Res.string.watch_add_subtitles), Modifier.size(20.dp))
+                }
+            }
+            if (settings.watchCompactPlayer) CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    player(Modifier.size(playerWidth, playerHeight))
+                    FlowRow(Modifier.weight(1f).padding(horizontal = 4.dp)) { controls() }
+                }
+            } else {
+                Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) { player(Modifier.size(playerWidth, playerHeight)) }
+                FlowRow(Modifier.fillMaxWidth().padding(horizontal = 4.dp)) { controls() }
+            }
+            if (loading) LinearProgressIndicator(Modifier.fillMaxWidth())
+            if (failed) Row(Modifier.padding(horizontal = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+                Text(stringResource(Res.string.watch_caption_error), Modifier.weight(1f))
+                TextButton(onClick = { attempt++ }) { Text(stringResource(Res.string.retry)) }
+            }
+            playerError?.let { Text(stringResource(Res.string.watch_player_error, it), Modifier.padding(horizontal = 12.dp), color = MaterialTheme.colorScheme.error) }
+            Box(Modifier.weight(1f).fillMaxWidth()) {
+                val lineHeight = with(density) { subtitleStyle.lineHeight.toPx().toInt() }
+                val itemHeight = with(density) { transcriptItemHeight(viewport, lineHeight, 32.dp.roundToPx(), 8.dp.roundToPx()).toDp() }
+                LazyColumn(state = list, contentPadding = PaddingValues(vertical = padding), verticalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier = Modifier.fillMaxSize().padding(horizontal = 12.dp)
+                        .graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }
+                        .drawWithContent {
+                            drawContent()
+                            val edge = minOf(32.dp.toPx(), size.height / 2f)
+                            if (size.height > 0) drawRect(Brush.verticalGradient(0f to Color.Transparent, edge / size.height to Color.Black,
+                                1f - edge / size.height to Color.Black, 1f to Color.Transparent), blendMode = BlendMode.DstIn)
+                        }.pointerInput(identity) {
+                            awaitEachGesture {
+                                awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Initial)
+                                playingBeforeTouch = latestPlaying && freeze.cueTimeMs == null && shadowIndex == null
+                                gestureActive = true; lastTouch = now()
+                                freeze = PlaybackFreeze(freeze.cueTimeMs ?: latestPosition, lastTouch)
+                                controller?.pause()
+                                try {
+                                    do { val event = awaitPointerEvent(PointerEventPass.Initial); lastTouch = now() } while (event.changes.any { it.pressed })
+                                } finally { lastTouch = now(); gestureActive = false }
+                            }
+                        }) {
+                    if (sentences.isEmpty()) item { Text(stringResource(Res.string.watch_no_captions)) }
+                    itemsIndexed(sentences) { index, sentence ->
+                        val current = index == sentenceIndex
+                        val scroll = rememberScrollState()
+                        var layout by remember(sentence.text) { mutableStateOf<TextLayoutResult?>(null) }
+                        var innerHeight by remember { mutableIntStateOf(0) }
+                        LaunchedEffect(scroll) { scroll.interactionSource.interactions.collect { if (it is DragInteraction.Start) following = false } }
+                        LaunchedEffect(current, activeRange, layout, innerHeight, scroll.maxValue, following, gestureActive, selection) {
+                            val value = layout; val range = activeRange
+                            if (current && following && !gestureActive && selection == null && value != null && range != null && sentence.text.isNotEmpty()) {
+                                val first = value.getLineForOffset(range.first.coerceIn(0, sentence.text.lastIndex))
+                                val last = value.getLineForOffset(range.last.coerceIn(0, sentence.text.lastIndex))
+                                scroll.animateScrollTo(transcriptActiveOffset(value.getLineTop(first).toInt(), value.getLineBottom(last).toInt(), innerHeight, innerHeight + scroll.maxValue))
+                            }
                         }
-                    }
-                }
-                var moreMenu by remember { mutableStateOf(false) }
-                Box {
-                    EditorialIconButton({ moreMenu = true }, Icons.Default.MoreVert, stringResource(Res.string.ed_more_actions))
-                    DropdownMenu(moreMenu, onDismissRequest = { moreMenu = false }) {
-                        DropdownMenuItem(text = { Text(stringResource(if (loopIndex != null) Res.string.watch_stop_repeat else Res.string.watch_repeat)) }, enabled = active >= 0 || loopIndex != null, onClick = {
-                            moreMenu = false
-                            loopIndex = if (loopIndex != null) null else active.takeIf { it >= 0 }
-                            loopIndex?.let { controller?.seekTo(cueList[it].startMs); controller?.play() }
-                        })
-                        DropdownMenuItem(text = { Text(stringResource(Res.string.speech_shadow)) }, enabled = active >= 0, onClick = {
-                            moreMenu = false; loopIndex = null; controller?.pause(); shadowIndex = active
-                        })
-                        DropdownMenuItem(text = { Text(stringResource(if (showTranslation) Res.string.watch_hide_translation else Res.string.watch_translation)) }, onClick = {
-                            moreMenu = false; showTranslation = !showTranslation
-                        })
-                        if (!follow) DropdownMenuItem(text = { Text(stringResource(Res.string.watch_back_current)) }, onClick = { moreMenu = false; follow = true })
-                    }
-                }
-            }
-        }
-        if (showTranslation) {
-            if (translationState.loading) LinearProgressIndicator(Modifier.fillMaxWidth())
-            translationState.text?.let { Text(it, Modifier.fillMaxWidth().padding(12.dp), style = contentStyle(it)) }
-            if (translationState.failed) TextButton(onClick = { translationAttempt++ }) { Text(stringResource(Res.string.retry)) }
-        }
-        BoxWithConstraints(Modifier.weight(1f).fillMaxWidth()) {
-            val wide = maxWidth >= 700.dp || maxWidth > maxHeight * 1.4f
-            val player: @Composable (Modifier) -> Unit = { m ->
-                if (path.isNotBlank()) LocalVideoPlayer(path, { controller = it }, m) else YoutubePlayer(videoId, { controller = it }, m)
-            }
-            val transcript: @Composable (Modifier) -> Unit = { m ->
-                if (cueList.isEmpty()) Box(m.padding(16.dp)) { Text(stringResource(Res.string.watch_no_captions)) }
-                else Column(m) {
-                    EditorialSectionHeader(stringResource(Res.string.ed_subtitles), Modifier.padding(horizontal = 16.dp, vertical = 8.dp))
-                    LazyColumn(Modifier.weight(1f).fillMaxWidth(), state = list, contentPadding = PaddingValues(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        itemsIndexed(cueList) { index, cue ->
-                            EditorialCard(containerColor = if (index == active) MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.surface) {
-                                Column(Modifier.padding(12.dp)) {
-                                    TextButton(onClick = { controller?.seekTo(cue.startMs); follow = true }) { Text(videoTime(cue.startMs)) }
-                                    CueWords(cue, lang, highlighter, words, settings.readerFontSize) { select(index, it) }
+                        fun lookup(query: String) {
+                            resumeAfterDictionary = playingBeforeTouch; playingBeforeTouch = false
+                            controller?.pause()
+                            selection = ReaderSelection(query, sentence.text, offsets[index] until offsets[index] + sentence.text.length, false)
+                        }
+                        Column(Modifier.heightIn(max = itemHeight).onSizeChanged { innerHeight = it.height; heights[index] = it.height }.verticalScroll(scroll)) {
+                            TranscriptSentence(sentence.text, lang, highlighter, idiomMatcher, subtitleStyle, current,
+                                if (current) activeRange else null, onLayout = { layout = it }, onLookup = ::lookup,
+                                onCopy = if (!current) null else ({
+                                    clipboard.setText(AnnotatedString(sentence.text))
+                                    if (playingBeforeTouch && shadowIndex == null) { freeze = freeze.resume(); gestureActive = false; controller?.play() }
+                                    playingBeforeTouch = false
+                                }))
+                            if (current && settings.watchTranslationEnabled) {
+                                val state = translations.states[sentence.text]
+                                val line = state?.text ?: stringResource(if (state?.failed == true) Res.string.watch_translation_failed else Res.string.watch_translation_loading)
+                                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                                    if (state?.corrected == true) Icon(Icons.Default.Edit, stringResource(Res.string.watch_translation_edit), Modifier.padding(end = 4.dp).size(12.dp), tint = MaterialTheme.colorScheme.onSurface.copy(alpha = .65f))
+                                    Text(line, Modifier.weight(1f).pointerInput(sentence.text, state?.failed) {
+                                        detectTapGestures(onLongPress = { controller?.pause(); editingTranslation = sentence.text }, onTap = {
+                                            if (state?.failed == true) scope.launch { translations.load(sentence.text, retry = true) }
+                                        })
+                                    }, style = translationStyle.merge(contentStyle(line)), color = MaterialTheme.colorScheme.onSurface.copy(alpha = .65f))
                                 }
                             }
                         }
                     }
                 }
+                androidx.compose.animation.AnimatedVisibility(visible = selection != null, enter = slideInVertically { it / 6 } + fadeIn(), exit = slideOutVertically { it / 6 } + fadeOut(), modifier = Modifier.fillMaxSize()) {
+                    Surface(Modifier.fillMaxSize().pointerInput(Unit) { detectTapGestures {} }, color = MaterialTheme.colorScheme.surface) {
+                        val lookup = selection
+                        Column(Modifier.fillMaxSize()) {
+                            Row(Modifier.fillMaxWidth().padding(start = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+                                Text(lookup?.sentence.orEmpty(), Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis,
+                                    style = MaterialTheme.typography.bodySmall.merge(contentStyle(lookup?.sentence.orEmpty())))
+                                IconButton(onClick = ::closeDictionary) { Icon(Icons.Default.Close, stringResource(Res.string.cancel)) }
+                            }
+                            val doc = document
+                            if (lookup != null && doc != null) DictionaryPane(vm, settings, doc, lookup, words, emptyList(), dismiss = ::closeDictionary, modifier = Modifier.weight(1f).fillMaxWidth())
+                        }
+                    }
+                }
             }
-            if (wide) Row(Modifier.fillMaxSize()) {
-                Box(Modifier.weight(1f)) { player(Modifier.fillMaxWidth().aspectRatio(16f / 9f)) }
-                transcript(Modifier.weight(1f).fillMaxHeight())
-            } else Column(Modifier.fillMaxSize()) {
-                player(Modifier.fillMaxWidth().aspectRatio(16f / 9f))
-                transcript(Modifier.weight(1f).fillMaxWidth())
+            if (selection == null) WatchPlaybackBar(playing, sentenceIndex > 0, sentenceIndex < sentences.lastIndex && sentences.isNotEmpty(),
+                previous = { playFromLine(sentenceIndex - 1) }, backward = { skip(-5_000) },
+                playPause = { if (playing) controller?.pause() else { freeze = freeze.resume(); gestureActive = false; following = true; controller?.play() } },
+                forward = { skip(5_000) }, next = { playFromLine(sentenceIndex + 1) })
+        }
+        SnackbarHost(snackbar, Modifier.align(Alignment.BottomCenter))
+    }
+    shadowIndex?.let { start ->
+        ShadowingPanel(vm.container, settings, lang, document?.id, sentences.map { it.text }, start,
+            dismiss = { controller?.pause(); shadowIndex = null }, autoListen = true, replay = { index ->
+                val cue = sentences[index]
+                replayShadowCue(checkNotNull(controller), cue.startMs, cue.endMs, rate)
+            })
+    }
+    editingTranslation?.let { text ->
+        var draft by remember(text) { mutableStateOf(translations.states[text]?.text.orEmpty()) }
+        ModalBottomSheet(onDismissRequest = { editingTranslation = null }) {
+            Column(Modifier.fillMaxWidth().padding(20.dp).imePadding(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text(text, style = contentStyle(text), maxLines = 3, overflow = TextOverflow.Ellipsis)
+                OutlinedTextField(draft, { draft = it }, Modifier.fillMaxWidth(), textStyle = MaterialTheme.typography.bodyLarge.merge(contentStyle(draft)), minLines = 2, maxLines = 6)
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                    TextButton(onClick = { scope.launch { translations.save(text, null) }; editingTranslation = null }) { Text(stringResource(Res.string.watch_translation_automatic)) }
+                    Button(onClick = { scope.launch { translations.save(text, draft.trim()) }; editingTranslation = null }, enabled = draft.isNotBlank()) { Text(stringResource(Res.string.save)) }
+                }
             }
         }
     }
-    shadowIndex?.let { start ->
-        ShadowingPanel(vm.container, settings, lang, document?.id, cueList.map { it.text }, start,
-            dismiss = { controller?.pause(); shadowIndex = null }, autoListen = true, replay = { index ->
-                val cue = cueList[index]
-                val player = checkNotNull(controller)
-                replayShadowCue(player, cue.startMs, cue.endMs, rate)
-            })
-    }
-    val doc = document
-    if (doc != null) selection?.let { DictionarySheet(vm, settings, doc, it, words, emptyList(), dismiss = { selection = null }) }
+    if (exportOpen) captions?.let { value -> WatchExportSheet(vm, lang, identity, videoId, path, value,
+        dismiss = { exportOpen = false }, added = { scope.launch { snackbar.showSnackbar(addedMessage) } }) }
 }
 
-@Composable private fun CueWords(cue: SubtitleCue, lang: LanguageSpec, highlighter: VocabHighlighter, words: List<VocabEntry>, fontSize: Int, select: (Int) -> Unit) {
-    var layout by remember { mutableStateOf<TextLayoutResult?>(null) }
-    val matches = remember(cue, highlighter) { highlighter.findMatches(cue.text) }
-    val boxes = words.associate { normalizeForMatch(it.word, lang) to it.leitnerBox.coerceIn(1, 5) }
-    val colors = (1..5).associateWith { boxColor(it) }
-    val text = buildAnnotatedString {
-        append(cue.text)
-        matches.forEach { m -> addStyle(SpanStyle(color = colors.getValue(boxes[normalizeForMatch(cue.text.substring(m.range), lang)] ?: 1)), m.range.first, m.range.last + 1) }
+@Composable private fun WatchPlaybackBar(playing: Boolean, hasPrevious: Boolean, hasNext: Boolean, previous: () -> Unit, backward: () -> Unit,
+    playPause: () -> Unit, forward: () -> Unit, next: () -> Unit) {
+    Surface(color = MaterialTheme.colorScheme.surfaceContainer, tonalElevation = 2.dp) {
+        CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
+            Row(Modifier.fillMaxWidth().navigationBarsPadding().padding(horizontal = 8.dp, vertical = 6.dp), horizontalArrangement = Arrangement.SpaceEvenly, verticalAlignment = Alignment.CenterVertically) {
+                IconButton(onClick = previous, enabled = hasPrevious, modifier = Modifier.size(48.dp)) { Icon(Icons.Default.SkipPrevious, stringResource(Res.string.watch_previous_sentence), Modifier.size(28.dp)) }
+                IconButton(onClick = backward, modifier = Modifier.size(48.dp)) { Icon(Icons.Default.Replay5, stringResource(Res.string.ed_seek_backward), Modifier.size(28.dp)) }
+                FilledIconButton(onClick = playPause, modifier = Modifier.size(64.dp)) { Icon(if (playing) Icons.Default.Pause else Icons.Default.PlayArrow, stringResource(if (playing) Res.string.watch_pause else Res.string.watch_play), Modifier.size(36.dp)) }
+                IconButton(onClick = forward, modifier = Modifier.size(48.dp)) { Icon(Icons.Default.Forward5, stringResource(Res.string.ed_seek_forward), Modifier.size(28.dp)) }
+                IconButton(onClick = next, enabled = hasNext, modifier = Modifier.size(48.dp)) { Icon(Icons.Default.SkipNext, stringResource(Res.string.watch_next_sentence), Modifier.size(28.dp)) }
+            }
+        }
     }
-    val onSelect by rememberUpdatedState(select)
-    Text(text, Modifier.fillMaxWidth().pointerInput(cue) { detectTapGestures { point -> layout?.getOffsetForPosition(point)?.let(onSelect) } },
-        style = MaterialTheme.typography.bodyLarge.merge(contentStyle(cue.text)).copy(fontSize = fontSize.sp), onTextLayout = { layout = it })
 }

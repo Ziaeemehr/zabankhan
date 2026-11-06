@@ -24,7 +24,9 @@ private class IosAudioPlayer : AudioPlayer {
                 current.value = (engine.currentTime * 1000).toLong()
                 delay(30)
             } while (engine.playing)
-            check(engine.duration > 0 && engine.currentTime + .1 >= engine.duration) { "Audio playback interrupted" }
+            // AVAudioPlayer rewinds currentTime to 0 on a natural finish; an interruption leaves it mid-file.
+            val finished = engine.currentTime == 0.0 || engine.currentTime + .1 >= engine.duration
+            check(engine.duration > 0 && finished) { "Audio playback interrupted" }
         } finally {
             engine.stop()
             if (player === engine) player = null

@@ -135,6 +135,7 @@
     <string name="speech_from_here">Écouter à partir d’ici</string>
     <string name="speech_shadow">Répéter cette phrase</string>
     <string name="speech_rate">Vitesse de parole</string>
+    <string name="speech_repeat">Répéter chaque phrase</string>
     <string name="speech_voice">Voix</string>
     <string name="speech_default">Voix du système</string>
     <string name="speech_auto_cards">Prononcer les cartes automatiquement</string>
@@ -159,4 +160,23 @@
     <string name="api_key_saved">•••• — Clé enregistrée</string>
     <string name="api_key_remove">Supprimer la clé API</string>
     <string name="api_key_storage">Votre clé est stockée de façon sécurisée sur cet appareil et exclue des sauvegardes. Saisissez-la à nouveau après une restauration.</string>
+    <string name="watch_compact_player">Lecteur compact</string>
+    <string name="watch_full_player">Lecteur complet</string>
+    <string name="watch_subtitle_size">Taille des sous-titres</string>
+    <string name="watch_subtitle_size_percent">%1$d%%</string>
+    <string name="watch_subtitle_smaller">Réduire les sous-titres</string>
+    <string name="watch_subtitle_larger">Agrandir les sous-titres</string>
+    <string name="watch_export">Exporter la transcription</string>
+    <string name="watch_previous_sentence">Phrase précédente</string>
+    <string name="watch_next_sentence">Phrase suivante</string>
+    <string name="watch_translation_loading">Traduction en cours…</string>
+    <string name="watch_translation_failed">Échec de la traduction. Touchez pour réessayer.</string>
+    <string name="watch_translation_edit">Modifier la traduction</string>
+    <string name="watch_translation_automatic">Traduction automatique</string>
+    <string name="watch_copy_sentence">Copier la phrase</string>
+    <string name="watch_added">Transcription ajoutée à la bibliothèque</string>
+    <string name="watch_export_library">Ajouter la transcription à la bibliothèque</string>
+    <string name="watch_export_share">Partager le texte de la transcription</string>
+    <string name="watch_export_srt">Exporter les sous-titres SRT</string>
+    <string name="watch_export_failed">Échec de l’exportation. Veuillez réessayer.</string>
 </resources>

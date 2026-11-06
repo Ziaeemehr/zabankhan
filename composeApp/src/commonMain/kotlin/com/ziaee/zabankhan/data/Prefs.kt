@@ -35,7 +35,12 @@ data class AppSettings(
     val dailyNewCards: Int = 10,
     val dailyGoalMinutes: Int = 10,
     val readerFontSize: Int = 20,
+    val watchTranslationEnabled: Boolean = false,
+    val watchSubtitleSizePercent: Int = 100,
+    val watchCompactPlayer: Boolean = false,
     val speechRate: Float = 1f,
+    // How many times reader playback speaks each sentence before moving on.
+    val speechRepeat: Int = 1,
     val voiceEngine: String = "online",
     val autoPronounceCards: Boolean = false,
     val ttsVoices: Map<String, String> = emptyMap(),
@@ -71,7 +76,11 @@ class SettingsRepository(private val store: DataStore<Preferences>, private val 
         val newCards = intPreferencesKey("daily_new_cards")
         val dailyGoal = intPreferencesKey("daily_goal_minutes")
         val font = intPreferencesKey("reader_font_size")
+        val watchTranslation = androidx.datastore.preferences.core.booleanPreferencesKey("watch_translation_enabled")
+        val watchSize = intPreferencesKey("watch_subtitle_size_percent")
+        val watchCompact = androidx.datastore.preferences.core.booleanPreferencesKey("watch_compact_player")
         val speechRate = androidx.datastore.preferences.core.floatPreferencesKey("speech_rate")
+        val speechRepeat = intPreferencesKey("speech_repeat")
         val autoCards = androidx.datastore.preferences.core.booleanPreferencesKey("auto_pronounce_cards")
         val engine = stringPreferencesKey("voice_engine")
         val voices = stringPreferencesKey("tts_voices")
@@ -98,7 +107,11 @@ class SettingsRepository(private val store: DataStore<Preferences>, private val 
             dailyNewCards = p[K.newCards] ?: 10,
             dailyGoalMinutes = (p[K.dailyGoal] ?: 10).coerceIn(1, 120),
             readerFontSize = p[K.font] ?: 20,
+            watchTranslationEnabled = p[K.watchTranslation] ?: false,
+            watchSubtitleSizePercent = (p[K.watchSize] ?: 100).takeIf { it in listOf(85, 100, 115, 130, 150, 175) } ?: 100,
+            watchCompactPlayer = p[K.watchCompact] ?: false,
             speechRate = p[K.speechRate] ?: 1f,
+            speechRepeat = (p[K.speechRepeat] ?: 1).coerceIn(1, 3),
             voiceEngine = p[K.engine]?.takeIf { it == "device" } ?: "online",
             autoPronounceCards = p[K.autoCards] ?: false,
             ttsVoices = runCatching { kotlinx.serialization.json.Json.decodeFromString<Map<String, String>>(p[K.voices] ?: "{}") }.getOrDefault(emptyMap()),
@@ -148,7 +161,14 @@ class SettingsRepository(private val store: DataStore<Preferences>, private val 
     suspend fun setDailyGoalMinutes(minutes: Int) = store.edit { it[K.dailyGoal] = minutes.coerceIn(1, 120) }
     suspend fun setDailyNewCards(n: Int) = store.edit { it[K.newCards] = n.coerceIn(0, 100) }
     suspend fun setReaderFontSize(sp: Int) = store.edit { it[K.font] = sp.coerceIn(12, 40) }
+    suspend fun setWatchTranslationEnabled(enabled: Boolean) = store.edit { it[K.watchTranslation] = enabled }
+    suspend fun setWatchCompactPlayer(compact: Boolean) = store.edit { it[K.watchCompact] = compact }
+    suspend fun setWatchSubtitleSizePercent(percent: Int) = store.edit {
+        require(percent in listOf(85, 100, 115, 130, 150, 175))
+        it[K.watchSize] = percent
+    }
     suspend fun setSpeechRate(rate: Float) = store.edit { it[K.speechRate] = rate.coerceIn(.75f, 1.25f) }
+    suspend fun setSpeechRepeat(times: Int) = store.edit { it[K.speechRepeat] = times.coerceIn(1, 3) }
     suspend fun setAutoPronounceCards(enabled: Boolean) = store.edit { it[K.autoCards] = enabled }
     suspend fun setVoiceEngine(engine: String) = store.edit {
         require(engine == "online" || engine == "device")

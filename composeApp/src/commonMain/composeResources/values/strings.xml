@@ -135,6 +135,7 @@
     <string name="speech_from_here">Listen from here</string>
     <string name="speech_shadow">Shadow this sentence</string>
     <string name="speech_rate">Speech rate</string>
+    <string name="speech_repeat">Repeat each sentence</string>
     <string name="speech_voice">Voice</string>
     <string name="speech_default">System default</string>
     <string name="speech_auto_cards">Pronounce cards automatically</string>
@@ -159,4 +160,23 @@
     <string name="api_key_saved">•••• — Key saved</string>
     <string name="api_key_remove">Remove API key</string>
     <string name="api_key_storage">Your key is stored securely on this device and excluded from backups. Re-enter it after restoring.</string>
+    <string name="watch_compact_player">Compact player</string>
+    <string name="watch_full_player">Full player</string>
+    <string name="watch_subtitle_size">Subtitle size</string>
+    <string name="watch_subtitle_size_percent">%1$d%%</string>
+    <string name="watch_subtitle_smaller">Smaller subtitles</string>
+    <string name="watch_subtitle_larger">Larger subtitles</string>
+    <string name="watch_export">Export transcript</string>
+    <string name="watch_previous_sentence">Previous sentence</string>
+    <string name="watch_next_sentence">Next sentence</string>
+    <string name="watch_translation_loading">Translating…</string>
+    <string name="watch_translation_failed">Translation failed. Tap to retry.</string>
+    <string name="watch_translation_edit">Edit translation</string>
+    <string name="watch_translation_automatic">Automatic translation</string>
+    <string name="watch_copy_sentence">Copy sentence</string>
+    <string name="watch_added">Transcript added to library</string>
+    <string name="watch_export_library">Add transcript to library</string>
+    <string name="watch_export_share">Share transcript text</string>
+    <string name="watch_export_srt">Export SRT subtitles</string>
+    <string name="watch_export_failed">Could not export. Please try again.</string>
 </resources>

@@ -102,12 +102,12 @@ data class ReaderSelection(val word: String, val sentence: String, val range: In
                     listOf(.75f, 1f, 1.25f).forEach { r ->
                         DropdownMenuItem(text = { Text(stringResource(Res.string.speech_rate) + ": ${r}×") }, onClick = {
                             rateMenu = false; rate = r
-                            if (speaking) playback.start(list.firstVisibleItemIndex, rate, settings.ttsVoices[lang.code])
+                            if (speaking) playback.start(list.firstVisibleItemIndex, rate, settings.ttsVoices[lang.code], settings.speechRepeat)
                         })
                     }
                 }
             }
-            FilledIconButton(onClick = { if (speaking) playback.stop() else playback.start(list.firstVisibleItemIndex, rate, settings.ttsVoices[lang.code]) }) {
+            FilledIconButton(onClick = { if (speaking) playback.stop() else playback.start(list.firstVisibleItemIndex, rate, settings.ttsVoices[lang.code], settings.speechRepeat) }) {
                 Icon(if (speaking) Icons.Filled.Pause else Icons.Filled.PlayArrow, stringResource(if (speaking) Res.string.watch_pause else Res.string.watch_play))
             }
         })
@@ -136,7 +136,7 @@ data class ReaderSelection(val word: String, val sentence: String, val range: In
     }
     selection?.let { selected -> DictionarySheet(vm, settings, text, selected, words, highlights, { selection = null },
         listen = { playback.sentenceOnly(selected.sentence, selected.range.first, rate, settings.ttsVoices[lang.code]); selection = null },
-        listenFromHere = { playback.start(paragraphIndexAt(parts, selected.range.first), rate, settings.ttsVoices[lang.code]); selection = null },
+        listenFromHere = { playback.start(paragraphIndexAt(parts, selected.range.first), rate, settings.ttsVoices[lang.code], settings.speechRepeat); selection = null },
         shadow = { playback.stop(); shadowRange = selected.range; selection = null }) }
     shadowRange?.let { range ->
         val sentences = splitSentences(text.body, lang)

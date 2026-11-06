@@ -115,6 +115,7 @@ import org.jetbrains.compose.resources.stringResource
                 vm.action { repository.setVoiceEngine(it) }
             }
             Choice(stringResource(Res.string.speech_rate), settings.speechRate, listOf(.75f, 1f, 1.25f).map { it to "${it}×" }) { vm.action { repository.setSpeechRate(it) } }
+            Choice(stringResource(Res.string.speech_repeat), settings.speechRepeat, (1..3).map { it to "${it}×" }) { vm.action { repository.setSpeechRepeat(it) } }
             Languages.learnable.filter { it.code in settings.learningLangs }.forEach { lang ->
                 Choice("${languageName(lang)} — ${stringResource(Res.string.speech_voice)}", settings.ttsVoices[lang.code].orEmpty(),
                     listOf("" to stringResource(Res.string.speech_default)) + voices[lang.code].orEmpty().map { it.id to it.name }) { id -> vm.action { repository.setTtsVoice(lang.code, id.ifBlank { null }) } }

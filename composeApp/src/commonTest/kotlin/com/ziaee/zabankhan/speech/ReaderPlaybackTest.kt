@@ -35,6 +35,16 @@ class ReaderPlaybackTest {
         playback.sentenceOnly("Word.", 20, 1f, null); assertEquals(20..24, playback.sentence.value)
         tts.done(); assertNull(playback.sentence.value); assertEquals("Word.", tts.text)
     }
+    @Test fun repeatModeSpeaksEachSentenceNTimesThenMovesOn() {
+        val tts = FakeTts()
+        val playback = ReaderPlayback(tts, listOf(SpokenParagraph("Hello. Goodbye.", 0), SpokenParagraph("Another.", 17)), Languages.ENGLISH)
+        playback.start(0, 1f, null, repeats = 2)
+        val spoken = mutableListOf(tts.text)
+        assertEquals(0..5, playback.sentence.value)
+        repeat(4) { tts.done(); spoken += tts.text }
+        assertEquals(listOf("Hello.", "Hello.", "Goodbye.", "Goodbye.", "Another."), spoken)
+        assertEquals(17..24, playback.sentence.value)
+    }
     @Test fun prefetchesNextParagraphWhileSpeaking() {
         val tts = FakeTts()
         val playback = ReaderPlayback(tts, listOf(SpokenParagraph("One.", 0), SpokenParagraph("Two.", 5), SpokenParagraph("Three.", 10)), Languages.ENGLISH)

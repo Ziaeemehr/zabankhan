@@ -2,6 +2,7 @@ package com.ziaee.zabankhan.speech
 
 import com.ziaee.zabankhan.lang.LanguageSpec
 import com.ziaee.zabankhan.lang.sentenceAround
+import com.ziaee.zabankhan.lang.splitSentences
 import kotlinx.coroutines.flow.*
 
 data class SpokenParagraph(val text: String, val offset: Int)
@@ -20,18 +21,34 @@ class ReaderPlayback(private val tts: Tts, private val parts: List<SpokenParagra
         val local = sentenceAround(spoken, range.first, lang)
         current.value = (base + local.first)..(base + local.last)
     }
-    fun start(paragraph: Int, rate: Float, voiceId: String?) {
-        stop(); this.rate = rate; tts.setVoice(voiceId)
+    private var repeats = 1
+    fun start(paragraph: Int, rate: Float, voiceId: String?, repeats: Int = 1) {
+        stop(); this.rate = rate; this.repeats = repeats.coerceIn(1, 3); tts.setVoice(voiceId)
         speakParagraph(paragraph, generation)
     }
     private fun speakParagraph(next: Int, token: Int) {
         if (token != generation) return
         val part = parts.getOrNull(next) ?: run { current.value = null; index = -1; return }
-        index = next; base = part.offset; spoken = part.text
+        index = next
+        if (repeats > 1) { speakSentence(next, splitSentences(part.text, lang), 0, 1, token); return }
+        base = part.offset; spoken = part.text
         rangeChanged(0..0)
         tts.speak(part.text, lang.code, rate) { speakParagraph(next + 1, token) }
         // Fetch the next paragraph's audio now so there is no pause between paragraphs.
         parts.getOrNull(next + 1)?.let { tts.prefetch(it.text, lang.code, rate) }
+    }
+    /** Repeat mode speaks sentence by sentence, each [repeats] times, with the same engine and voice. */
+    private fun speakSentence(paragraph: Int, sentences: List<IntRange>, sentence: Int, round: Int, token: Int) {
+        if (token != generation) return
+        val range = sentences.getOrNull(sentence) ?: return speakParagraph(paragraph + 1, token)
+        val part = parts[paragraph]
+        base = part.offset + range.first; spoken = part.text.substring(range)
+        rangeChanged(0..0)
+        tts.speak(spoken, lang.code, rate) {
+            if (round < repeats) speakSentence(paragraph, sentences, sentence, round + 1, token)
+            else speakSentence(paragraph, sentences, sentence + 1, 1, token)
+        }
+        if (round == 1) sentences.getOrNull(sentence + 1)?.let { tts.prefetch(part.text.substring(it), lang.code, rate) }
     }
     fun sentenceOnly(text: String, offset: Int, rate: Float, voiceId: String?) {
         stop(); val token = generation; index = 0; base = offset; spoken = text
