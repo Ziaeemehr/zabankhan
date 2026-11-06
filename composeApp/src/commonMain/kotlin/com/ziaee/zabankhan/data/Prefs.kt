@@ -35,6 +35,11 @@ data class AppSettings(
     val dailyNewCards: Int = 10,
     val dailyGoalMinutes: Int = 10,
     val readerFontSize: Int = 20,
+    val readerFontScale: String = "MEDIUM",
+    val readingBackground: String = "SEPIA",
+    val readingHighlightColor: String = "YELLOW",
+    val readerAutoFollow: Boolean = true,
+    val lastHighlightColor: String = "yellow",
     val watchTranslationEnabled: Boolean = false,
     val watchSubtitleSizePercent: Int = 100,
     val watchCompactPlayer: Boolean = false,
@@ -76,6 +81,11 @@ class SettingsRepository(private val store: DataStore<Preferences>, private val 
         val newCards = intPreferencesKey("daily_new_cards")
         val dailyGoal = intPreferencesKey("daily_goal_minutes")
         val font = intPreferencesKey("reader_font_size")
+        val fontScale = stringPreferencesKey("reader_font_scale")
+        val readingBackground = stringPreferencesKey("reading_background")
+        val readingHighlight = stringPreferencesKey("reading_highlight_color")
+        val autoFollow = androidx.datastore.preferences.core.booleanPreferencesKey("reader_auto_follow")
+        val lastHighlight = stringPreferencesKey("last_highlight_color")
         val watchTranslation = androidx.datastore.preferences.core.booleanPreferencesKey("watch_translation_enabled")
         val watchSize = intPreferencesKey("watch_subtitle_size_percent")
         val watchCompact = androidx.datastore.preferences.core.booleanPreferencesKey("watch_compact_player")
@@ -107,6 +117,11 @@ class SettingsRepository(private val store: DataStore<Preferences>, private val 
             dailyNewCards = p[K.newCards] ?: 10,
             dailyGoalMinutes = (p[K.dailyGoal] ?: 10).coerceIn(1, 120),
             readerFontSize = p[K.font] ?: 20,
+            readerFontScale = p[K.fontScale]?.takeIf { value -> com.ziaee.zabankhan.ui.theme.FontScale.entries.any { it.name == value } } ?: "MEDIUM",
+            readingBackground = p[K.readingBackground]?.takeIf { value -> com.ziaee.zabankhan.ui.theme.ReadingBackground.entries.any { it.name == value } } ?: "SEPIA",
+            readingHighlightColor = p[K.readingHighlight]?.takeIf { value -> com.ziaee.zabankhan.ui.theme.HighlightColor.entries.any { it.name == value } } ?: "YELLOW",
+            readerAutoFollow = p[K.autoFollow] ?: true,
+            lastHighlightColor = p[K.lastHighlight] ?: "yellow",
             watchTranslationEnabled = p[K.watchTranslation] ?: false,
             watchSubtitleSizePercent = (p[K.watchSize] ?: 100).takeIf { it in listOf(85, 100, 115, 130, 150, 175) } ?: 100,
             watchCompactPlayer = p[K.watchCompact] ?: false,
@@ -161,13 +176,30 @@ class SettingsRepository(private val store: DataStore<Preferences>, private val 
     suspend fun setDailyGoalMinutes(minutes: Int) = store.edit { it[K.dailyGoal] = minutes.coerceIn(1, 120) }
     suspend fun setDailyNewCards(n: Int) = store.edit { it[K.newCards] = n.coerceIn(0, 100) }
     suspend fun setReaderFontSize(sp: Int) = store.edit { it[K.font] = sp.coerceIn(12, 40) }
+    suspend fun setReaderFontScale(value: String) = store.edit {
+        require(com.ziaee.zabankhan.ui.theme.FontScale.entries.any { scale -> scale.name == value })
+        it[K.fontScale] = value
+    }
+    suspend fun setReadingBackground(value: String) = store.edit {
+        require(com.ziaee.zabankhan.ui.theme.ReadingBackground.entries.any { background -> background.name == value })
+        it[K.readingBackground] = value
+    }
+    suspend fun setReadingHighlightColor(value: String) = store.edit {
+        require(com.ziaee.zabankhan.ui.theme.HighlightColor.entries.any { color -> color.name == value })
+        it[K.readingHighlight] = value
+    }
+    suspend fun setReaderAutoFollow(value: Boolean) = store.edit { it[K.autoFollow] = value }
+    suspend fun setLastHighlightColor(value: String) = store.edit {
+        require(value in setOf("yellow", "green", "blue", "pink", "orange"))
+        it[K.lastHighlight] = value
+    }
     suspend fun setWatchTranslationEnabled(enabled: Boolean) = store.edit { it[K.watchTranslation] = enabled }
     suspend fun setWatchCompactPlayer(compact: Boolean) = store.edit { it[K.watchCompact] = compact }
     suspend fun setWatchSubtitleSizePercent(percent: Int) = store.edit {
         require(percent in listOf(85, 100, 115, 130, 150, 175))
         it[K.watchSize] = percent
     }
-    suspend fun setSpeechRate(rate: Float) = store.edit { it[K.speechRate] = rate.coerceIn(.75f, 1.25f) }
+    suspend fun setSpeechRate(rate: Float) = store.edit { it[K.speechRate] = rate.coerceIn(.75f, 1.5f) }
     suspend fun setSpeechRepeat(times: Int) = store.edit { it[K.speechRepeat] = times.coerceIn(1, 3) }
     suspend fun setAutoPronounceCards(enabled: Boolean) = store.edit { it[K.autoCards] = enabled }
     suspend fun setVoiceEngine(engine: String) = store.edit {

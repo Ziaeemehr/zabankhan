@@ -72,6 +72,26 @@ class TtsCache(
         if (count <= 0) leases.remove(entry.key) else leases[entry.key] = count
         withContext(Dispatchers.IO) { prune() }
     }
+    /** Several documents can share the same synthesized clip; each owns its own pin. */
+    suspend fun setPinned(entry: CachedSpeech, pinned: Boolean, owner: String = "speech") = mutex.withLock {
+        withContext(Dispatchers.IO) {
+            updatePin(path(entry.key, "pin"), owner, pinned)
+            prune()
+        }
+    }
+    suspend fun unpinDocument(owner: String) = mutex.withLock {
+        withContext(Dispatchers.IO) {
+            if (fs.exists(dir)) fs.list(dir).filter { it.name.endsWith(".pin") }.forEach { updatePin(it, owner, false) }
+            if (fs.exists(dir)) prune()
+        }
+    }
+    private fun updatePin(file: Path, owner: String, pinned: Boolean) {
+        require(owner.isNotBlank() && '\n' !in owner && '\r' !in owner)
+        val owners = if (fs.exists(file)) fs.read(file) { readUtf8() }.lineSequence().filter { it.isNotBlank() }.toSet() else emptySet()
+        val updated = if (pinned) owners + owner else owners - owner
+        if (updated.isEmpty()) fs.delete(file, mustExist = false)
+        else fs.write(file) { writeUtf8(updated.sorted().joinToString("\n")) }
+    }
     private fun prune() {
         val files = fs.list(dir)
         var total = files.sumOf { fs.metadataOrNull(it)?.size ?: 0 }
@@ -80,7 +100,7 @@ class TtsCache(
             paths.firstOrNull { it.name.endsWith(".json") }?.let { fs.metadataOrNull(it)?.lastModifiedAtMillis } ?: 0
         }) {
             if (total <= maxBytes) break
-            if (key in leases) continue
+            if (key in leases || paths.any { it.name.endsWith(".pin") }) continue
             for (file in paths) {
                 total -= fs.metadataOrNull(file)?.size ?: 0
                 fs.delete(file, mustExist = false)

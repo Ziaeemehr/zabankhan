@@ -22,6 +22,17 @@ class SelectedTts(private val online: EdgeTts, private val device: Tts, private 
     private var voice: String? = null
     private var job: Job? = null
     private var generation = 0
+    override val audioStatus get() = if (settings.voiceEngine == "device") device.audioStatus else online.audioStatus
+    override val synthesisProgress get() = online.synthesisProgress
+    override fun seekBy(deltaMs: Long): Boolean = settings.voiceEngine != "device" && online.seekBy(deltaMs)
+    override fun setAudioDocument(owner: String?) = online.setAudioDocument(owner)
+    override fun releaseAudioDocument(owner: String) = online.releaseAudioDocument(owner)
+    override fun setAudioPinned(pinned: Boolean) = online.setAudioPinned(pinned)
+    override suspend fun prepare(text: String, langCode: String, rate: Float): Result<Unit> {
+        if (settings.voiceEngine == "device") return Result.failure(IllegalStateException("Device speech has no downloadable audio"))
+        online.setVoice(voice)
+        return online.prepare(text, langCode, rate)
+    }
     fun configure(value: AppSettings) {
         if (value.voiceEngine != settings.voiceEngine) stop()
         settings = value

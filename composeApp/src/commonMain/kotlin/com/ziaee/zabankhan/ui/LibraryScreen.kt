@@ -88,7 +88,7 @@ import org.jetbrains.compose.resources.stringResource
 @OptIn(ExperimentalLayoutApi::class)
 @Composable fun AddTextScreen(vm: AppViewModel, settings: AppSettings, back: () -> Unit, open: (Long) -> Unit, initialText: String = "") {
     // Shared text arrives without a title; start from its first line so Save is one tap away.
-    var title by rememberSaveable(initialText) { mutableStateOf(initialText.lineSequence().firstOrNull { it.isNotBlank() }?.trim()?.take(60).orEmpty()) }
+    var title by rememberSaveable(initialText) { mutableStateOf(initialText.lineSequence().firstOrNull { it.isNotBlank() }?.trim()?.trimStart('#')?.trim()?.take(60).orEmpty()) }
     var body by rememberSaveable(initialText) { mutableStateOf(initialText) }
     var busy by remember { mutableStateOf(false) }
     Page {

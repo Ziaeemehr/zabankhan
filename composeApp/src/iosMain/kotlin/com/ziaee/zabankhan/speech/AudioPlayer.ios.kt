@@ -11,7 +11,8 @@ private class IosAudioPlayer : AudioPlayer {
     private val current = MutableStateFlow(0L)
     override val position = current.asStateFlow()
     private var player: AVAudioPlayer? = null
-    override suspend fun play(path: String) = withContext(Dispatchers.Main.immediate) {
+    override suspend fun play(path: String) = playFrom(path, 0)
+    override suspend fun playFrom(path: String, startMs: Long) = withContext(Dispatchers.Main.immediate) {
         stop()
         val session = AVAudioSession.sharedInstance()
         check(session.setCategory(AVAudioSessionCategoryPlayback, error = null))
@@ -19,6 +20,7 @@ private class IosAudioPlayer : AudioPlayer {
         val engine = AVAudioPlayer(contentsOfURL = NSURL.fileURLWithPath(path), error = null)
         player = engine
         try {
+            engine.currentTime = (startMs.coerceAtLeast(0) / 1000.0).coerceAtMost(engine.duration)
             check(engine.prepareToPlay() && engine.play()) { "Audio playback unavailable" }
             do {
                 current.value = (engine.currentTime * 1000).toLong()

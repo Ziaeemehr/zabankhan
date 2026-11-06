@@ -15,7 +15,8 @@ private class AndroidAudioPlayer : AudioPlayer {
     private val current = MutableStateFlow(0L)
     override val position = current.asStateFlow()
     private var player: ExoPlayer? = null
-    override suspend fun play(path: String) = withContext(Dispatchers.Main.immediate) {
+    override suspend fun play(path: String) = playFrom(path, 0)
+    override suspend fun playFrom(path: String, startMs: Long) = withContext(Dispatchers.Main.immediate) {
         stop()
         val engine = ExoPlayer.Builder(speechContext).build().also { player = it }
         val polling = launch { while (isActive) { current.value = engine.currentPosition.coerceAtLeast(0); delay(30) } }
@@ -30,7 +31,7 @@ private class AndroidAudioPlayer : AudioPlayer {
                     }
                 })
                 engine.setMediaItem(MediaItem.fromUri(Uri.fromFile(java.io.File(path))))
-                engine.prepare(); engine.play()
+                engine.seekTo(startMs.coerceAtLeast(0)); engine.prepare(); engine.play()
             }
         } finally {
             polling.cancel()

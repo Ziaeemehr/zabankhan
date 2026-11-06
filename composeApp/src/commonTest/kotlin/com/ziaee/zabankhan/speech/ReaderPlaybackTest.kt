@@ -2,6 +2,7 @@ package com.ziaee.zabankhan.speech
 
 import com.ziaee.zabankhan.lang.Languages
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.test.runTest
 import kotlin.test.*
 
 private class FakeTts : Tts {
@@ -14,6 +15,16 @@ private class FakeTts : Tts {
     override fun stop() { isSpeaking.value = false }
     override fun voices(langCode: String) = emptyList<TtsVoice>()
     override fun setVoice(id: String?) = Unit
+    val prepared = mutableListOf<String>()
+    var failPreparation = false
+    var seekDelta: Long? = null
+    var currentAudioOwner: String? = null
+    override fun setAudioDocument(owner: String?) { currentAudioOwner = owner }
+    override fun seekBy(deltaMs: Long): Boolean { seekDelta = deltaMs; return true }
+    override suspend fun prepare(text: String, langCode: String, rate: Float): Result<Unit> {
+        prepared += text
+        return if (failPreparation) Result.failure(IllegalStateException("offline")) else Result.success(Unit)
+    }
     val prefetched = mutableListOf<String>()
     override fun prefetch(text: String, langCode: String, rate: Float) { prefetched += text }
 }
@@ -81,7 +92,12 @@ class ReaderPlaybackTest {
         val playback = ReaderPlayback(tts, listOf(SpokenParagraph(body, 12)), Languages.PERSIAN)
         playback.start(0, 1f, null)
         playback.nextSentence(); assertEquals("خوبی؟", tts.text); assertEquals(18..22, playback.sentence.value)
-        playback.previousSentence(); assertEquals("سلام.", tts.text)
+        playback.previousSentence()
+        // Navigation restarts at this sentence and keeps the rest of its section seekable.
+        assertEquals(body, tts.text)
+        assertEquals(12..16, playback.sentence.value)
+        playback.rangeChanged(6..10)
+        assertEquals(18..22, playback.sentence.value)
         val empty = ReaderPlayback(tts, emptyList(), Languages.PERSIAN)
         empty.nextSentence(); empty.previousSentence(); assertNull(empty.sentence.value)
     }
@@ -101,4 +117,90 @@ class ReaderPlaybackTest {
         val stale = tts.done
         playback.stop(); stale(); assertNull(playback.sentence.value)
     }
+    @Test fun markdownSourceMappingSurvivesSeekingAndNavigation() {
+        val tts = FakeTts()
+        // "**Hello.** Goodbye." -> "Hello. Goodbye."; character offsets stay in the raw document.
+        val sourceOffsets = (2..7).toList() + (10..18).toList()
+        val playback = ReaderPlayback(tts, listOf(SpokenParagraph("Hello. Goodbye.", 0, sourceOffsets)), Languages.ENGLISH)
+        playback.start(0, 1f, null)
+        assertEquals(2..7, playback.sentence.value)
+        playback.rangeChanged(8..10)
+        assertEquals(11..18, playback.sentence.value)
+        playback.startAt(14, 1f, null)
+        assertEquals("Goodbye.", tts.text)
+        assertEquals(11..18, playback.sentence.value)
+        playback.previousSentence()
+        assertEquals(2..7, playback.sentence.value)
+    }
+    @Test fun emptyImageBlocksAreSkippedWithoutShiftingParagraphIndex() {
+        val tts = FakeTts()
+        val playback = ReaderPlayback(tts, listOf(SpokenParagraph("", 0), SpokenParagraph("Hello.", 14)), Languages.ENGLISH)
+        playback.start(0, 1f, null)
+        assertEquals("Hello.", tts.text)
+        assertEquals(1, playback.currentParagraph.value)
+        assertEquals(14..19, playback.sentence.value)
+    }
+
+    @Test fun preparingDocumentTracksSectionsSkipsImagesAndKeepsFailuresRetryable() = runTest {
+        val tts = FakeTts()
+        val playback = ReaderPlayback(tts, listOf(SpokenParagraph("One.", 0), SpokenParagraph("", 8), SpokenParagraph("Two.", 20)), Languages.ENGLISH, documentId = 42)
+        assertEquals("reader:42", tts.currentAudioOwner)
+        val progress = mutableListOf<Float>()
+        assertTrue(playback.prepareAll(1f, null) { progress += it }.isSuccess)
+        assertEquals(listOf("One.", "Two."), tts.prepared)
+        assertEquals(listOf(.5f, 1f), progress)
+        assertEquals(mapOf(0 to SpeechAudioStatus.READY, 2 to SpeechAudioStatus.READY), playback.paragraphAudioStatuses.value)
+        tts.failPreparation = true
+        assertTrue(playback.prepareParagraph(2, 1f, null).isFailure)
+        assertEquals(SpeechAudioStatus.ERROR, playback.paragraphAudioStatuses.value[2])
+        tts.failPreparation = false
+        assertTrue(playback.prepareParagraph(2, 1f, null).isSuccess)
+        assertEquals(SpeechAudioStatus.READY, playback.paragraphAudioStatuses.value[2])
+        assertTrue(playback.seekBy(-10000))
+        assertEquals(-10000L, tts.seekDelta)
+    }
+
+    @Test fun closingReaderReleasesLiveAudioOwnerButStoppingSelectionDoesNot() {
+        val tts = FakeTts()
+        val playback = ReaderPlayback(tts, listOf(SpokenParagraph("One.", 0)), Languages.ENGLISH, documentId = 42)
+        playback.stop()
+        assertEquals("reader:42", tts.currentAudioOwner)
+        playback.close()
+        assertNull(tts.currentAudioOwner)
+    }
+
+    @Test fun successfulPlaybackReplacesFailedPreparationAfterMovingToNextSection() = runTest {
+        val tts = FakeTts()
+        val playback = ReaderPlayback(tts, listOf(SpokenParagraph("One.", 0), SpokenParagraph("Two.", 8)), Languages.ENGLISH)
+        tts.failPreparation = true
+        playback.prepareParagraph(0, 1f, "voice-a")
+        assertEquals(SpeechAudioStatus.ERROR, playback.paragraphAudioStatuses.value[0])
+        playback.start(0, 1f, "voice-a")
+        playback.audioStatusChanged(SpeechAudioStatus.PREPARING)
+        playback.audioStatusChanged(SpeechAudioStatus.READY)
+        tts.done()
+        assertEquals(1, playback.currentParagraph.value)
+        assertEquals(SpeechAudioStatus.READY, playback.paragraphAudioStatuses.value[0])
+    }
+    @Test fun preparedSectionsAreRetainedForSameConfigurationAndInvalidatedByVoiceOrRate() = runTest {
+        val tts = FakeTts()
+        val playback = ReaderPlayback(tts, listOf(SpokenParagraph("One.", 0), SpokenParagraph("Two.", 8)), Languages.ENGLISH)
+        playback.prepareAll(1f, "voice-a")
+        playback.start(0, 1f, "voice-a")
+        assertEquals(2, playback.paragraphAudioStatuses.value.size)
+        val staleCompletion = tts.done
+        playback.configureAudio(1f, "voice-b")
+        assertTrue(playback.paragraphAudioStatuses.value.isEmpty())
+        staleCompletion()
+        playback.audioStatusChanged(SpeechAudioStatus.READY)
+        assertTrue(playback.paragraphAudioStatuses.value.isEmpty(), "Old-voice playback must not repopulate invalidated readiness")
+        playback.prepareAll(1f, "voice-b")
+        playback.startAt(8, 1.25f, "voice-b")
+        assertTrue(playback.paragraphAudioStatuses.value.isEmpty())
+        playback.prepareAll(1.25f, "voice-b")
+        assertEquals(2, playback.paragraphAudioStatuses.value.size)
+        playback.prepareParagraph(0, .75f, "voice-b")
+        assertEquals(mapOf(0 to SpeechAudioStatus.READY), playback.paragraphAudioStatuses.value)
+    }
+
 }

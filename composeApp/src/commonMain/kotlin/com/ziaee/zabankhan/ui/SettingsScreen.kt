@@ -1,10 +1,18 @@
 package com.ziaee.zabankhan.ui
 
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.Role
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.material.icons.Icons
@@ -102,11 +110,23 @@ import org.jetbrains.compose.resources.stringResource
             }
         }
         SettingsGroup(stringResource(Res.string.ed_settings_reading)) {
-            Text("${stringResource(Res.string.font_size)}: ${settings.readerFontSize}")
-            Slider(settings.readerFontSize.toFloat(), { vm.action { repository.setReaderFontSize(it.toInt()) } }, valueRange = 12f..40f, steps = 27, colors = SliderDefaults.colors(activeTickColor = Color.Transparent, inactiveTickColor = Color.Transparent))
+            Text(stringResource(Res.string.reading_background_title), style = MaterialTheme.typography.labelMedium)
+            ReadingColorGrid(ReadingBackground.entries, settings.readingBackground, ::backgroundSwatch,
+                { stringResource(it.labelResource()) }) { vm.action { repository.setReadingBackground(it.name) } }
+            Text(stringResource(Res.string.sync_highlight_color), style = MaterialTheme.typography.labelMedium)
+            ReadingColorGrid(HighlightColor.entries, settings.readingHighlightColor,
+                { highlightSwatch(it, settings.readingBackground in listOf("DARK", "BLACK")) },
+                { stringResource(it.labelResource()) }) { vm.action { repository.setReadingHighlightColor(it.name) } }
+            Choice(stringResource(Res.string.reading_font_scale_title), settings.readerFontScale,
+                FontScale.entries.map { it.name to stringResource(it.labelResource()) }) { vm.action { repository.setReaderFontScale(it) } }
             val preview = Languages.byCode(settings.learningLang.orEmpty())?.voicePreview.orEmpty()
-            if (preview.isNotBlank()) Surface(shape = MaterialTheme.shapes.medium, color = MaterialTheme.colorScheme.surface) {
-                Text(preview, Modifier.fillMaxWidth().padding(16.dp), maxLines = 1, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.bodyLarge.merge(contentStyle(preview)).copy(fontSize = settings.readerFontSize.sp, lineHeight = (settings.readerFontSize * 1.7).sp))
+            if (preview.isNotBlank()) {
+                val scale = FontScale.entries.firstOrNull { it.name == settings.readerFontScale }?.multiplier ?: 1f
+                val palette = readingPaletteFor(ReadingBackground.entries.firstOrNull { it.name == settings.readingBackground } ?: ReadingBackground.SEPIA,
+                    HighlightColor.entries.firstOrNull { it.name == settings.readingHighlightColor } ?: HighlightColor.YELLOW)
+                Surface(shape = MaterialTheme.shapes.medium, color = palette.background) {
+                    Text(preview, Modifier.fillMaxWidth().padding(16.dp), style = contentStyle(preview).copy(fontSize = (19 * scale).sp, lineHeight = (31 * scale).sp), color = palette.ink)
+                }
             }
         }
         SettingsGroup(stringResource(Res.string.ed_settings_speech)) {
@@ -184,5 +204,56 @@ import org.jetbrains.compose.resources.stringResource
     EditorialSectionHeader(title)
     EditorialCard(containerColor = MaterialTheme.colorScheme.surfaceVariant) {
         Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(16.dp), content = content)
+    }
+}
+
+private fun FontScale.labelResource(): org.jetbrains.compose.resources.StringResource = when (this) {
+    FontScale.SMALL -> Res.string.font_scale_small
+    FontScale.MEDIUM -> Res.string.font_scale_medium
+    FontScale.LARGE -> Res.string.font_scale_large
+    FontScale.XLARGE -> Res.string.font_scale_xlarge
+}
+private fun ReadingBackground.labelResource(): org.jetbrains.compose.resources.StringResource = when (this) {
+    ReadingBackground.WHITE -> Res.string.reading_background_white
+    ReadingBackground.SEPIA -> Res.string.reading_background_sepia
+    ReadingBackground.PAPER -> Res.string.reading_background_paper
+    ReadingBackground.SAND -> Res.string.reading_background_sand
+    ReadingBackground.GRAY -> Res.string.reading_background_gray
+    ReadingBackground.MINT -> Res.string.reading_background_mint
+    ReadingBackground.SAGE -> Res.string.reading_background_sage
+    ReadingBackground.BLUE_TINT -> Res.string.reading_background_blue
+    ReadingBackground.ROSE -> Res.string.reading_background_rose
+    ReadingBackground.DARK -> Res.string.reading_background_dark
+    ReadingBackground.BLACK -> Res.string.reading_background_black
+}
+private fun HighlightColor.labelResource(): org.jetbrains.compose.resources.StringResource = when (this) {
+    HighlightColor.YELLOW -> Res.string.highlight_yellow
+    HighlightColor.GREEN -> Res.string.highlight_green
+    HighlightColor.BLUE -> Res.string.highlight_blue
+    HighlightColor.PINK -> Res.string.highlight_pink
+    HighlightColor.ORANGE -> Res.string.highlight_orange
+    HighlightColor.PURPLE -> Res.string.highlight_purple
+    HighlightColor.TEAL -> Res.string.highlight_teal
+    HighlightColor.RED -> Res.string.highlight_red
+}
+
+
+@Composable
+private fun <T : Enum<T>> ReadingColorGrid(
+    entries: List<T>, selected: String, color: (T) -> Color,
+    label: @Composable (T) -> String, onSelect: (T) -> Unit
+) {
+    entries.chunked(6).forEach { rowEntries ->
+        Row(Modifier.fillMaxWidth().padding(vertical = 3.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            rowEntries.forEach { entry ->
+                val description = label(entry)
+                Box(
+                    Modifier.size(34.dp).clip(CircleShape).background(color(entry))
+                        .then(if (entry.name == selected) Modifier.border(3.dp, MaterialTheme.colorScheme.primary, CircleShape) else Modifier.border(1.dp, MaterialTheme.colorScheme.outline, CircleShape))
+                        .clickable { onSelect(entry) }
+                        .semantics { contentDescription = description; role = Role.RadioButton }
+                )
+            }
+        }
     }
 }

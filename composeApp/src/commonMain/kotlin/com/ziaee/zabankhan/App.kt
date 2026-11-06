@@ -97,10 +97,10 @@ data class AppOpenRequest(val text: String? = null, val review: Boolean = false,
                     composable("settings") { SettingsScreen(vm, prefs, { nav.navigate("statistics") }, { nav.navigate("grammar") }, { nav.navigate("exams") }) }
                     composable("add") { AddTextScreen(vm, prefs, { sharedText = ""; nav.popBackStack() }, { id -> sharedText = ""; nav.navigate("reader/$id") { popUpTo("add") { inclusive = true } } }, initialText = sharedText) }
                     composable("pdf/{id}", arguments = listOf(navArgument("id") { type = NavType.LongType })) {
-                        ReaderScreen(vm, prefs, requireNotNull(it.arguments?.read { getLong("id") })) { nav.popBackStack() }
+                        ReaderScreen(vm, prefs, requireNotNull(it.arguments?.read { getLong("id") }), onOpenVocab = { nav.navigate("words") }) { nav.popBackStack() }
                     }
                     composable("reader/{id}", arguments = listOf(navArgument("id") { type = NavType.LongType })) {
-                        ReaderScreen(vm, prefs, requireNotNull(it.arguments?.read { getLong("id") })) { nav.popBackStack() }
+                        ReaderScreen(vm, prefs, requireNotNull(it.arguments?.read { getLong("id") }), onOpenVocab = { nav.navigate("words") }) { nav.popBackStack() }
                     }
                 }
             }
