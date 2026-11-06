@@ -1,0 +1,13 @@
+<resources>
+    <string name="drive_heading">پشتیبان‌گیری در گوگل درایو</string>
+    <string name="drive_help">نسخه‌ها در پوشهٔ خصوصی برنامه در گوگل درایو ذخیره می‌شوند. پنج نسخهٔ جدید نگه داشته می‌شود.</string>
+    <string name="drive_connected">متصل به گوگل درایو</string>
+    <string name="drive_disconnected">گوگل درایو متصل نیست</string>
+    <string name="drive_connect">اتصال به گوگل درایو</string>
+    <string name="drive_upload">پشتیبان‌گیری در درایو</string>
+    <string name="drive_restore">بازیابی از درایو</string>
+    <string name="drive_disconnect">قطع اتصال</string>
+    <string name="drive_failed">درخواست انجام نشد. اتصال اینترنت و دسترسی گوگل درایو را بررسی کنید و دوباره تلاش کنید.</string>
+    <string name="drive_saved">نسخهٔ پشتیبان در گوگل درایو ذخیره شد.</string>
+    <string name="drive_empty">نسخهٔ پشتیبانی در درایو پیدا نشد.</string>
+</resources>

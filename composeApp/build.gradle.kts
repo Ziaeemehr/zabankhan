@@ -128,6 +128,8 @@ room {
 
 dependencies {
     listOf("kspAndroid", "kspIosArm64", "kspIosSimulatorArm64").forEach { add(it, libs.room.compiler) }
+    // Google sign-in for Drive backup ships only in the Play flavour; bazaar stays free of it (src/androidPlay vs src/androidBazaar).
+    add("playImplementation", "com.google.android.gms:play-services-auth:21.4.0")
 }
 
 // Android's SQLite AAR contains device JNI libraries. Unit tests need the host

@@ -156,4 +156,7 @@
     <string name="discover_hint">خبرهای تازه و مقاله‌های ساده برای افزودن به کتابخانه</string>
     <string name="grammar_hint">یادداشت‌های کوتاه گرامر فرانسه بر اساس سطح</string>
     <string name="tcf_hint">تمرین سؤال‌های شبیه آزمون TCF</string>
+    <string name="api_key_saved">•••• — کلید ذخیره شده</string>
+    <string name="api_key_remove">حذف کلید API</string>
+    <string name="api_key_storage">کلید به‌صورت امن در این دستگاه ذخیره می‌شود و در پشتیبان نیست. پس از بازیابی دوباره آن را وارد کنید.</string>
 </resources>

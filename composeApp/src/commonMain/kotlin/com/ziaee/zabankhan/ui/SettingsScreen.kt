@@ -70,7 +70,7 @@ import org.jetbrains.compose.resources.stringResource
     }
     val uri = LocalUriHandler.current
     var provider by remember(settings.llmProvider) { mutableStateOf(settings.llmProvider) }
-    var apiKey by remember(settings.llmApiKey) { mutableStateOf(settings.llmApiKey) }
+    var apiKey by remember(settings.llmApiKey) { mutableStateOf("") }
     var model by remember(settings.llmModel) { mutableStateOf(settings.llmModel) }
     var customUrl by remember(settings.llmProvider) { mutableStateOf(settings.llmProvider.takeIf { it.startsWith("https://") }.orEmpty()) }
     Page {
@@ -139,20 +139,25 @@ import org.jetbrains.compose.resources.stringResource
                 if (provider == LlmProvider.CUSTOM.name || provider.startsWith("https://")) {
                     OutlinedTextField(customUrl, { customUrl = it }, label = { Text(stringResource(Res.string.base_url)) }, modifier = Modifier.fillMaxWidth(), singleLine = true)
                 } else Text(preset?.baseUrl.orEmpty(), style = MaterialTheme.typography.bodySmall)
-                OutlinedTextField(apiKey, { apiKey = it }, label = { Text(stringResource(Res.string.api_key)) }, visualTransformation = PasswordVisualTransformation(), modifier = Modifier.fillMaxWidth(), singleLine = true)
+                OutlinedTextField(apiKey, { apiKey = it }, label = { Text(stringResource(Res.string.api_key)) }, placeholder = { if (settings.llmApiKey.isNotBlank()) Text(stringResource(Res.string.api_key_saved)) }, visualTransformation = PasswordVisualTransformation(), modifier = Modifier.fillMaxWidth(), singleLine = true)
                 OutlinedTextField(model, { model = it }, label = { Text(stringResource(Res.string.model)) }, modifier = Modifier.fillMaxWidth(), singleLine = true)
             }
             EditorialPrimaryButton(text = stringResource(Res.string.save), enabled = (provider != LlmProvider.CUSTOM.name && !provider.startsWith("https://")) || customUrl.startsWith("https://"), onClick = { vm.action {
-                // Shortcut: DataStore stores the key for Phase 1. Move to Keychain / EncryptedPrefs later.
-                repository.setLlm(if (provider == LlmProvider.CUSTOM.name || provider.startsWith("https://")) customUrl.trim().trimEnd('/') else provider, apiKey.trim(), model.trim())
+                repository.setLlm(if (provider == LlmProvider.CUSTOM.name || provider.startsWith("https://")) customUrl.trim().trimEnd('/') else provider, apiKey.trim().ifBlank { settings.llmApiKey }, model.trim())
+                apiKey = ""
             } })
+            if (settings.llmApiKey.isNotBlank()) TextButton(onClick = { vm.action {
+                repository.setLlm(settings.llmProvider, "", settings.llmModel)
+                apiKey = ""
+            } }) { Text(stringResource(Res.string.api_key_remove)) }
+            Text(stringResource(Res.string.api_key_storage), style = MaterialTheme.typography.bodySmall)
         }
         SettingsGroup(stringResource(Res.string.ed_settings_review)) {
             TextButton(onClick = progress) { Text(stringResource(Res.string.h2_progress)) }
             Text("${stringResource(Res.string.h2_daily_goal)}: ${settings.dailyGoalMinutes}")
-            Slider(settings.dailyGoalMinutes.toFloat(), { vm.action { repository.setDailyGoalMinutes(it.toInt()) } }, valueRange = 1f..120f, steps = 118)
+            Slider(settings.dailyGoalMinutes.toFloat(), { vm.action { repository.setDailyGoalMinutes(it.toInt()) } }, valueRange = 1f..120f, steps = 118, colors = SliderDefaults.colors(activeTickColor = Color.Transparent, inactiveTickColor = Color.Transparent))
             Text("${stringResource(Res.string.daily_new)}: ${settings.dailyNewCards}")
-            Slider(settings.dailyNewCards.toFloat(), { vm.action { repository.setDailyNewCards(it.toInt()) } }, valueRange = 0f..100f, steps = 99)
+            Slider(settings.dailyNewCards.toFloat(), { vm.action { repository.setDailyNewCards(it.toInt()) } }, valueRange = 0f..100f, steps = 99, colors = SliderDefaults.colors(activeTickColor = Color.Transparent, inactiveTickColor = Color.Transparent))
             val autoPronounceLabel = stringResource(Res.string.speech_auto_cards)
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                 Text(autoPronounceLabel, Modifier.weight(1f))

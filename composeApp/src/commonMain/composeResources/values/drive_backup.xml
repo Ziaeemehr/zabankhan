@@ -1,0 +1,13 @@
+<resources>
+    <string name="drive_heading">Google Drive backup</string>
+    <string name="drive_help">Backups use your private Google Drive app folder. The five newest backups are kept.</string>
+    <string name="drive_connected">Connected to Google Drive</string>
+    <string name="drive_disconnected">Google Drive is disconnected</string>
+    <string name="drive_connect">Connect Google Drive</string>
+    <string name="drive_upload">Back up to Drive now</string>
+    <string name="drive_restore">Restore from Drive</string>
+    <string name="drive_disconnect">Disconnect</string>
+    <string name="drive_failed">Could not complete the Drive request. Check your connection and Google Drive access, then try again.</string>
+    <string name="drive_saved">Backup saved to Google Drive.</string>
+    <string name="drive_empty">No Drive backups found.</string>
+</resources>

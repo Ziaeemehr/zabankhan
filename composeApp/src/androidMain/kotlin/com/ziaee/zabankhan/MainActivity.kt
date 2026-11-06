@@ -21,6 +21,7 @@ class ZabankhanApp : Application() {
         super.onCreate()
         com.ziaee.zabankhan.speech.initializeSpeech(this)
         com.ziaee.zabankhan.pdf.initializePdf(this)
+        initializeSecretStore(this)
         initializeBackup(this)
         BackupRuntime.onRestored = {
             container.close()

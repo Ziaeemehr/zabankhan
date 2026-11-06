@@ -156,4 +156,7 @@
     <string name="discover_hint">Fresh news and easy articles to add to your library</string>
     <string name="grammar_hint">Short French grammar notes by level</string>
     <string name="tcf_hint">Practise TCF-style questions</string>
+    <string name="api_key_saved">•••• — Key saved</string>
+    <string name="api_key_remove">Remove API key</string>
+    <string name="api_key_storage">Your key is stored securely on this device and excluded from backups. Re-enter it after restoring.</string>
 </resources>

@@ -24,3 +24,5 @@ xcodebuild -project iosApp.xcodeproj -scheme iosApp -configuration Release -dest
 Android debug packages have the `.debug` suffix. `bazaar` needs no installed Google Play services app; bundled ML Kit still brings Google support libraries and diagnostics (see store notes). Release builds are unsigned unless a signing properties file is supplied. Versions come from `APP_VERSION_NAME` and `APP_VERSION_CODE` in `gradle.properties`; regenerate the Xcode project after configuration changes.
 
 See [store preparation](docs/STORE.md) for signing, artifacts and submission steps, and the [privacy policy](PRIVACY.md) for online services and backups. No account or developer server is required.
+
+LLM API keys use device secure storage, are excluded from backups, and must be re-entered after restoring.

@@ -156,4 +156,7 @@
     <string name="discover_hint">Actualités récentes et articles faciles à ajouter à votre bibliothèque</string>
     <string name="grammar_hint">Courtes notes de grammaire par niveau</string>
     <string name="tcf_hint">Entraînez-vous aux questions de type TCF</string>
+    <string name="api_key_saved">•••• — Clé enregistrée</string>
+    <string name="api_key_remove">Supprimer la clé API</string>
+    <string name="api_key_storage">Votre clé est stockée de façon sécurisée sur cet appareil et exclue des sauvegardes. Saisissez-la à nouveau après une restauration.</string>
 </resources>

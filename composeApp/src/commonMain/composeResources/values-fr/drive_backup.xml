@@ -1,0 +1,13 @@
+<resources>
+    <string name="drive_heading">Sauvegarde Google Drive</string>
+    <string name="drive_help">Les sauvegardes utilisent le dossier privé de l’application dans Google Drive. Les cinq plus récentes sont conservées.</string>
+    <string name="drive_connected">Connecté à Google Drive</string>
+    <string name="drive_disconnected">Google Drive est déconnecté</string>
+    <string name="drive_connect">Connecter Google Drive</string>
+    <string name="drive_upload">Sauvegarder sur Drive</string>
+    <string name="drive_restore">Restaurer depuis Drive</string>
+    <string name="drive_disconnect">Déconnecter</string>
+    <string name="drive_failed">Impossible de terminer la demande. Vérifiez votre connexion et l’accès à Google Drive, puis réessayez.</string>
+    <string name="drive_saved">Sauvegarde enregistrée sur Google Drive.</string>
+    <string name="drive_empty">Aucune sauvegarde sur Drive.</string>
+</resources>

@@ -10,7 +10,11 @@ import androidx.datastore.preferences.core.stringPreferencesKey
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.onStart
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import okio.Path.Companion.toPath
 
 const val PREFS_FILE = "zabankhan.preferences_pb"
@@ -43,8 +47,21 @@ data class AppSettings(
     val llmModel: String = "",
 )
 
-class SettingsRepository(private val store: DataStore<Preferences>, private val scope: CoroutineScope? = null) {
-    suspend fun closeForRestore() { scope?.coroutineContext?.get(Job)?.cancelAndJoin() }
+class SettingsRepository(private val store: DataStore<Preferences>, private val scope: CoroutineScope? = null, private val secrets: SecretStore = createSecretStore()) {
+    suspend fun closeForRestore() {
+        secrets.remove(LLM_API_KEY)
+        scope?.coroutineContext?.get(Job)?.cancelAndJoin()
+    }
+    private val secretMutex = Mutex()
+    private val secretRevision = MutableStateFlow(0)
+
+    private suspend fun migrateSecret() = secretMutex.withLock {
+        store.edit { prefs ->
+            val legacy = prefs[K.llmKey]
+            if (!legacy.isNullOrBlank() && secrets.get(LLM_API_KEY) == null) secrets.set(LLM_API_KEY, legacy)
+            prefs.remove(K.llmKey)
+        }
+    }
     private object K {
         val lang = stringPreferencesKey("learning_lang")
         val langs = stringPreferencesKey("learning_langs")
@@ -66,7 +83,7 @@ class SettingsRepository(private val store: DataStore<Preferences>, private val 
         val llmModel = stringPreferencesKey("llm_model")
     }
 
-    val settings: Flow<AppSettings> = store.data.map { p ->
+    val settings: Flow<AppSettings> = store.data.onStart { migrateSecret() }.combine(secretRevision) { p, _ ->
         val allowed = Languages.learnable.map { it.code }.toSet()
         val langs = p[K.langs]?.split(',')?.filter { it in allowed }?.distinct().orEmpty()
         val active = p[K.lang]?.takeIf { it in allowed } ?: langs.firstOrNull()
@@ -89,13 +106,17 @@ class SettingsRepository(private val store: DataStore<Preferences>, private val 
             reminderHour = (p[K.reminderHour] ?: 19).coerceIn(0, 23),
             reminderMinute = (p[K.reminderMinute] ?: 0).coerceIn(0, 59),
             llmProvider = p[K.llmProvider].orEmpty(),
-            llmApiKey = p[K.llmKey].orEmpty(),
+            // A Keychain/Keystore failure must not take the whole settings flow (and app launch) down.
+            llmApiKey = runCatching { secrets.get(LLM_API_KEY) }.getOrNull().orEmpty(),
             llmModel = p[K.llmModel].orEmpty(),
         )
     }
 
     /** Persist defaults before a file-based backup, even on a fresh installation. */
-    suspend fun persistForBackup() = store.edit { if (it[K.theme] == null) it[K.theme] = "SYSTEM" }
+    suspend fun persistForBackup() {
+        migrateSecret()
+        store.edit { if (it[K.theme] == null) it[K.theme] = "SYSTEM" }
+    }
 
     suspend fun current(): AppSettings = settings.first()
 
@@ -138,7 +159,13 @@ class SettingsRepository(private val store: DataStore<Preferences>, private val 
         val voices = runCatching { kotlinx.serialization.json.Json.decodeFromString<Map<String, String>>(it[K.voices] ?: "{}") }.getOrDefault(emptyMap())
         it[K.voices] = kotlinx.serialization.json.Json.encodeToString(if (id == null) voices - lang else voices + (lang to id))
     }
-    suspend fun setLlm(provider: String, apiKey: String, model: String) = store.edit {
-        it[K.llmProvider] = provider; it[K.llmKey] = apiKey; it[K.llmModel] = model
+    suspend fun setLlm(provider: String, apiKey: String, model: String) = secretMutex.withLock {
+        if (apiKey.isBlank()) secrets.remove(LLM_API_KEY) else secrets.set(LLM_API_KEY, apiKey)
+        store.edit {
+            it.remove(K.llmKey)
+            it[K.llmProvider] = provider
+            it[K.llmModel] = model
+        }
+        secretRevision.value += 1
     }
 }

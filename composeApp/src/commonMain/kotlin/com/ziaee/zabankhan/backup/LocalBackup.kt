@@ -1,5 +1,7 @@
 package com.ziaee.zabankhan.backup
 
+import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.room.useWriterConnection
 import androidx.room.useReaderConnection
 import androidx.sqlite.driver.bundled.BundledSQLiteDriver
@@ -161,7 +163,10 @@ suspend fun restoreLocalBackup(container: AppContainer, path: String) = backupMu
         // the current preferences; use a separate scope and stop its file actor first.
         val stagedPrefsJob = SupervisorJob()
         try {
-            createPrefsStore((stage / PREFS_FILE).toString(), CoroutineScope(stagedPrefsJob + Dispatchers.IO)).data.first()
+            createPrefsStore((stage / PREFS_FILE).toString(), CoroutineScope(stagedPrefsJob + Dispatchers.IO)).edit {
+                // Older archives included this credential; never restore it.
+                it.remove(stringPreferencesKey("llm_api_key"))
+            }
         } finally { stagedPrefsJob.cancelAndJoin() }
         closed = true
         container.database.close()
@@ -220,4 +225,3 @@ suspend fun automaticBackupIfDue(container: AppContainer) {
     val now = Clock.System.now().toEpochMilliseconds()
     if (last == null || now - last >= 86_400_000L) createLocalBackup(container, automatic = true)
 }
-// Shortcut: Google Drive backup is deferred; local ZIP exports can be saved to Drive via its share target.

@@ -17,6 +17,7 @@
 		6B2031D9196667F65FD358E5 /* InfoPlist.strings in Resources */ = {isa = PBXBuildFile; fileRef = 37A6BA4C5AAF06904D9C889E /* InfoPlist.strings */; };
 		A7769E697965C9AF2364ADAF /* ShareViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5537E2416334238BF05E5F45 /* ShareViewController.swift */; };
 		C05AD703171407FA5ABF04D3 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 60E5AC2CC31C23F1D9AE89EA /* PrivacyInfo.xcprivacy */; };
+		FBDBE7C9912960452EAE9FBA /* DriveAuthorization.swift in Sources */ = {isa = PBXBuildFile; fileRef = AD43C482A889959F866E63FF /* DriveAuthorization.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -54,6 +55,7 @@
 		86038AE1032E284E79B32AD6 /* iosApp.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = iosApp.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		A200F24526F2E89B50E53BA7 /* en */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = en; path = en.lproj/InfoPlist.strings; sourceTree = "<group>"; };
 		A569B274417A1CE9DC204C64 /* fa */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = fa; path = fa.lproj/Localizable.strings; sourceTree = "<group>"; };
+		AD43C482A889959F866E63FF /* DriveAuthorization.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DriveAuthorization.swift; sourceTree = "<group>"; };
 		AE1222EFB13B21F739EC9BD8 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		C117AD187833E2513BD2F553 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		C49B0B02429FBBC9F867DDE1 /* iosApp.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = iosApp.entitlements; sourceTree = "<group>"; };
@@ -71,6 +73,7 @@
 			children = (
 				F543015C899423D4B01CEB2E /* Assets.xcassets */,
 				CE8509E5A49E4A5CAAEB3ADB /* ContentView.swift */,
+				AD43C482A889959F866E63FF /* DriveAuthorization.swift */,
 				C117AD187833E2513BD2F553 /* Info.plist */,
 				C49B0B02429FBBC9F867DDE1 /* iosApp.entitlements */,
 				668CECA83ACC03A83C85A623 /* iOSApp.swift */,
@@ -253,6 +256,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				56B0305B5D3847FC6B326502 /* ContentView.swift in Sources */,
+				FBDBE7C9912960452EAE9FBA /* DriveAuthorization.swift in Sources */,
 				307C2654CD5972A25FB7FD87 /* iOSApp.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -475,6 +479,8 @@
 				PRODUCT_NAME = Zabankhan;
 				SDKROOT = iphoneos;
 				TARGETED_DEVICE_FAMILY = "1,2";
+				ZABANKHAN_GOOGLE_CLIENT_ID = "";
+				ZABANKHAN_GOOGLE_REDIRECT_SCHEME = "";
 			};
 			name = Debug;
 		};
@@ -528,6 +534,8 @@
 				PRODUCT_NAME = Zabankhan;
 				SDKROOT = iphoneos;
 				TARGETED_DEVICE_FAMILY = "1,2";
+				ZABANKHAN_GOOGLE_CLIENT_ID = "";
+				ZABANKHAN_GOOGLE_REDIRECT_SCHEME = "";
 			};
 			name = Release;
 		};

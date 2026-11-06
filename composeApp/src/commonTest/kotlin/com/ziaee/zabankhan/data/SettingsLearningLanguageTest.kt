@@ -20,7 +20,7 @@ class SettingsLearningLanguageTest {
             val repository = SettingsRepository(MemoryStore(preferencesOf(
                 stringPreferencesKey("learning_lang") to learning,
                 stringPreferencesKey("meaning_lang") to meaning,
-            )))
+            )), secrets = FakeSecretStore())
             assertEquals(expected, repository.current().meaningLang)
         }
     }
@@ -35,7 +35,7 @@ class SettingsLearningLanguageTest {
         val repository = SettingsRepository(MemoryStore(preferencesOf(
             stringPreferencesKey("learning_lang") to Languages.PERSIAN.code,
             stringPreferencesKey("learning_langs") to "${Languages.PERSIAN.code},${Languages.ENGLISH.code}",
-        )))
+        )), secrets = FakeSecretStore())
         assertEquals(Languages.ENGLISH.code, repository.current().learningLang)
         assertEquals(listOf(Languages.ENGLISH.code), repository.current().learningLangs)
     }
@@ -44,13 +44,13 @@ class SettingsLearningLanguageTest {
         val repository = SettingsRepository(MemoryStore(preferencesOf(
             stringPreferencesKey("learning_lang") to Languages.PERSIAN.code,
             stringPreferencesKey("learning_langs") to Languages.PERSIAN.code,
-        )))
+        )), secrets = FakeSecretStore())
         assertNull(repository.current().learningLang)
         assertTrue(repository.current().learningLangs.isEmpty())
     }
 
     @Test fun persianCannotBeAddedOrActivatedAsLearningLanguage() = runTest {
-        val repository = SettingsRepository(MemoryStore())
+        val repository = SettingsRepository(MemoryStore(), secrets = FakeSecretStore())
         assertFailsWith<IllegalArgumentException> { repository.addLearningLang(Languages.PERSIAN.code) }
         assertFailsWith<IllegalArgumentException> { repository.setLearningLang(Languages.PERSIAN.code) }
         repository.addLearningLang(Languages.ENGLISH.code)

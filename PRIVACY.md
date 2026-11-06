@@ -1,12 +1,12 @@
 # Privacy Policy
 
-_Last updated: 5 November 2026_
+_Last updated: 6 November 2026_
 
 Zabankhan is an Android and iOS app for learning languages through reading, listening and review. It has no accounts, ads, app-level analytics, crash reporting or developer-operated server. Android’s bundled ML Kit SDK has its own diagnostics and usage reporting, described below. The developer does not receive your study data.
 
 ## What the app stores
 
-Your imported texts, PDFs, videos and subtitles, saved vocabulary and meanings, highlights, reading positions, review history, study statistics, pronunciation results and settings stay in the app's storage. Translations and synthesized audio may be cached locally. An optional LLM API key is stored with settings. Uninstalling removes app storage; exported files and device backups may remain.
+Your imported texts, PDFs, videos and subtitles, saved vocabulary and meanings, highlights, reading positions, review history, study statistics, pronunciation results and settings stay in the app's storage. Translations and synthesized audio may be cached locally. An optional LLM API key is stored separately using Android Keystore encryption or the iOS Keychain, bound to this device. Uninstalling removes app storage; exported files and device backups may remain.
 
 ## When the app goes online
 
@@ -29,11 +29,11 @@ PDF rendering and OCR use local libraries (Android PDFBox/ML Kit bundled recogni
 
 ## Backups
 
-Local ZIP backups contain the database (texts, vocabulary, history and statistics), settings **including any saved LLM API key**, imported PDFs and videos/subtitles. They are not encrypted by the app. Keep them private. Automatic local snapshots retain the five newest successful backups; exported copies remain where you put them.
+Local ZIP backups contain the database (texts, vocabulary, history and statistics), settings **excluding the LLM API key**, imported PDFs and videos/subtitles. After restoring, re-enter your API key. They are not encrypted by the app. Keep them private. Automatic local snapshots retain the five newest successful backups; exported copies remain where you put them.
 
-Android's system backup is enabled for eligible app data. Cache/no-backup directories are excluded by Android; our rules also exclude the preferences file containing the API key, automatic backup archives and restore staging. Android device backup is managed by the operating system and your chosen backup provider.
+Android's system backup is enabled for eligible app data. Cache/no-backup directories are excluded by Android; our rules also exclude the preferences file and the separate encrypted credential preferences, automatic backup archives and restore staging. Android device backup is managed by the operating system and your chosen backup provider.
 
-On iOS you can share a backup to Files, including iCloud Drive if you choose. The current app has no Google Drive sign-in or direct cloud backup integration, in either Android flavor. Files you export are managed by the destination service; removing the app does not remove those copies. The operating system may also back up app data according to your device settings.
+On iOS you can share a backup to Files, including iCloud Drive if you choose. Optional direct Google Drive backup is available in the Android Play flavor and configured iOS builds; it is unavailable in the Bazaar flavor. After you connect Google Drive, manual backup sends the same unencrypted ZIP to your own hidden Google Drive app folder. Only the drive.appdata permission is requested: the app cannot browse your other Drive files. The developer cannot access these backups. Google receives the backup contents and normal network information under its own privacy policy. The five newest app backups are retained; older app backups are deleted after a successful upload. Restore downloads a selected backup and asks for confirmation before replacing local data. Disconnect revokes authorization but does not delete existing Drive backups; you can manage the app’s hidden data through Google Drive settings. iOS stores its refresh credential in the device Keychain; this may survive uninstall. Files you export are managed by the destination service; removing the app does not remove those copies. The operating system may also back up app data according to your device settings.
 
 ## Permissions
 
