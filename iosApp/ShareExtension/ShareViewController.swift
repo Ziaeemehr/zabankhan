@@ -2,6 +2,7 @@ import UIKit
 import UniformTypeIdentifiers
 
 final class ShareViewController: UIViewController {
+    static let limit = 100_000
     private let message = UILabel()
     private let done = UIButton(type: .system)
 
@@ -52,11 +53,12 @@ final class ShareViewController: UIViewController {
                     if let url = value as? URL {
                         text = url.absoluteString
                     } else if let string = value as? String {
-                        text = string
+                        text = String(string.prefix(ShareViewController.limit))
                     } else if let attributed = value as? NSAttributedString {
-                        text = attributed.string
+                        text = String(attributed.string.prefix(ShareViewController.limit))
                     } else if let data = value as? Data {
-                        text = String(data: data, encoding: .utf8)
+                        // Decode only a bounded prefix; extensions have a small memory budget.
+                        text = String(decoding: data.prefix(ShareViewController.limit * 4), as: UTF8.self)
                     }
                 }
                 guard var payload = text, !payload.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
@@ -66,7 +68,7 @@ final class ShareViewController: UIViewController {
                 if type == UTType.url.identifier, let title = title,
                    !title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
                    title != payload {
-                    payload += "\n" + title
+                    payload += "\n" + title.prefix(1_000)
                 }
                 guard let defaults = UserDefaults(suiteName: "group.com.ziaee.zabankhan") else {
                     self.showResult(saved: false)
@@ -74,9 +76,9 @@ final class ShareViewController: UIViewController {
                 }
                 // Several shares before the app opens are kept together instead of overwriting each other.
                 if let earlier = defaults.string(forKey: "pendingShare"), !earlier.isEmpty {
-                    payload = earlier + "\n\n" + payload
+                    payload = String(earlier.prefix(ShareViewController.limit)) + "\n\n" + payload
                 }
-                defaults.set(String(payload.prefix(100_000)), forKey: "pendingShare")
+                defaults.set(String(payload.prefix(ShareViewController.limit)), forKey: "pendingShare")
                 self.showResult(saved: true)
             }
         }

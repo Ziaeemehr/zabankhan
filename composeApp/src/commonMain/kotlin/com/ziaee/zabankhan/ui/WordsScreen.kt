@@ -52,7 +52,7 @@ import org.jetbrains.compose.resources.stringResource
             }, onLongClick = { selected = selected + word.id }), colors = CardDefaults.cardColors(containerColor = if (word.id in selected) MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.surfaceContainer)) {
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text(word.word, Modifier.fillMaxWidth(), style = MaterialTheme.typography.titleLarge.merge(contentStyle(word.word)))
-                    Text(word.meaning.orEmpty(), style = contentStyle(word.meaning.orEmpty()))
+                    Text(word.meaning.orEmpty(), modifier = Modifier.fillMaxWidth(), style = contentStyle(word.meaning.orEmpty()))
                     Text(stringResource(Res.string.box_label, word.leitnerBox), color = boxColor(word.leitnerBox))
                 }
             }

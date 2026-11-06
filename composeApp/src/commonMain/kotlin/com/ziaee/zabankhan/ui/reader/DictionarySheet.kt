@@ -49,7 +49,7 @@ import org.jetbrains.compose.resources.stringResource
         loading = false
     }
     ModalBottomSheet(onDismissRequest = dismiss) {
-        Column(Modifier.fillMaxWidth().navigationBarsPadding().verticalScroll(rememberScrollState()).padding(24.dp).imePadding(), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+        Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).navigationBarsPadding().padding(24.dp).imePadding(), verticalArrangement = Arrangement.spacedBy(16.dp)) {
             Text(selection.word, Modifier.fillMaxWidth(), style = MaterialTheme.typography.headlineSmall.merge(contentStyle(selection.word)))
             FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 SpeakerButton(selection.word, text.lang, settings)
@@ -63,22 +63,22 @@ import org.jetbrains.compose.resources.stringResource
             error?.let { TranslationError(it); TextButton(onClick = { attempt++ }) { Text(stringResource(Res.string.retry)) } }
             if (!loading && error == null && lookup?.primary.isNullOrBlank() && lookup?.senses.isNullOrEmpty()) Text(stringResource(Res.string.no_meaning))
             lookup?.takeIf { it.primary.isNotBlank() || it.senses.isNotEmpty() }?.let { value ->
-                Text(value.primary, style = MaterialTheme.typography.titleLarge.merge(contentStyle(value.primary)))
+                Text(value.primary, modifier = Modifier.fillMaxWidth(), style = MaterialTheme.typography.titleLarge.merge(contentStyle(value.primary)))
                 value.senses.forEach { sense ->
                     // pos and meanings on separate lines: one mixed-direction line renders "x :noun".
-                    if (sense.pos.isNotBlank()) Text(sense.pos, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    Text(sense.meanings.joinToString("، "), style = contentStyle(sense.meanings.joinToString()))
+                    if (sense.pos.isNotBlank()) Text(partOfSpeechResource(sense.pos)?.let { stringResource(it) } ?: sense.pos, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(sense.meanings.joinToString("، "), modifier = Modifier.fillMaxWidth(), style = contentStyle(sense.meanings.joinToString()))
                 }
             }
             if (!selection.sentenceActions) {
-                Text(selection.sentence, style = contentStyle(selection.sentence))
+                Text(selection.sentence, modifier = Modifier.fillMaxWidth(), style = contentStyle(selection.sentence))
                 TextButton(enabled = !sentenceLoading, onClick = { scope.launch {
                     sentenceLoading = true; sentenceError = null
                     try { val result = repository.translateText(selection.sentence, text.lang, target); translated = result.getOrNull(); sentenceError = result.exceptionOrNull() }
                     finally { sentenceLoading = false }
                 } }) { Text(stringResource(Res.string.translate_sentence)) }
                 if (sentenceLoading) CircularProgressIndicator()
-                translated?.let { Text(it, style = contentStyle(it)) }
+                translated?.let { Text(it, modifier = Modifier.fillMaxWidth(), style = contentStyle(it)) }
                 sentenceError?.let { TranslationError(it) }
             }
             saved?.let { Text(stringResource(Res.string.box_label, it.leitnerBox), color = boxColor(it.leitnerBox)) }

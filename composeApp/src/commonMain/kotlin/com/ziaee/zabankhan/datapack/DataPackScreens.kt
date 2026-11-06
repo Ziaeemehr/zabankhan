@@ -51,14 +51,14 @@ fun searchGrammarNotes(notes: List<GrammarNote>, query: String, level: String = 
                 items(searchGrammarNotes(notes, query, level, group), key = { it.id }) { entry ->
                     ElevatedCard(onClick = { selected = entry }, modifier = Modifier.fillMaxWidth()) {
                         Column(Modifier.padding(16.dp)) {
-                            Text(entry.titleFr, style = contentStyle(entry.titleFr)); Text(entry.titleFa, style = contentStyle(entry.titleFa))
+                            Text(entry.titleFr, modifier = Modifier.fillMaxWidth(), style = contentStyle(entry.titleFr)); Text(entry.titleFa, modifier = Modifier.fillMaxWidth(), style = contentStyle(entry.titleFa))
                             Text(entry.level, style = MaterialTheme.typography.labelSmall)
                         }
                     }
                 }
             }
         } else LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            item { Heading(note.titleFr); Text(note.titleFa, style = contentStyle(note.titleFa)); Text(note.level) }
+            item { Heading(note.titleFr); Text(note.titleFa, modifier = Modifier.fillMaxWidth(), style = contentStyle(note.titleFa)); Text(note.level) }
             items(note.blocks) { block -> GrammarBlockView(block) }
         }
     }

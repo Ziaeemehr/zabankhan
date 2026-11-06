@@ -70,16 +70,16 @@ private data class Preview(val title: String, val snippet: String, val url: Stri
         headlines.forEach { item ->
             ElevatedCard(onClick = { source?.let { preview = Preview(item.title, item.snippet, item.link, it) } }, modifier = Modifier.fillMaxWidth()) {
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text(item.title, style = MaterialTheme.typography.titleMedium.merge(contentStyle(item.title)))
-                    Text(item.snippet, maxLines = 3, style = contentStyle(item.snippet))
+                    Text(item.title, modifier = Modifier.fillMaxWidth(), style = MaterialTheme.typography.titleMedium.merge(contentStyle(item.title)))
+                    Text(item.snippet, modifier = Modifier.fillMaxWidth(), maxLines = 3, style = contentStyle(item.snippet))
                 }
             }
         }
         results.forEach { item ->
             ElevatedCard(onClick = { (source as? WikiSource)?.let { preview = Preview(item.title, item.snippet, it.articleUrl(item.title), it, item.pageId) } }, modifier = Modifier.fillMaxWidth()) {
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text(item.title, style = MaterialTheme.typography.titleMedium.merge(contentStyle(item.title)))
-                    Text(item.snippet, maxLines = 3, style = contentStyle(item.snippet))
+                    Text(item.title, modifier = Modifier.fillMaxWidth(), style = MaterialTheme.typography.titleMedium.merge(contentStyle(item.title)))
+                    Text(item.snippet, modifier = Modifier.fillMaxWidth(), maxLines = 3, style = contentStyle(item.snippet))
                     Text(stringResource(Res.string.discover_word_count, item.wordCount), style = MaterialTheme.typography.labelSmall)
                 }
             }
@@ -88,9 +88,9 @@ private data class Preview(val title: String, val snippet: String, val url: Stri
     preview?.let { item ->
         ModalBottomSheet(onDismissRequest = { if (!busy) preview = null }) {
             Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                Text(item.title, style = MaterialTheme.typography.titleLarge.merge(contentStyle(item.title)))
+                Text(item.title, modifier = Modifier.fillMaxWidth(), style = MaterialTheme.typography.titleLarge.merge(contentStyle(item.title)))
                 Text(item.source.name, style = MaterialTheme.typography.labelMedium)
-                Text(item.snippet, style = contentStyle(item.snippet))
+                Text(item.snippet, modifier = Modifier.fillMaxWidth(), style = contentStyle(item.snippet))
                 Text(stringResource(Res.string.discover_preview_hint), style = MaterialTheme.typography.bodySmall)
                 if (error) Text(stringResource(Res.string.discover_error), color = MaterialTheme.colorScheme.error)
                 Button(enabled = !busy, onClick = {

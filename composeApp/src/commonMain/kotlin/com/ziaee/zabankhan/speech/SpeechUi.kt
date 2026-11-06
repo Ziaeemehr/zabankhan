@@ -73,14 +73,14 @@ fun Tts.pronounce(text: String, lang: String, settings: AppSettings, done: () ->
     if (!summary) ModalBottomSheet(onDismissRequest = ::finish) {
         Column(Modifier.fillMaxWidth().navigationBarsPadding().verticalScroll(rememberScrollState()).padding(24.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
             Heading(stringResource(Res.string.speech_shadow))
-            Text(sentence, style = MaterialTheme.typography.titleLarge.merge(contentStyle(sentence)))
+            Text(sentence, modifier = Modifier.fillMaxWidth(), style = MaterialTheme.typography.titleLarge.merge(contentStyle(sentence)))
             val result = phase as? ShadowPhase.Result
             if (result != null) {
                 val matchedColor = MaterialTheme.colorScheme.primary
                 val missedColor = MaterialTheme.colorScheme.error
                 Text(buildAnnotatedString { result.alignment.words.forEach { word ->
                     pushStyle(SpanStyle(color = if (word.matched) matchedColor else missedColor)); append(word.word); pop(); append(" ")
-                } }, style = contentStyle(sentence))
+                } }, modifier = Modifier.fillMaxWidth(), style = contentStyle(sentence))
                 val score = if (result.alignment.total == 0) 0 else (result.alignment.matched * 100f / result.alignment.total).roundToInt()
                 Text(stringResource(Res.string.speech_score, score))
                 result.pace?.let { Text(stringResource(when (it.rating) { PaceRating.FAST -> Res.string.speech_fast; PaceRating.SLOW -> Res.string.speech_slow; PaceRating.GOOD -> Res.string.speech_good })) }

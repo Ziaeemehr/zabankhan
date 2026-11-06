@@ -81,8 +81,11 @@ private data class PdfRange(val page: Int, val first: Int, val last: Int, val wo
         savedInk?.firstOrNull { it.page == index }?.let { decodeInk(it.strokes) }.orEmpty()
     // ViewModel writes survive leaving the reader; the mutex preserves edit order.
     val inkWriteLock = remember(text.id) { Mutex() }
+    // Undo follows the page last drawn on, which is not always the centre page.
+    var lastInkPage by remember(text.id) { mutableStateOf<Int?>(null) }
     fun saveInk(index: Int, strokes: List<InkStroke>) {
         ink[index] = strokes
+        lastInkPage = index
         vm.action {
             inkWriteLock.withLock {
                 if (strokes.isEmpty()) inkDao.delete(text.id, index)
@@ -126,7 +129,8 @@ private data class PdfRange(val page: Int, val first: Int, val last: Int, val wo
             }
             FilterChip(selected = eraser, onClick = { eraser = !eraser }, label = { Text(stringResource(Res.string.pdf_pen_eraser)) })
             FilterChip(selected = fingerInk, onClick = { fingerInk = !fingerInk }, label = { Text(stringResource(Res.string.pdf_pen_finger)) })
-            TextButton(enabled = pageInk(page).isNotEmpty(), onClick = { saveInk(page, pageInk(page).dropLast(1)) }) { Text(stringResource(Res.string.pdf_pen_undo)) }
+            val undoPage = lastInkPage ?: page
+            TextButton(enabled = pageInk(undoPage).isNotEmpty(), onClick = { saveInk(undoPage, pageInk(undoPage).dropLast(1)) }) { Text(stringResource(Res.string.pdf_pen_undo)) }
             TextButton(enabled = pageInk(page).isNotEmpty(), onClick = { saveInk(page, emptyList()) }) { Text(stringResource(Res.string.pdf_pen_clear)) }
         }
         if (recognizing) LinearProgressIndicator(Modifier.fillMaxWidth())
@@ -186,7 +190,7 @@ private data class PdfRange(val page: Int, val first: Int, val last: Int, val wo
         ModalBottomSheet(onDismissRequest = { areaText = null }) {
             Column(Modifier.verticalScroll(rememberScrollState()).padding(24.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Text(stringResource(Res.string.pdf_area_text), style = MaterialTheme.typography.titleLarge)
-                Text(recognized.ifBlank { stringResource(Res.string.pdf_empty) }, style = contentStyle(recognized))
+                Text(recognized.ifBlank { stringResource(Res.string.pdf_empty) }, modifier = Modifier.fillMaxWidth(), style = contentStyle(recognized))
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     TextButton(enabled = recognized.isNotBlank(), onClick = { areaText = null; selection = ReaderSelection(recognized, recognized, 0..0, true) }) { Text(stringResource(Res.string.pdf_translate)) }
                     TextButton(enabled = recognized.isNotBlank(), onClick = { vm.action {

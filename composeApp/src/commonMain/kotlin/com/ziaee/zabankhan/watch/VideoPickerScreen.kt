@@ -59,7 +59,7 @@ fun watchRoute(videoId: String = "", path: String = "", subs: String = "") =
         if (recent.isNotEmpty()) item { Heading(stringResource(Res.string.watch_history)) }
         items(recent) { video ->
             ElevatedCard(onClick = { open(video.videoId, video.path.orEmpty(), video.subs.orEmpty()) }, modifier = Modifier.fillMaxWidth()) {
-                Column(Modifier.padding(16.dp)) { Text(video.title, style = contentStyle(video.title)); Text(videoTime(video.positionMs), style = MaterialTheme.typography.labelSmall) }
+                Column(Modifier.padding(16.dp)) { Text(video.title, modifier = Modifier.fillMaxWidth(), style = contentStyle(video.title)); Text(videoTime(video.positionMs), style = MaterialTheme.typography.labelSmall) }
             }
         }
         item { Heading(stringResource(Res.string.watch_channels)) }
@@ -68,7 +68,7 @@ fun watchRoute(videoId: String = "", path: String = "", subs: String = "") =
         if (failed) item { Text(stringResource(Res.string.watch_feed_error)); TextButton(onClick = { retry++ }) { Text(stringResource(Res.string.retry)) } }
         items(videos, key = { it.videoId }) { video ->
             ElevatedCard(onClick = { open(video.videoId, "", "") }, modifier = Modifier.fillMaxWidth()) {
-                Column(Modifier.padding(16.dp)) { Text(video.title, style = contentStyle(video.title)); Text(video.published.take(10), style = MaterialTheme.typography.labelSmall) }
+                Column(Modifier.padding(16.dp)) { Text(video.title, modifier = Modifier.fillMaxWidth(), style = contentStyle(video.title)); Text(video.published.take(10), style = MaterialTheme.typography.labelSmall) }
             }
         }
     }

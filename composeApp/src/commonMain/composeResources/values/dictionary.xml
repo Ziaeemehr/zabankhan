@@ -1,0 +1,17 @@
+<resources>
+    <string name="pos_noun">Noun</string>
+    <string name="pos_verb">Verb</string>
+    <string name="pos_adjective">Adjective</string>
+    <string name="pos_adverb">Adverb</string>
+    <string name="pos_pronoun">Pronoun</string>
+    <string name="pos_preposition">Preposition</string>
+    <string name="pos_conjunction">Conjunction</string>
+    <string name="pos_interjection">Interjection</string>
+    <string name="pos_article">Article</string>
+    <string name="pos_abbreviation">Abbreviation</string>
+    <string name="pos_phrase">Phrase</string>
+    <string name="pos_prefix">Prefix</string>
+    <string name="pos_suffix">Suffix</string>
+    <string name="pos_particle">Particle</string>
+    <string name="pos_numeral">Numeral</string>
+</resources>

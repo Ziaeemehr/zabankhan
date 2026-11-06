@@ -1,0 +1,17 @@
+<resources>
+    <string name="pos_noun">اسم</string>
+    <string name="pos_verb">فعل</string>
+    <string name="pos_adjective">صفت</string>
+    <string name="pos_adverb">قید</string>
+    <string name="pos_pronoun">ضمیر</string>
+    <string name="pos_preposition">حرف اضافه</string>
+    <string name="pos_conjunction">حرف ربط</string>
+    <string name="pos_interjection">صوت</string>
+    <string name="pos_article">حرف تعریف</string>
+    <string name="pos_abbreviation">کوته‌نوشت</string>
+    <string name="pos_phrase">عبارت</string>
+    <string name="pos_prefix">پیشوند</string>
+    <string name="pos_suffix">پسوند</string>
+    <string name="pos_particle">ادات</string>
+    <string name="pos_numeral">عدد</string>
+</resources>
