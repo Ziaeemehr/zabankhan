@@ -90,7 +90,7 @@ data class AppOpenRequest(val text: String? = null, val review: Boolean = false,
                     }
                     composable("statistics") { com.ziaee.zabankhan.statistics.StatisticsScreen(vm, prefs) { nav.popBackStack() } }
                     composable("discover") { com.ziaee.zabankhan.discover.DiscoverScreen(vm, prefs, { nav.popBackStack() }, { nav.navigate("reader/$it") }) }
-                    composable("grammar") { com.ziaee.zabankhan.datapack.GrammarScreen(prefs.learningLang.orEmpty()) { nav.popBackStack() } }
+                    composable("grammar") { com.ziaee.zabankhan.grammar.GrammarScreen(prefs) { nav.popBackStack() } }
                     composable("exams") { com.ziaee.zabankhan.datapack.TcfPracticeScreen(prefs.learningLang.orEmpty()) { nav.popBackStack() } }
                     composable("words") { WordsScreen(vm, prefs) { nav.navigate("review") } }
                     composable("review") { ReviewScreen(container, prefs) }

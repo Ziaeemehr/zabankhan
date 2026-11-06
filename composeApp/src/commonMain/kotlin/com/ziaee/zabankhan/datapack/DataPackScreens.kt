@@ -18,59 +18,6 @@ import com.ziaee.zabankhan.ui.theme.*
 import kotlinx.coroutines.CancellationException
 import org.jetbrains.compose.resources.stringResource
 
-fun searchGrammarNotes(notes: List<GrammarNote>, query: String, level: String = "", group: String = ""): List<GrammarNote> {
-    fun fold(text: String) = com.ziaee.zabankhan.lang.normalizeForMatch(text, com.ziaee.zabankhan.lang.Languages.FRENCH)
-        .replace('ي', 'ی').replace('ك', 'ک').replace("\u200C", "")
-    val terms = fold(query).split(Regex("\\s+")).filter(String::isNotBlank)
-    return notes.filter { note ->
-        (level.isEmpty() || note.level == level) && (group.isEmpty() || note.group == group) &&
-            terms.all { it in fold(listOf(note.titleFr, note.titleFa, note.id).plus(note.aliasesFr).plus(note.aliasesFa).joinToString(" ")) }
-    }
-}
-
-@Composable fun GrammarScreen(lang: String, back: () -> Unit) {
-    var pack by remember(lang) { mutableStateOf<LanguageDataPack?>(null) }
-    var failed by remember(lang) { mutableStateOf(false) }
-    LaunchedEffect(lang) { try { pack = LanguageDataPacks.load(lang) } catch (e: CancellationException) { throw e } catch (_: Exception) { failed = true } }
-    var selected by remember(lang) { mutableStateOf<GrammarNote?>(null) }
-    var query by remember { mutableStateOf("") }
-    var level by remember { mutableStateOf("") }
-    var group by remember { mutableStateOf("") }
-    val notes = pack?.grammar.orEmpty()
-    Column(Modifier.fillMaxSize().padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        EditorialTopAppBar(stringResource(Res.string.pack_grammar), { if (selected != null) selected = null else back() })
-        if (failed) Text(stringResource(Res.string.error_save))
-        else if (pack == null && LanguageDataPacks.available(lang)) CircularProgressIndicator()
-        val note = selected
-        if (note == null) {
-            EditorialSearchEntry(query, { query = it })
-            val all = stringResource(Res.string.pack_all)
-            Choice(stringResource(Res.string.pack_level), level, listOf("" to all) + notes.map { it.level }.distinct().sorted().map { it to it }) { level = it }
-            Choice(stringResource(Res.string.pack_group), group, listOf("" to all) + notes.map { it.group }.distinct().map { it to grammarGroupLabel(it) }) { group = it }
-            EditorialSectionHeader(stringResource(Res.string.ed_grammar_notes))
-            LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                items(searchGrammarNotes(notes, query, level, group), key = { it.id }) { entry ->
-                    EditorialCard(onClick = { selected = entry }, modifier = Modifier.fillMaxWidth()) {
-                        Column(Modifier.padding(16.dp)) {
-                            Text(entry.titleFr, modifier = Modifier.fillMaxWidth(), style = editorialStyle(entry.titleFr)); Text(entry.titleFa, modifier = Modifier.fillMaxWidth(), style = contentStyle(entry.titleFa))
-                            MetadataBadge(entry.level)
-                        }
-                    }
-                }
-            }
-        } else LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            item { EditorialSectionHeader(note.titleFr); Text(note.titleFa, modifier = Modifier.fillMaxWidth(), style = contentStyle(note.titleFa)); MetadataBadge(note.level) }
-            items(note.blocks) { block -> EditorialCard { Box(Modifier.padding(16.dp)) { GrammarBlockView(block) } } }
-        }
-    }
-}
-
-@Composable private fun grammarGroupLabel(group: String): String = stringResource(when (group) {
-    "basics" -> Res.string.pack_basics; "tenses" -> Res.string.pack_tenses
-    "pronouns" -> Res.string.pack_pronouns; "structures" -> Res.string.pack_structures
-    else -> Res.string.pack_comparisons
-})
-
 /** The notes' inline Markdown supports emphasis and code, without displaying delimiters. */
 @Composable private fun Markdown(text: String) {
     val annotated = remember(text) { buildAnnotatedString {
@@ -85,28 +32,6 @@ fun searchGrammarNotes(notes: List<GrammarNote>, query: String, level: String = 
     } }
     Text(annotated, modifier = Modifier.fillMaxWidth(), style = contentStyle(text))
 }
-@Composable private fun Cell(cell: GrammarCell) {
-    val value = remember(cell) { buildAnnotatedString {
-        append(cell.text)
-        cell.highlights.forEach { addStyle(SpanStyle(fontWeight = FontWeight.Bold), it.start, it.end) }
-    } }
-    Text(value, modifier = Modifier.fillMaxWidth(), style = contentStyle(cell.text))
-}
-@Composable private fun GrammarBlockView(block: GrammarBlock) {
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        when (block) {
-            is GrammarBlock.Prose -> block.markdown.forEach { Markdown((if (it.kind == "li") "• " else "") + it.text) }
-            is GrammarBlock.Structure -> { block.patterns.forEach { Markdown("`$it`") }; block.text.forEach { Markdown(it.text) } }
-            is GrammarBlock.Examples -> block.items.forEach { Cell(it.fr); Markdown(it.fa) }
-            is GrammarBlock.Mistake -> { Markdown("✗ ${block.wrong}"); Markdown("✓ ${block.right}"); Markdown(block.why) }
-            is GrammarBlock.Infographic -> {
-                block.header.forEach { Cell(it) }
-                block.rows.forEach { row -> HorizontalDivider(); row.forEach { Cell(it) } }
-            }
-        }
-    }
-}
-
 /** Self-rating is local to this practice session; no AI evaluation. */
 @Composable fun TcfPracticeScreen(lang: String, back: () -> Unit) {
     var pack by remember(lang) { mutableStateOf<LanguageDataPack?>(null) }

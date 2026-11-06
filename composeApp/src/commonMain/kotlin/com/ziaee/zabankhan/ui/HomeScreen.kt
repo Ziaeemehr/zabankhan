@@ -99,9 +99,9 @@ import kotlin.math.roundToInt
         EditorialSectionHeader(stringResource(Res.string.ed_resources))
         EditorialCard {
             EditorialListRow(stringResource(Res.string.h2_discover), Icons.Default.Explore, discover)
+            HorizontalDivider(Modifier.padding(horizontal = 20.dp), color = MaterialTheme.colorScheme.outlineVariant)
+            EditorialListRow(stringResource(Res.string.pack_grammar), Icons.Default.MenuBook, grammar)
             if (com.ziaee.zabankhan.datapack.LanguageDataPacks.available(lang)) {
-                HorizontalDivider(Modifier.padding(horizontal = 20.dp), color = MaterialTheme.colorScheme.outlineVariant)
-                EditorialListRow(stringResource(Res.string.pack_grammar), Icons.Default.MenuBook, grammar)
                 HorizontalDivider(Modifier.padding(horizontal = 20.dp), color = MaterialTheme.colorScheme.outlineVariant)
                 EditorialListRow(stringResource(Res.string.pack_tcf), Icons.Default.School, exams)
             }

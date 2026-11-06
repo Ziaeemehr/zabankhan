@@ -19,7 +19,7 @@ class BundledDataPackTest {
     @Test fun everyBundledGrammarNoteAndQuestionParsesWithoutSilentLoss() {
         val grammar = read("grammar/notes.json")
         val expectedNotes = Json.parseToJsonElement(grammar).jsonObject.getValue("notes").jsonArray.size
-        assertEquals(expectedNotes, parseGrammarNotes(grammar).size)
+        assertEquals(expectedNotes, parseGrammarNotes(grammar, Languages.FRENCH).size)
         val questions = read("exams/tcf-questions.json")
         val tasks = Json.parseToJsonElement(questions).jsonObject.getValue("tasks").jsonArray
         val parsed = parseExamQuestions(questions)

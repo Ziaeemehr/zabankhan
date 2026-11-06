@@ -90,8 +90,8 @@ import org.jetbrains.compose.resources.stringResource
                         colors = FilterChipDefaults.filterChipColors(selectedContainerColor = MaterialTheme.colorScheme.primaryContainer, selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer, selectedLeadingIconColor = MaterialTheme.colorScheme.onPrimaryContainer))
                 }
             }
+            EditorialListRow(stringResource(Res.string.pack_grammar), Icons.Default.MenuBook, grammar)
             if (com.ziaee.zabankhan.datapack.LanguageDataPacks.available(settings.learningLang.orEmpty())) {
-                EditorialListRow(stringResource(Res.string.pack_grammar), Icons.Default.MenuBook, grammar)
                 EditorialListRow(stringResource(Res.string.pack_tcf), Icons.Default.School, exams)
             }
         }

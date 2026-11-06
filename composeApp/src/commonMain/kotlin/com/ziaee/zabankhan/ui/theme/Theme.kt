@@ -95,6 +95,7 @@ fun ZabankhanTheme(mode: ThemeMode = ThemeMode.SYSTEM, content: @Composable () -
     )
     CompositionLocalProvider(
         LocalAppSpacing provides AppSpacing(),
+        LocalGrammarColors provides if (dark) GrammarDarkColors else GrammarLightColors,
         LocalAppSizes provides AppSizes(),
         LocalAppElevations provides AppElevations(),
         LocalEditorialFonts provides EditorialFonts(family, literataFontFamily()),

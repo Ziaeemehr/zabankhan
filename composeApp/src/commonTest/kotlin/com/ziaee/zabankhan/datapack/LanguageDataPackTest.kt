@@ -23,29 +23,31 @@ class LanguageDataPackTest {
         assertFalse(LanguageDataPacks.available(Languages.PERSIAN.code))
     }
     @Test fun orderedBlocksAndUtf16HighlightsSurvivePort() {
-        val notes = parseGrammarNotes(grammarFixture)
+        val notes = parseGrammarNotes(grammarFixture, Languages.FRENCH)
         assertEquals(2, notes.size)
+        assertEquals(notes.first().titleLearning, notes.first().titleEnglish)
+        val translated = grammarFixture.replaceFirst("\"titleFr\":", "\"titleEn\":\"Although with subjunctive\",\"titleFr\":")
+        assertEquals("Although with subjunctive", parseGrammarNotes(translated, Languages.FRENCH).first().titleEnglish)
         val note = notes.first { it.id == "bien-que" }
         assertTrue(note.blocks.first() is GrammarBlock.Prose)
         val example = (note.blocks.first { it is GrammarBlock.Examples } as GrammarBlock.Examples).items.first()
-        assertEquals("Bien qu'", example.fr.text.substring(example.fr.highlights.first().start, example.fr.highlights.first().end))
+        assertEquals("Bien qu'", example.learning.text.substring(example.learning.highlights.first().start, example.learning.highlights.first().end))
         assertTrue(notes.flatMap { it.blocks }.any { it is GrammarBlock.Infographic })
     }
     @Test fun malformedNoteAndInvalidHighlightsDoNotHideValidNeighbors() {
         val root = Json.parseToJsonElement(grammarFixture).jsonObject
         val notes = root.getValue("notes").jsonArray
         val broken = buildJsonObject { put("id", "broken") }
-        assertEquals(2, parseGrammarNotes(JsonObject(root + ("notes" to JsonArray(notes + broken))).toString()).size)
+        assertEquals(2, parseGrammarNotes(JsonObject(root + ("notes" to JsonArray(notes + broken))).toString(), Languages.FRENCH).size)
         val badNote = JsonObject(notes.first().jsonObject + ("group" to JsonPrimitive("unknown")))
-        assertEquals(1, parseGrammarNotes(JsonObject(root + ("notes" to JsonArray(listOf(badNote, notes[1])))).toString()).size)
+        assertEquals(1, parseGrammarNotes(JsonObject(root + ("notes" to JsonArray(listOf(badNote, notes[1])))).toString(), Languages.FRENCH).size)
         val badHighlights = grammarFixture.replaceFirst("[0,8]", "[-1,999]")
-        assertEquals(1, parseGrammarNotes(badHighlights).size)
+        assertEquals(1, parseGrammarNotes(badHighlights, Languages.FRENCH).size)
     }
-    @Test fun grammarSearchFoldsAccentsAndPersianAndFiltersLevelGroup() {
-        val notes = parseGrammarNotes(grammarFixture)
-        assertEquals(listOf("bien-que"), searchGrammarNotes(notes, "bien que").map { it.id })
-        assertTrue(searchGrammarNotes(notes, "", "impossible").isEmpty())
-        assertTrue(searchGrammarNotes(notes, "", group = "impossible").isEmpty())
+    @Test fun grammarSearchMatchesLearningLanguageAndPersianAliases() {
+        val notes = parseGrammarNotes(grammarFixture, Languages.FRENCH)
+        assertEquals(listOf("bien-que"), GrammarSearchIndex(notes, Languages.FRENCH).search("bien que").map { it.note }.map { it.id })
+        assertEquals("bien-que", GrammarSearchIndex(notes, Languages.FRENCH).search("با اینکه").first().note.id)
     }
     @Test fun questionParserSkipsMalformedItemsAndTasks() {
         val fixture = """{"version":1,"variant":"TCF Canada","source":{"title":"source","url":"https://example.org"},"tasks":[{"id":"ee1","skill":"EE","task":1,"titleFr":"Message","exportedOn":"2026-10-11","items":[{"id":"a","count":2,"months":["2026-10"],"texts":[{"fr":"Invitez vos amis.","fa":"دعوت کنید"}]},{"id":"broken","count":1,"months":[],"texts":[]}]},{"id":"broken"}]}"""

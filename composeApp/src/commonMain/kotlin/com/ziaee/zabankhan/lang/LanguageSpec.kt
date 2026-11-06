@@ -24,6 +24,8 @@ data class LanguageSpec(
     val dictionaryLinks: List<DictionaryLink>,
     val onlineVoices: List<String> = emptyList(),
     val voicePreview: String = "",
+    val grammarSearchStopWords: Set<String> = emptySet(),
+    val grammarAlternativeSeparator: String? = null,
 )
 
 object Languages {
@@ -41,6 +43,8 @@ object Languages {
         ),
         onlineVoices = listOf("fr-FR-DeniseNeural", "fr-FR-HenriNeural", "fr-FR-VivienneMultilingualNeural", "fr-FR-RemyMultilingualNeural", "fr-CA-SylvieNeural", "fr-CA-AntoineNeural", "fr-BE-CharlineNeural", "fr-CH-ArianeNeural"),
         voicePreview = "Bonjour ! Voici un exemple de cette voix naturelle.",
+        grammarSearchStopWords = setOf("et", "ou", "vs", "la", "le", "les", "de", "des", "du", "un", "une"),
+        grammarAlternativeSeparator = " ou ",
     )
     val ENGLISH = LanguageSpec(
         "en", "English", "English", Script.LATIN, TextDir.LTR, emptyList(), "en-US", "en-US", listOf(
@@ -52,6 +56,8 @@ object Languages {
         ),
         onlineVoices = listOf("en-US-AriaNeural", "en-US-GuyNeural", "en-US-JennyNeural", "en-US-AvaMultilingualNeural", "en-US-AndrewMultilingualNeural", "en-GB-SoniaNeural", "en-GB-RyanNeural", "en-AU-NatashaNeural"),
         voicePreview = "Hello! Here is a sample of this natural voice.",
+        grammarSearchStopWords = setOf("and", "or", "vs", "the", "a", "an", "of"),
+        grammarAlternativeSeparator = " or ",
     )
     val PERSIAN = LanguageSpec(
         "fa", "Persian", "فارسی", Script.ARABIC, TextDir.RTL, emptyList(), "fa-IR", "fa-IR", listOf(
