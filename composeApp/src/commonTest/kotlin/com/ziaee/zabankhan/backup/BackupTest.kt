@@ -6,11 +6,11 @@ import kotlin.test.assertFailsWith
 
 class BackupTest {
     @Test fun manifestAcceptsCurrentAndOlderSchemas() {
-        validateBackupManifest(BackupManifest("0.1.0", 3))
+        validateBackupManifest(BackupManifest("0.1.0", 4))
         validateBackupManifest(BackupManifest("0.0.1", 1))
     }
     @Test fun manifestRejectsFutureOrInvalidFormats() {
-        assertFailsWith<IllegalArgumentException> { validateBackupManifest(BackupManifest("0.2.0", 4)) }
+        assertFailsWith<IllegalArgumentException> { validateBackupManifest(BackupManifest("0.2.0", 5)) }
         assertFailsWith<IllegalArgumentException> { validateBackupManifest(BackupManifest("0.1.0", 0)) }
         assertFailsWith<IllegalArgumentException> { validateBackupManifest(BackupManifest("0.1.0", 3, 2)) }
         assertFailsWith<IllegalArgumentException> { validateBackupManifest(BackupManifest("", 3)) }

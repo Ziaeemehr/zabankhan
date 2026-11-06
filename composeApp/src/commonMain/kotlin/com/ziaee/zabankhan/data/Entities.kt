@@ -1,6 +1,7 @@
 package com.ziaee.zabankhan.data
 
 import androidx.room.ColumnInfo
+import androidx.room.ForeignKey
 import androidx.room.Entity
 import androidx.room.Index
 import androidx.room.PrimaryKey
@@ -127,4 +128,15 @@ data class ShadowAttempt(
     val total: Int,
     val paceRatio: Float?,
     val timestampMs: Long = nowMs(),
+)
+
+@Entity(tableName = "pdf_ink",
+    indices = [Index("textId"), Index(value = ["textId", "page"], unique = true)],
+    foreignKeys = [ForeignKey(entity = TextDocument::class, parentColumns = ["id"],
+        childColumns = ["textId"], onDelete = ForeignKey.CASCADE)])
+data class PdfInk(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val textId: Long,
+    val page: Int,
+    val strokes: String,
 )

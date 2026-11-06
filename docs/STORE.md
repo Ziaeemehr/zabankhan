@@ -34,6 +34,15 @@ Use the signed `bazaarRelease` APK. No Google sign-in, Drive or dynamically down
 
 **Dependency caveat:** bundled ML Kit itself transitively includes `com.google.android.gms` support libraries and Google diagnostic transport. This is not a strictly GMS-free dependency graph. If the store requires zero GMS libraries, this remains a release blocker: a separately approved OCR replacement is needed. Do not remove transitive libraries blindly or represent this build as containing no Google code.
 
+Decision (2026-11-06): keep bundled ML Kit in `bazaar`. Audited `bazaarReleaseRuntimeClasspath`; every Google artifact comes through `com.google.mlkit:text-recognition:16.0.1`:
+
+- `com.google.android.gms`: `play-services-base`, `play-services-basement`, `play-services-tasks`, `play-services-mlkit-text-recognition`, `play-services-mlkit-text-recognition-common`
+- `com.google.mlkit`: `common`, `vision-common`, `vision-interfaces`, `text-recognition-bundled-common`
+- `com.google.android.datatransport`: `transport-api`, `transport-backend-cct`, `transport-runtime`
+- `com.google.firebase`: `firebase-components`, `firebase-encoders`, `firebase-encoders-json`, `firebase-annotations`
+
+Recheck with `./gradlew :composeApp:dependencies --configuration bazaarReleaseRuntimeClasspath` after any dependency change. If Bazaar or Myket rejects the build for these libraries, replace OCR in the `bazaar` flavor only.
+
 Audit the final merged manifest for each release, including dependencies. Current permissions:
 
 | Permission | Reason |
@@ -70,6 +79,8 @@ Data safety must match the actual shipped dependencies and enabled services. Do 
 References: [ML Kit data disclosure](https://developers.google.com/ml-kit/android-data-disclosure), [Play Data safety definitions and exceptions](https://support.google.com/googleplay/android-developer/answer/10787469). Recheck the live form at submission.
 
 ## App Store / TestFlight
+
+Before signing, register the App Group `group.com.ziaee.zabankhan` in the Apple Developer account and enable it for both bundle IDs: `com.ziaee.zabankhan` and `com.ziaee.zabankhan.share`.
 
 ```sh
 export JAVA_HOME=/opt/homebrew/opt/openjdk@17

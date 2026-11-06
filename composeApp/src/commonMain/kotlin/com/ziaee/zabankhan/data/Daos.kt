@@ -162,3 +162,14 @@ interface ShadowAttemptDao {
     @Query("SELECT * FROM shadow_attempts WHERE lang = :lang AND textId = :textId ORDER BY timestampMs, id")
     suspend fun forText(lang: String, textId: Long): List<ShadowAttempt>
 }
+
+@Dao
+interface PdfInkDao {
+    @Query("SELECT * FROM pdf_ink WHERE textId = :textId ORDER BY page")
+    fun observeForText(textId: Long): Flow<List<PdfInk>>
+    // REPLACE resolves the unique page key even when the caller has no row id yet.
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun upsert(ink: PdfInk)
+    @Query("DELETE FROM pdf_ink WHERE textId = :textId AND page = :page")
+    suspend fun delete(textId: Long, page: Int)
+}

@@ -26,7 +26,7 @@ import okio.Path
 import okio.Path.Companion.toPath
 import kotlin.time.Clock
 
-const val BACKUP_SCHEMA_VERSION = 3
+const val BACKUP_SCHEMA_VERSION = 4
 private const val MAX_BACKUP_BYTES = 256L * 1024 * 1024
 class BackupTooLargeException : IllegalArgumentException("Backup exceeds 256 MiB")
 @Serializable

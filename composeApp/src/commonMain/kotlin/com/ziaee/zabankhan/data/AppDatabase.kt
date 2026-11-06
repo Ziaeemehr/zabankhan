@@ -11,17 +11,18 @@ import kotlinx.coroutines.IO
 
 @Database(
     entities = [
-        ShadowAttempt::class, PdfHighlight::class, TextDocument::class, LibraryFolder::class, VocabEntry::class, VocabList::class,
+        PdfInk::class, ShadowAttempt::class, PdfHighlight::class, TextDocument::class, LibraryFolder::class, VocabEntry::class, VocabList::class,
         ReviewLogEntry::class, HighlightEntry::class, ActivityLogEntry::class, CacheEntry::class,
     ],
-    version = 3,
-    autoMigrations = [AutoMigration(from = 1, to = 2), AutoMigration(from = 2, to = 3)],
+    version = 4,
+    autoMigrations = [AutoMigration(from = 1, to = 2), AutoMigration(from = 2, to = 3), AutoMigration(from = 3, to = 4)],
     exportSchema = true,
 )
 @ConstructedBy(AppDatabaseConstructor::class)
 abstract class AppDatabase : RoomDatabase() {
     abstract fun migration(): MigrationDao
     abstract fun shadowAttempts(): ShadowAttemptDao
+    abstract fun pdfInk(): PdfInkDao
     abstract fun pdfHighlights(): PdfHighlightDao
     abstract fun texts(): TextDao
     abstract fun vocab(): VocabDao

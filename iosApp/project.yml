@@ -26,6 +26,14 @@ targets:
         TARGETED_DEVICE_FAMILY: "1,2"
         DEVELOPMENT_TEAM: 7QZT8T38S4
         CODE_SIGN_STYLE: Automatic
+    dependencies:
+      - target: ShareExtension
+        embed: true
+    entitlements:
+      path: iosApp/iosApp.entitlements
+      properties:
+        com.apple.security.application-groups:
+          - group.com.ziaee.zabankhan
     configFiles:
       Debug: Version.xcconfig
       Release: Version.xcconfig
@@ -34,3 +42,28 @@ targets:
         script: |
           cd "$SRCROOT/.."
           ./gradlew :composeApp:embedAndSignAppleFrameworkForXcode
+  ShareExtension:
+    type: app-extension
+    platform: iOS
+    sources:
+      - path: ShareExtension
+    entitlements:
+      path: ShareExtension/ShareExtension.entitlements
+      properties:
+        com.apple.security.application-groups:
+          - group.com.ziaee.zabankhan
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.ziaee.zabankhan.share
+        PRODUCT_NAME: ShareExtension
+        INFOPLIST_FILE: ShareExtension/Info.plist
+        MARKETING_VERSION: "$(APP_VERSION_NAME)"
+        CURRENT_PROJECT_VERSION: "$(APP_VERSION_CODE)"
+        DEVELOPMENT_TEAM: 7QZT8T38S4
+        CODE_SIGN_STYLE: Automatic
+        TARGETED_DEVICE_FAMILY: "1,2"
+        SWIFT_VERSION: "5.0"
+        APPLICATION_EXTENSION_API_ONLY: YES
+    configFiles:
+      Debug: Version.xcconfig
+      Release: Version.xcconfig

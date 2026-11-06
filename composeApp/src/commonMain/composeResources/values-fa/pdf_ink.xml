@@ -1,0 +1,7 @@
+<resources>
+    <string name="pdf_pen">قلم</string>
+    <string name="pdf_pen_eraser">پاک‌کن</string>
+    <string name="pdf_pen_undo">واگرد خط</string>
+    <string name="pdf_pen_clear">پاک کردن صفحه</string>
+    <string name="pdf_pen_finger">کشیدن با انگشت</string>
+</resources>
