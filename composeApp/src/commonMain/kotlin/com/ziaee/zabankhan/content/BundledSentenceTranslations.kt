@@ -3,6 +3,7 @@ package com.ziaee.zabankhan.content
 import com.ziaee.zabankhan.lang.LanguageSpec
 import com.ziaee.zabankhan.lang.normalizeForMatch
 import com.ziaee.zabankhan.resources.Res
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.IO
 import kotlinx.coroutines.withContext
@@ -31,7 +32,12 @@ class BundledSentenceTranslations internal constructor(private val source: Langu
                 val root = "files/${source.code}/dataset/"
                 val manifest = parseDatasetManifest(Res.readBytes(root + "manifest.json").decodeToString())
                 manifest.decks.flatMap { parseDatasetDeck(Res.readBytes(root + it.file).decodeToString()) }
-            } catch (_: org.jetbrains.compose.resources.MissingResourceException) { emptyList() }
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (_: Exception) {
+                // Bundled translations are optional; unavailable resources must not block providers.
+                emptyList()
+            }
             BundledSentenceTranslations(source) { rows }
         }
     }
