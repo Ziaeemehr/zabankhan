@@ -346,4 +346,8 @@
     <string name="gesture_kind_vertical_swipe">Vertical swipe / scroll</string>
     <string name="gesture_reading_row_1">French word → dictionary</string>
     <string name="gesture_reading_title">Reading</string>
+    <string name="pdf_add_to_leitner">Add to Leitner</string>
+    <string name="pdf_full_dictionary">Full dictionary</string>
+    <string name="pdf_translation_engine">Translation engine</string>
+    <string name="pdf_vocab_save_failed">Could not save. Please try again.</string>
 </resources>

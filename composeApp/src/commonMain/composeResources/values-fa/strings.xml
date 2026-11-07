@@ -346,4 +346,8 @@
     <string name="gesture_kind_vertical_swipe">کشیدن عمودی / پیمایش</string>
     <string name="gesture_reading_row_1">واژهٔ فرانسوی ← دیکشنری</string>
     <string name="gesture_reading_title">مطالعه</string>
+    <string name="pdf_add_to_leitner">افزودن به لایتنر</string>
+    <string name="pdf_full_dictionary">فرهنگ لغت کامل</string>
+    <string name="pdf_translation_engine">موتور ترجمه</string>
+    <string name="pdf_vocab_save_failed">ذخیره نشد. دوباره تلاش کنید.</string>
 </resources>
