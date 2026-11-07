@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Copied from FrenchReader res/values*/strings.xml (review screen). -->
+<resources>
+    <string name="vocab_review_title">Review vocabulary</string>
+    <string name="review_undo">Undo last answer</string>
+    <string name="review_open_settings">Review settings</string>
+    <string name="review_pronunciation_practice">Pronunciation practice</string>
+    <string name="review_today_title">Today’s Review</string>
+    <string name="review_goal_progress">%1$d of %2$d reviews done today</string>
+    <string name="review_streak">Current streak: %1$d days</string>
+    <string name="review_due_count">Due</string>
+    <string name="review_new_count">New</string>
+    <string name="review_minutes_short">%1$d min</string>
+    <string name="review_estimated_time">Estimated</string>
+    <string name="review_new_cap_reached">Today’s new-card limit is reached — more words are waiting, raise the limit in Settings or come back tomorrow</string>
+    <string name="review_no_cards_due">No cards due right now — check back later</string>
+    <string name="review_start">Start Review</string>
+    <string name="review_box_tap_hint">Tap a box to review only its cards</string>
+    <string name="review_learned_words">Learned words</string>
+    <string name="review_learned_progress">%1$d of %2$d reviewed</string>
+    <string name="review_learned_start">Review learned</string>
+    <string name="review_box_label">Box %1$d</string>
+    <string name="review_box_details">%1$d cards • every %2$d days • %3$d due</string>
+    <string name="review_progress">%1$d of %2$d</string>
+    <string name="vocab_reveal_meaning">Show meaning</string>
+    <string name="interval_this_session">This session</string>
+    <string name="vocab_answer_again">Again</string>
+    <string name="vocab_answer_hard">Hard</string>
+    <string name="vocab_answer_good">Good</string>
+    <string name="interval_day">%1$d day</string>
+    <string name="interval_days">%1$d days</string>
+    <string name="review_summary_title">Session complete</string>
+    <string name="review_summary_cards">Cards reviewed</string>
+    <string name="review_summary_forward">Moved forward</string>
+    <string name="review_summary_returned">Returned to Box 1</string>
+    <string name="review_summary_time">Study time</string>
+    <string name="review_summary_next">Next scheduled review</string>
+    <string name="review_moved_forward">Moved forward to Box %1$d</string>
+    <string name="review_returned_box_one">Returned to Box 1</string>
+    <string name="review_stayed_box">Stays in Box %1$d</string>
+    <string name="accessibility_play_word">Play word pronunciation</string>
+    <string name="accessibility_play_sentence">Play sentence audio</string>
+    <string name="review_tap_to_reveal">Tap the card to reveal</string>
+    <string name="action_edit">Edit</string>
+</resources>

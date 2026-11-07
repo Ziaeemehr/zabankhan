@@ -112,7 +112,7 @@ import org.jetbrains.compose.resources.stringResource
     if (delete) ConfirmDelete(onDismiss = { delete = false }) { vm.action { vm.container.vocab.deleteIds(selected.toList()); selected = emptySet() } }
     edit?.let { entry -> EditWordDialog(entry, options.filter { it.first != -1L }, { edit = null }) { updated -> vm.action { vm.container.vocab.update(updated) } } }
 }
-@Composable private fun EditWordDialog(entry: VocabEntry, decks: List<Pair<Long, String>>, dismiss: () -> Unit, save: (VocabEntry) -> Unit) {
+@Composable internal fun EditWordDialog(entry: VocabEntry, decks: List<Pair<Long, String>>, dismiss: () -> Unit, save: (VocabEntry) -> Unit) {
     var word by remember { mutableStateOf(entry.word) }
     var meaning by remember { mutableStateOf(entry.meaning.orEmpty()) }
     var sentence by remember { mutableStateOf(entry.sentence) }
