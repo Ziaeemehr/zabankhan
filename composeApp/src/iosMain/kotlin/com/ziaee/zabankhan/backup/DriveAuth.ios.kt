@@ -9,6 +9,7 @@ import kotlin.coroutines.resumeWithException
 object IosDriveBridge {
     var configured: Boolean = false
     var connected: Boolean = false
+    var authorizeSilently: (((String?, String?) -> Unit) -> Unit)? = null
     var authorize: (((String?, String?) -> Unit) -> Unit)? = null
     var disconnect: (((String?) -> Unit) -> Unit)? = null
 }
@@ -37,3 +38,14 @@ private object IosDriveAuth : DriveAuth {
     }
 }
 @Composable actual fun rememberDriveAuth(): DriveAuth = IosDriveAuth
+
+internal actual suspend fun backgroundDriveAccessToken(): String? = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
+    if (!IosDriveBridge.configured || !IosDriveBridge.connected) return@withContext null
+    suspendCancellableCoroutine { continuation ->
+        val handler = IosDriveBridge.authorizeSilently
+        if (handler == null) continuation.resume(null)
+        else handler { token, error -> if (continuation.isActive) {
+            if (error != null) continuation.resumeWithException(IllegalStateException(error)) else continuation.resume(token)
+        } }
+    }
+}

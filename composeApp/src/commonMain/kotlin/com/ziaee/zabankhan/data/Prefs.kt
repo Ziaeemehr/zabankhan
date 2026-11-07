@@ -63,6 +63,7 @@ class SettingsRepository(private val store: DataStore<Preferences>, private val 
         secrets.remove(LLM_API_KEY)
         scope?.coroutineContext?.get(Job)?.cancelAndJoin()
     }
+    val backupPrefs = com.ziaee.zabankhan.backup.BackupPrefs(store)
     private val secretMutex = Mutex()
     private val secretRevision = MutableStateFlow(0)
 

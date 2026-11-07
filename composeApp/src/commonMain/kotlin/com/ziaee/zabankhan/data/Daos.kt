@@ -12,6 +12,9 @@ import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface TextDao {
+    @Query("SELECT texts.id, snippet(texts_fts, '', '', '…', 1, 12) AS snippet FROM texts_fts JOIN texts ON texts.id = texts_fts.rowid WHERE texts.lang = :lang AND texts_fts MATCH :query LIMIT :limit")
+    suspend fun searchFullText(lang: String, query: String, limit: Int = 100): List<TextSearchHit>
+
     @Query("SELECT * FROM texts WHERE externalKey = :key LIMIT 1")
     suspend fun getByExternalKey(key: String): TextDocument?
     @Query("SELECT * FROM texts WHERE lang = :lang ORDER BY pinned DESC, createdAtMs DESC")

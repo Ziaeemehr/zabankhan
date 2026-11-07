@@ -1,0 +1,32 @@
+<resources>
+  <string name="batch_a_accessibility_back">Back</string>
+  <string name="batch_a_auto_backup_description">Keeps the 3 newest backups, daily backups for a week and weekly backups for a month, plus up to 5 backups set aside before large deletions or restores. When signed in under Cloud Backup, automatic backups also upload to Google Drive.</string>
+  <string name="batch_a_auto_backup_last">Last automatic backup: %1$s</string>
+  <string name="batch_a_auto_backup_restore">Restore an automatic or protected backup</string>
+  <string name="batch_a_auto_backup_restore_confirm_title">Restore this backup?</string>
+  <string name="batch_a_auto_backup_section_title">Automatic backup</string>
+  <string name="batch_a_auto_backup_toggle">Back up automatically when leaving the app</string>
+  <string name="batch_a_backup_choose">Choose a backup</string>
+  <string name="batch_a_backup_failure">Backup failed</string>
+  <string name="batch_a_backup_never_backed_up">Never backed up</string>
+  <string name="batch_a_backup_now">Back up now</string>
+  <string name="batch_a_backup_pdf_files">Back up PDF files</string>
+  <string name="batch_a_backup_protected_label">Kept before a large deletion or restore</string>
+  <string name="batch_a_backup_restore">Restore</string>
+  <string name="batch_a_backup_restore_confirm_message">This replaces all data currently on this device with the selected Google Drive backup. A local safety backup is saved first if there is user data.</string>
+  <string name="batch_a_backup_restore_confirm_title">Restore from Google Drive?</string>
+  <string name="batch_a_backup_restore_not_found">No backup found for this account</string>
+  <string name="batch_a_backup_section_title">Cloud Backup</string>
+  <string name="batch_a_backup_sign_in">Sign in with Google</string>
+  <string name="batch_a_backup_sign_out">Sign out</string>
+  <string name="batch_a_backup_size_mb">%1$.2f MB</string>
+  <string name="batch_a_backup_success">Backup complete</string>
+  <string name="batch_a_local_backup_restore">Restore from file</string>
+  <string name="batch_a_local_backup_restore_confirm_message">This replaces all data currently on this device with the selected backup. A local safety backup is saved first if there is user data.</string>
+  <string name="batch_a_local_backup_restore_confirm_title">Restore from this file?</string>
+  <string name="batch_a_local_backup_restore_failure">Couldn\'t restore backup</string>
+  <string name="batch_a_local_backup_save">Save backup to device</string>
+  <string name="batch_a_local_backup_save_failure">Couldn\'t save backup</string>
+  <string name="batch_a_local_backup_save_success">Backup saved to device</string>
+  <string name="batch_a_local_backup_section_title">Local backup</string>
+</resources>

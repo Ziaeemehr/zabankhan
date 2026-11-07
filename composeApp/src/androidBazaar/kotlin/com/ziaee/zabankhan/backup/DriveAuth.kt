@@ -7,3 +7,5 @@ private object UnavailableDrive : DriveAuth {
     override suspend fun disconnect() {}
 }
 @Composable actual fun rememberDriveAuth(): DriveAuth = UnavailableDrive
+
+internal actual suspend fun backgroundDriveAccessToken(): String? = null

@@ -1,0 +1,37 @@
+package com.ziaee.zabankhan.backup
+
+import kotlinx.datetime.*
+
+@kotlinx.serialization.Serializable
+internal data class BackupCounts(val vocab: Long, val texts: Long, val examAttempts: Long)
+
+internal fun isLargeLoss(previous: BackupCounts, current: BackupCounts): Boolean =
+    listOf(previous.vocab to current.vocab, previous.texts to current.texts,
+        previous.examAttempts to current.examAttempts).any { (before, after) ->
+        before - after >= 5 && after.toDouble() < before.toDouble() * 0.8
+    }
+
+/**
+ * Which automatic backups survive rotation: the 3 newest, the newest of each of the last 7 days, the
+ * newest of each of the last 4 weeks (Monday to Sunday), and today's first one. Counting by time
+ * rather than by number means a burst of app closes after a mistake cannot push out every good backup.
+ */
+internal fun selectBackupsToKeep(timestamps: List<LocalDateTime>, now: LocalDateTime): Set<LocalDateTime> {
+    val ordered = timestamps.distinct().sortedDescending()
+    val today = now.date
+    val monday = today.minus(today.dayOfWeek.isoDayNumber - 1, DateTimeUnit.DAY)
+    return buildSet {
+        addAll(ordered.take(3))
+        addAll(ordered.filter { it > now })
+        // The first backup of today too: a mistake made today cannot rotate away the state the day began with.
+        ordered.lastOrNull { it.date == today }?.let { add(it) }
+        (0..6).forEach { day ->
+            ordered.firstOrNull { it.date == today.minus(day, DateTimeUnit.DAY) }?.let { add(it) }
+        }
+        (0..3).forEach { week ->
+            val start = monday.minus(week, DateTimeUnit.WEEK)
+            ordered.firstOrNull { it.date >= start && it.date < start.plus(1, DateTimeUnit.WEEK) }
+                ?.let { add(it) }
+        }
+    }
+}

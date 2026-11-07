@@ -44,6 +44,12 @@ final class DriveAuthorization: NSObject, ASWebAuthenticationPresentationContext
             }
 
         }
+        bridge.authorizeSilently = { completion in
+            guard let refresh = self.refreshToken() else { _ = completion(nil, nil); return }
+            self.exchange(["client_id": self.clientId, "grant_type": "refresh_token", "refresh_token": refresh]) { token, error in
+                _ = completion(token, error)
+            }
+        }
         bridge.disconnect = { completion in
             // Revoke before deleting the local credential; preserve it if revocation fails.
             guard let token = self.refreshToken() else { bridge.connected = false; _ = completion(nil); return }

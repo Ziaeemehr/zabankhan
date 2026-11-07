@@ -30,6 +30,28 @@ abstract class MigrationDao {
     @Insert abstract suspend fun insertHighlight(value: HighlightEntry): Long
     @Insert abstract suspend fun insertReview(value: ReviewLogEntry): Long
 
+    @Query("SELECT * FROM library_tags WHERE lang = :lang AND name = :name COLLATE NOCASE LIMIT 1")
+    abstract suspend fun findTag(lang: String, name: String): LibraryTag?
+    @Query("SELECT * FROM exam_attempts WHERE lang = :lang AND examId = :exam AND questionId = :question AND createdAtMs = :created AND answer = :answer LIMIT 1")
+    abstract suspend fun findAttempt(lang: String, exam: String, question: String, created: Long, answer: String): ExamAttempt?
+    @Query("SELECT * FROM study_source WHERE lang = :lang AND name = :name COLLATE NOCASE LIMIT 1")
+    abstract suspend fun findStudySource(lang: String, name: String): StudySource?
+    @Query("SELECT * FROM study_session WHERE lang = :lang AND date = :date AND created_at = :created AND source_id IS :source AND duration_min = :minutes AND skill = :skill AND note IS :note LIMIT 1")
+    abstract suspend fun findStudySession(lang: String, date: Long, created: Long, source: Long?, minutes: Int, skill: StudySkill, note: String?): StudySession?
+    @Query("SELECT * FROM resources WHERE lang = :lang AND url = :url LIMIT 1")
+    abstract suspend fun findResource(lang: String, url: String): ResourceLink?
+    @Query("SELECT COUNT(*) FROM shadow_attempts WHERE lang = :lang AND textId IS :text AND timestampMs = :time AND chunkIndex = :chunk AND sentenceIndex = :sentence")
+    abstract suspend fun hasShadow(lang: String, text: Long?, time: Long, chunk: Int, sentence: Int): Int
+    @Insert abstract suspend fun insertTag(value: LibraryTag): Long
+    @Insert(onConflict = androidx.room.OnConflictStrategy.IGNORE) abstract suspend fun insertTagRef(value: TextTagCrossRef)
+    @Insert abstract suspend fun insertAttempt(value: ExamAttempt): Long
+    @Insert abstract suspend fun insertStudySource(value: StudySource): Long
+    @Insert abstract suspend fun insertStudySession(value: StudySession): Long
+    @Insert abstract suspend fun insertResource(value: ResourceLink): Long
+    @Insert(onConflict = androidx.room.OnConflictStrategy.IGNORE) abstract suspend fun insertHeadline(value: HeadlineEntity): Long
+    @androidx.room.Upsert abstract suspend fun insertActivity(value: ActivityLogEntry)
+    @Insert abstract suspend fun insertShadow(value: ShadowAttempt): Long
+
     @Transaction
     open suspend fun importSnapshot(snapshot: FrenchReaderSnapshot): MigrationSummary {
         val lang = Languages.FRENCH.code
@@ -74,6 +96,31 @@ abstract class MigrationDao {
                 insertReview(old.copy(id = 0, entryId = id)); reviewsAdded++
             }
         } }
-        return MigrationSummary(textsAdded, wordsAdded, highlightsAdded, reviewsAdded, skipped)
+        var tagsAdded = 0
+        val tags = snapshot.tags.associate { old -> old.id to (findTag(old.lang, old.name)?.id ?: insertTag(old.copy(id = 0)).also { tagsAdded++ }) }
+        snapshot.textTags.forEach { old ->
+            val text = texts[old.textId]; val tag = tags[old.tagId]
+            if (text != null && tag != null) insertTagRef(TextTagCrossRef(text, tag))
+        }
+        var attemptsAdded = 0
+        snapshot.examAttempts.forEach { old ->
+            if (findAttempt(old.lang, old.examId, old.questionId, old.createdAtMs, old.answer) == null) { insertAttempt(old.copy(id = 0)); attemptsAdded++ }
+        }
+        val sources = snapshot.studySources.associate { old -> old.id to (findStudySource(old.lang, old.name)?.id ?: insertStudySource(old.copy(id = 0))) }
+        var sessionsAdded = 0
+        snapshot.studySessions.forEach { old ->
+            val source = sources[old.sourceId]
+            if (findStudySession(old.lang, old.date, old.createdAt, source, old.durationMin, old.skill, old.note) == null) { insertStudySession(old.copy(id = 0, sourceId = source)); sessionsAdded++ }
+        }
+        var resourcesAdded = 0
+        snapshot.resources.forEach { old -> if (findResource(old.lang, old.url) == null) { insertResource(old.copy(id = 0)); resourcesAdded++ } }
+        var headlinesAdded = 0
+        snapshot.headlines.forEach { if (insertHeadline(it) != -1L) headlinesAdded++ }
+        snapshot.activity.forEach { insertActivity(it) }
+        snapshot.shadowAttempts.forEach { old ->
+            val text = texts[old.textId]
+            if (hasShadow(old.lang, text, old.timestampMs, old.chunkIndex, old.sentenceIndex) == 0) insertShadow(old.copy(id = 0, textId = text))
+        }
+        return MigrationSummary(textsAdded, wordsAdded, highlightsAdded, reviewsAdded, skipped, tags = tagsAdded, examAttempts = attemptsAdded, studySessions = sessionsAdded, resources = resourcesAdded, headlines = headlinesAdded)
     }
 }

@@ -1,5 +1,6 @@
 package com.ziaee.zabankhan.backup
 
+import kotlinx.coroutines.IO
 import androidx.compose.runtime.Composable
 import io.ktor.client.HttpClient
 import io.ktor.client.request.*
@@ -18,6 +19,7 @@ interface DriveAuth {
     suspend fun accessToken(): String?
     suspend fun disconnect()
 }
+internal expect suspend fun backgroundDriveAccessToken(): String?
 @Composable expect fun rememberDriveAuth(): DriveAuth
 
 @Serializable data class DriveBackupFile(val id: String, val name: String, val createdTime: String)
@@ -100,4 +102,16 @@ class DriveBackupClient(private val http: HttpClient) {
     suspend fun delete(token: String, id: String) {
         http.delete(root + "/" + id.encodeURLPathPart()) { authorize(token) }.checked()
     }
+}
+
+internal suspend fun uploadAutomaticBackup(path: String, container: com.ziaee.zabankhan.app.AppContainer? = null): Boolean {
+    val token = backgroundDriveAccessToken() ?: return false
+    val http = io.ktor.client.HttpClient()
+    try {
+        val bytes = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { okio.FileSystem.SYSTEM.read(path.toPath()) { readByteArray() } }
+        DriveBackupClient(http).upload(token, bytes, kotlin.time.Clock.System.now().toEpochMilliseconds())
+        container?.settings?.backupPrefs?.setLastBackupAtMs(kotlin.time.Clock.System.now().toEpochMilliseconds())
+        container?.settings?.backupPrefs?.setLastDriveUploadAtMs(backupEpoch(path.toPath().name) ?: kotlin.time.Clock.System.now().toEpochMilliseconds())
+        return true
+    } finally { http.close() }
 }

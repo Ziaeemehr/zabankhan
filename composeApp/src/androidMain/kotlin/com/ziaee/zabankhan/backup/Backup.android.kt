@@ -47,3 +47,26 @@ class DailyBackupWorker(context: Context, params: WorkerParameters) : CoroutineW
 
 internal actual fun openBackupDatabase(path: String): com.ziaee.zabankhan.data.AppDatabase =
     com.ziaee.zabankhan.data.buildDatabase(androidx.room.Room.databaseBuilder<com.ziaee.zabankhan.data.AppDatabase>(appContext, path))
+
+internal fun backupApplicationContext(): Context = appContext
+internal actual suspend fun scheduleDriveUpload(path: String) {
+    val request = androidx.work.OneTimeWorkRequestBuilder<DriveUploadWorker>()
+        .setConstraints(androidx.work.Constraints.Builder().setRequiredNetworkType(androidx.work.NetworkType.CONNECTED).build())
+        .setInitialDelay(60, TimeUnit.SECONDS)
+        .setBackoffCriteria(androidx.work.BackoffPolicy.EXPONENTIAL, 1, TimeUnit.MINUTES).build()
+    WorkManager.getInstance(appContext).enqueueUniqueWork("auto_backup_drive_upload", androidx.work.ExistingWorkPolicy.REPLACE, request)
+}
+class DriveUploadWorker(context: Context, params: WorkerParameters) : CoroutineWorker(context, params) {
+    override suspend fun doWork(): Result = try {
+        val archive = AutoBackup.latest()
+        if (archive != null) uploadAutomaticBackup(archive.toString(), (applicationContext as ZabankhanApp).container)
+        Result.success()
+    } catch (cancelled: kotlinx.coroutines.CancellationException) { throw cancelled }
+    catch (_: Exception) { if (runAttemptCount < 5) Result.retry() else Result.failure() }
+}
+
+internal actual fun formatBackupTimestamp(atMs: Long): String =
+    java.text.SimpleDateFormat("MMM d, yyyy, HH:mm", java.util.Locale.getDefault()).format(java.util.Date(atMs))
+internal actual fun formatFileSize(bytes: Long): String = android.text.format.Formatter.formatFileSize(appContext, bytes)
+
+internal actual fun formatBackupSize(template: String, bytes: Long): String = String.format(java.util.Locale.getDefault(), template, bytes / (1024.0 * 1024.0))

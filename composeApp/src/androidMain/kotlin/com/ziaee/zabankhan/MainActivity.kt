@@ -50,6 +50,10 @@ class MainActivity : ComponentActivity() {
         readIntent(intent)
         setContent { App((application as ZabankhanApp).container, request) { request = null } }
     }
+    override fun onStop() {
+        super.onStop()
+        if (!isChangingConfigurations) AutoBackup.onAppBackgrounded((application as ZabankhanApp).container)
+    }
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)

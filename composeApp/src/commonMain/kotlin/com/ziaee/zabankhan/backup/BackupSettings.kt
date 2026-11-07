@@ -1,117 +1,304 @@
 package com.ziaee.zabankhan.backup
 
-import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
 import com.ziaee.zabankhan.app.AppContainer
 import com.ziaee.zabankhan.files.FileKind
 import com.ziaee.zabankhan.files.rememberFilePicker
 import com.ziaee.zabankhan.resources.*
-import kotlinx.coroutines.IO
-import kotlinx.coroutines.launch
+import kotlinx.coroutines.*
+import okio.Path
 import okio.Path.Companion.toPath
 import org.jetbrains.compose.resources.stringResource
+import org.jetbrains.compose.resources.getString
+import kotlin.time.Clock
 
+/** Backup sections copied from French Reader ui/SettingsScreen.kt. */
 @Composable fun BackupSettings(container: AppContainer) {
     val scope = rememberCoroutineScope()
-    var busy by remember { mutableStateOf(false) }
-    var pending by remember { mutableStateOf<String?>(null) }
-    var failed by remember { mutableStateOf(false) }
-    var tooLarge by remember { mutableStateOf(false) }
-    var exported by remember { mutableStateOf(false) }
+    val snackbarHostState = remember { SnackbarHostState() }
+    Column {
+        AutoBackupSection(container, scope, snackbarHostState)
+        LocalBackupSection(container, scope, snackbarHostState)
+        CloudBackupSection(container, scope, snackbarHostState)
+        SnackbarHost(snackbarHostState)
+    }
+}
+@Composable private fun formatLastBackupLabel(atMs: Long?): String =
+    if (atMs == null) stringResource(Res.string.batch_a_backup_never_backed_up) else formatBackupTimestamp(atMs)
+private suspend fun pdfSizeBytes(): Long = withContext(Dispatchers.IO) {
+    val fs = okio.FileSystem.SYSTEM
+    val root = backupPaths().files.toPath() / "pdfs"
+    if (!fs.exists(root)) 0L else fs.listRecursively(root).sumOf { fs.metadata(it).size ?: 0L }
+}
+@Composable
+private fun AutoBackupSection(
+    container: AppContainer,
+    scope: kotlinx.coroutines.CoroutineScope,
+    snackbarHostState: SnackbarHostState
+) {
+    var enabled by remember { mutableStateOf(true) }
+    var showBackups by remember { mutableStateOf(false) }
+    var selected by remember { mutableStateOf<Path?>(null) }
+    var backups by remember { mutableStateOf(AutoBackup.listBackups()) }
+    val latest = remember { AutoBackup.latest() }
+    LaunchedEffect(container) { enabled = container.settings.backupPrefs.isAutoBackupEnabled() }
+
+    fun showMessage(text: String) {
+        scope.launch { snackbarHostState.showSnackbar(text) }
+    }
+
+    Text(
+        stringResource(Res.string.batch_a_auto_backup_section_title),
+        style = MaterialTheme.typography.labelMedium,
+        modifier = Modifier.padding(top = 8.dp, bottom = 4.dp)
+    )
+    SettingsSwitchRow(stringResource(Res.string.batch_a_auto_backup_toggle), enabled) {
+        enabled = it
+        scope.launch { container.settings.backupPrefs.setAutoBackupEnabled(it) }
+    }
+    Text(stringResource(Res.string.batch_a_auto_backup_description), style = MaterialTheme.typography.bodySmall)
+    Text(
+        stringResource(
+            Res.string.batch_a_auto_backup_last,
+            formatLastBackupLabel(latest?.let { backupEpoch(it.name) })
+        ),
+        style = MaterialTheme.typography.bodySmall
+    )
+    OutlinedButton(enabled = backups.isNotEmpty(), onClick = { backups = AutoBackup.listBackups(); showBackups = true }) {
+        Text(stringResource(Res.string.batch_a_auto_backup_restore))
+    }
+
+    if (showBackups) {
+        BackupPickerDialog(
+            backups.map { file ->
+                val timestamp = backupEpoch(file.name)
+                val label = timestamp?.let { formatBackupTimestamp(it) } ?: file.name
+                val size = formatBackupSize(stringResource(Res.string.batch_a_backup_size_mb), okio.FileSystem.SYSTEM.metadata(file).size ?: 0L)
+                label + "\n" + size + if (isProtectedBackupFileName(file.name))
+                    "\n" + stringResource(Res.string.batch_a_backup_protected_label) else ""
+            },
+            onDismiss = { showBackups = false },
+            onSelect = { selected = backups[it]; showBackups = false }
+        )
+    }
+    val chosen = selected
+    if (chosen != null) {
+        AlertDialog(
+            onDismissRequest = { selected = null },
+            title = { Text(stringResource(Res.string.batch_a_auto_backup_restore_confirm_title)) },
+            text = { Text(stringResource(Res.string.batch_a_local_backup_restore_confirm_message)) },
+            confirmButton = {
+                OutlinedButton(onClick = {
+                    selected = null
+                    scope.launch {
+                        try {
+                            restoreLocalBackup(container, chosen.toString())
+                        } catch (cancelled: CancellationException) { throw cancelled } catch (e: Exception) {
+                            showMessage(getString(Res.string.batch_a_local_backup_restore_failure))
+                        }
+                    }
+                }) { Text(stringResource(Res.string.batch_a_backup_restore)) }
+            },
+            dismissButton = {
+                OutlinedButton(onClick = { selected = null }) {
+                    Text(stringResource(Res.string.batch_a_accessibility_back))
+                }
+            }
+        )
+    }
+}
+
+@Composable
+private fun LocalBackupSection(
+    container: AppContainer,
+    scope: kotlinx.coroutines.CoroutineScope,
+    snackbarHostState: SnackbarHostState
+) {
+    var restoreUri by remember { mutableStateOf<String?>(null) }
+    var backUpPdfs by remember { mutableStateOf(true) }
+    val pdfBytes by produceState(0L, container) {
+        value = withContext(Dispatchers.IO) { pdfSizeBytes() }
+    }
+
+
+    fun showMessage(text: String) {
+        scope.launch { snackbarHostState.showSnackbar(text) }
+    }
+
+    LaunchedEffect(container) { backUpPdfs = container.settings.backupPrefs.backUpPdfFiles() }
+    val importLauncher = rememberFilePicker(listOf(FileKind.ZIP)) { file -> restoreUri = file?.path }
+    fun exportBackup() { scope.launch {
+        try {
+            shareBackup(createLocalBackup(container))
+            container.settings.backupPrefs.setLastBackupAtMs(Clock.System.now().toEpochMilliseconds())
+            showMessage(getString(Res.string.batch_a_local_backup_save_success))
+        } catch (cancelled: CancellationException) { throw cancelled }
+        catch (_: Exception) { showMessage(getString(Res.string.batch_a_local_backup_save_failure)) }
+    } }
+
+    Text(
+        stringResource(Res.string.batch_a_local_backup_section_title),
+        style = MaterialTheme.typography.labelMedium,
+        modifier = Modifier.padding(top = 8.dp, bottom = 4.dp)
+    )
+    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+        Column(Modifier.weight(1f)) {
+            Text(stringResource(Res.string.batch_a_backup_pdf_files))
+            Text(formatFileSize(pdfBytes), style = MaterialTheme.typography.bodySmall)
+        }
+        Switch(checked = backUpPdfs, onCheckedChange = {
+            backUpPdfs = it
+            scope.launch { container.settings.backupPrefs.setBackUpPdfFiles(it) }
+        })
+    }
+    OutlinedButton(onClick = {
+        exportBackup()
+    }) {
+        Text(stringResource(Res.string.batch_a_local_backup_save))
+    }
+    OutlinedButton(onClick = { importLauncher() }) {
+        Text(stringResource(Res.string.batch_a_local_backup_restore))
+    }
+
+    if (restoreUri != null) {
+        AlertDialog(
+            onDismissRequest = { restoreUri = null },
+            title = { Text(stringResource(Res.string.batch_a_local_backup_restore_confirm_title)) },
+            text = { Text(stringResource(Res.string.batch_a_local_backup_restore_confirm_message)) },
+            confirmButton = {
+                OutlinedButton(onClick = {
+                    val uri = restoreUri ?: return@OutlinedButton
+                    restoreUri = null
+                    scope.launch {
+                        try {
+                            restoreLocalBackup(container, uri)
+                        } catch (cancelled: CancellationException) { throw cancelled } catch (e: Exception) {
+                            showMessage(getString(Res.string.batch_a_local_backup_restore_failure))
+                        }
+                    }
+                }) { Text(stringResource(Res.string.batch_a_local_backup_restore)) }
+            },
+            dismissButton = {
+                OutlinedButton(onClick = { restoreUri = null }) {
+                    Text(stringResource(Res.string.batch_a_accessibility_back))
+                }
+            }
+        )
+    }
+}
+
+@Composable
+private fun CloudBackupSection(container: AppContainer, scope: CoroutineScope, snackbarHostState: SnackbarHostState) {
     val drive = rememberDriveAuth()
+    if (!drive.configured) return
     var connected by remember { mutableStateOf(drive.connected) }
-    var driveFiles by remember { mutableStateOf<List<DriveBackupFile>?>(null) }
-    var driveFailed by remember { mutableStateOf(false) }
-    var driveSaved by remember { mutableStateOf(false) }
+    var lastBackupAtMs by remember { mutableStateOf<Long?>(null) }
+    var backups by remember { mutableStateOf<List<DriveBackupFile>?>(null) }
+    var selected by remember { mutableStateOf<DriveBackupFile?>(null) }
+    var busy by remember { mutableStateOf(false) }
+    LaunchedEffect(container) { lastBackupAtMs = container.settings.backupPrefs.getLastBackupAtMs() }
+    fun withDriveAccessToken(action: suspend (String) -> Unit) { scope.launch {
+        busy = true
+        try { drive.accessToken()?.let { connected = true; action(it) } }
+        catch (cancelled: CancellationException) { throw cancelled }
+        catch (_: Exception) { snackbarHostState.showSnackbar(getString(Res.string.batch_a_backup_failure)) }
+        finally { busy = false }
+    } }
     val http = remember { io.ktor.client.HttpClient() }
     DisposableEffect(http) { onDispose { http.close() } }
     val client = remember(http) { DriveBackupClient(http) }
-    fun driveAction(action: suspend (String) -> Unit) {
-        scope.launch {
-            busy = true; driveFailed = false; driveSaved = false
-            try {
-                val token = drive.accessToken()
-                if (token != null) { connected = true; action(token) }
-            } catch (cancelled: kotlinx.coroutines.CancellationException) { throw cancelled }
-            catch (_: Exception) { driveFailed = true }
-            finally { busy = false }
-        }
-    }
-    val picker = rememberFilePicker(listOf(FileKind.ZIP)) { file ->
-        if (file != null) scope.launch {
-            busy = true; failed = false; tooLarge = false; exported = false
-            try { validateBackup(file.path); pending = file.path } catch (_: BackupTooLargeException) { tooLarge = true } catch (_: Exception) { failed = true }
-            finally { busy = false }
-        }
-    }
-    Column {
-        Text(stringResource(Res.string.backup_heading), style = MaterialTheme.typography.titleMedium)
-        Text(stringResource(Res.string.backup_automatic_help))
-        TextButton(enabled = !busy, onClick = { scope.launch {
-            busy = true; failed = false; tooLarge = false; exported = false
-            try { val path = createLocalBackup(container); shareBackup(path); exported = true }
-            catch (_: BackupTooLargeException) { tooLarge = true } catch (_: Exception) { failed = true } finally { busy = false }
-        } }) { Text(stringResource(Res.string.backup_export)) }
-        TextButton(enabled = !busy, onClick = picker) { Text(stringResource(Res.string.backup_restore)) }
-        if (drive.configured) {
-            Text(stringResource(Res.string.drive_heading), style = MaterialTheme.typography.titleMedium)
-            Text(stringResource(Res.string.drive_help))
-            Text(stringResource(if (connected) Res.string.drive_connected else Res.string.drive_disconnected))
-            if (!connected) TextButton(enabled = !busy, onClick = { driveAction {} }) {
-                Text(stringResource(Res.string.drive_connect))
-            }
-            if (connected) {
-                TextButton(enabled = !busy, onClick = { driveAction { token ->
-                    val path = createLocalBackup(container)
-                    val bytes = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
-                        okio.FileSystem.SYSTEM.read(path.toPath()) { readByteArray() }
-                    }
-                    client.upload(token, bytes, kotlin.time.Clock.System.now().toEpochMilliseconds())
-                    driveSaved = true
-                } }) { Text(stringResource(Res.string.drive_upload)) }
-                TextButton(enabled = !busy, onClick = { driveAction { token -> driveFiles = client.list(token).take(5) } }) {
-                    Text(stringResource(Res.string.drive_restore))
-                }
-                TextButton(enabled = !busy, onClick = { scope.launch {
-                    busy = true; driveFailed = false
-                    try { drive.disconnect(); connected = false; driveFiles = null }
-                    catch (cancelled: kotlinx.coroutines.CancellationException) { throw cancelled }
-                    catch (_: Exception) { driveFailed = true }
-                    finally { busy = false }
-                } }) { Text(stringResource(Res.string.drive_disconnect)) }
-            }
-            if (driveFailed) Text(stringResource(Res.string.drive_failed), color = MaterialTheme.colorScheme.error)
-            if (driveSaved) Text(stringResource(Res.string.drive_saved))
-        }
-        if (busy) CircularProgressIndicator()
-        if (tooLarge) Text(stringResource(Res.string.backup_too_large), color = MaterialTheme.colorScheme.error)
-        if (failed) Text(stringResource(Res.string.backup_failed), color = MaterialTheme.colorScheme.error)
-        if (exported) Text(stringResource(Res.string.backup_exported))
-    }
-    driveFiles?.let { files -> AlertDialog(
-        onDismissRequest = { if (!busy) driveFiles = null },
-        title = { Text(stringResource(Res.string.drive_restore)) },
-        text = { Column {
-            if (files.isEmpty()) Text(stringResource(Res.string.drive_empty))
-            files.forEach { file -> TextButton(enabled = !busy, onClick = { driveAction { token ->
-                val path = (backupPaths().exports.toPath() / "drive-restore.zip").toString()
-                client.download(token, file.id, path)
-                pending = path; driveFiles = null
-            } }) { Text(file.createdTime.replace('T', ' ').removeSuffix("Z") + " UTC") } }
-        } },
-        confirmButton = { TextButton(enabled = !busy, onClick = { driveFiles = null }) { Text(stringResource(Res.string.cancel)) } },
-    ) }
-    if (pending != null) AlertDialog(
-        onDismissRequest = { if (!busy) pending = null },
-        title = { Text(stringResource(Res.string.backup_restore)) },
-        text = { Text(stringResource(Res.string.backup_replace_warning)) },
-        confirmButton = { TextButton(enabled = !busy, onClick = { scope.launch {
-            busy = true; failed = false
-            try { restoreLocalBackup(container, requireNotNull(pending)); pending = null }
-            catch (_: Exception) { failed = true; pending = null }
-            finally { busy = false }
-        } }) { Text(stringResource(Res.string.backup_restore)) } },
-        dismissButton = { TextButton(enabled = !busy, onClick = { pending = null }) { Text(stringResource(Res.string.cancel)) } },
+    Text(
+        stringResource(Res.string.batch_a_backup_section_title),
+        style = MaterialTheme.typography.labelMedium,
+        modifier = Modifier.padding(top = 8.dp, bottom = 4.dp)
     )
+    if (!connected) {
+        OutlinedButton(enabled = !busy, onClick = { withDriveAccessToken {} }) {
+            Text(stringResource(Res.string.batch_a_backup_sign_in))
+        }
+    } else {
+        Text(formatLastBackupLabel(lastBackupAtMs))
+        OutlinedButton(enabled = !busy, onClick = {
+            withDriveAccessToken { token ->
+                val archive = createLocalBackup(container)
+                val bytes = withContext(Dispatchers.IO) { okio.FileSystem.SYSTEM.read(archive.toPath()) { readByteArray() } }
+                client.upload(token, bytes, Clock.System.now().toEpochMilliseconds())
+                val now = Clock.System.now().toEpochMilliseconds()
+                container.settings.backupPrefs.setLastBackupAtMs(now)
+                lastBackupAtMs = now
+                snackbarHostState.showSnackbar(getString(Res.string.batch_a_backup_success))
+            }
+        }) { Text(stringResource(Res.string.batch_a_backup_now)) }
+        OutlinedButton(enabled = !busy, onClick = {
+            withDriveAccessToken { token ->
+                val files = client.list(token)
+                if (files.isEmpty()) snackbarHostState.showSnackbar(getString(Res.string.batch_a_backup_restore_not_found))
+                else backups = files
+            }
+        }) { Text(stringResource(Res.string.batch_a_backup_restore)) }
+        OutlinedButton(enabled = !busy, onClick = { scope.launch {
+            try { drive.disconnect(); connected = false }
+            catch (cancelled: CancellationException) { throw cancelled }
+            catch (_: Exception) { snackbarHostState.showSnackbar(getString(Res.string.batch_a_backup_failure)) }
+        } }) { Text(stringResource(Res.string.batch_a_backup_sign_out)) }
+    }
+    backups?.let { files ->
+        BackupPickerDialog(
+            files.map { file -> runCatching { formatBackupTimestamp(kotlin.time.Instant.parse(file.createdTime).toEpochMilliseconds()) }.getOrDefault(file.name) },
+            onDismiss = { backups = null },
+            onSelect = { selected = files[it]; backups = null }
+        )
+    }
+    selected?.let { chosen ->
+        AlertDialog(
+            onDismissRequest = { if (!busy) selected = null },
+            title = { Text(stringResource(Res.string.batch_a_backup_restore_confirm_title)) },
+            text = { Text(stringResource(Res.string.batch_a_backup_restore_confirm_message)) },
+            confirmButton = {
+                OutlinedButton(enabled = !busy, onClick = {
+                    withDriveAccessToken { token ->
+                        val path = (backupPaths().exports.toPath() / "drive-restore.zip").toString()
+                        client.download(token, chosen.id, path)
+                        selected = null
+                        restoreLocalBackup(container, path)
+                    }
+                }) { Text(stringResource(Res.string.batch_a_backup_restore)) }
+            },
+            dismissButton = {
+                OutlinedButton(enabled = !busy, onClick = { selected = null }) { Text(stringResource(Res.string.batch_a_accessibility_back)) }
+            }
+        )
+    }
+}
+@Composable
+private fun BackupPickerDialog(labels: List<String>, onDismiss: () -> Unit, onSelect: (Int) -> Unit) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(Res.string.batch_a_backup_choose)) },
+        text = {
+            Column(Modifier.heightIn(max = 400.dp).verticalScroll(rememberScrollState())) {
+                labels.forEachIndexed { index, label ->
+                    TextButton(onClick = { onSelect(index) }, modifier = Modifier.fillMaxWidth()) {
+                        Text(label, modifier = Modifier.fillMaxWidth())
+                    }
+                }
+            }
+        },
+        confirmButton = {},
+        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(Res.string.batch_a_accessibility_back)) } }
+    )
+}
+@Composable
+private fun SettingsSwitchRow(label: String, checked: Boolean, onCheckedChange: (Boolean) -> Unit) {
+    Row(Modifier.fillMaxWidth().heightIn(min = 44.dp), verticalAlignment = Alignment.CenterVertically) {
+        Text(label, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
+        Switch(checked = checked, onCheckedChange = onCheckedChange)
+    }
 }

@@ -72,3 +72,13 @@ private class PlayDriveAuth(val activity: Activity) : DriveAuth {
     DisposableEffect(auth) { onDispose { auth.completion?.cancel(); auth.completion = null } }
     return auth
 }
+
+internal actual suspend fun backgroundDriveAccessToken(): String? {
+    val context = backupApplicationContext()
+    if (!context.getSharedPreferences("drive-connection", Context.MODE_PRIVATE).getBoolean("connected", false)) return null
+    return suspendCancellableCoroutine { continuation ->
+        Identity.getAuthorizationClient(context).authorize(AuthorizationRequest.builder().setRequestedScopes(listOf(Scope(DRIVE_SCOPE))).build())
+            .addOnSuccessListener { result -> if (continuation.isActive) continuation.resume(if (result.hasResolution()) null else result.accessToken) }
+            .addOnFailureListener { if (continuation.isActive) continuation.resumeWithException(it) }
+    }
+}

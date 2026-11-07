@@ -1,0 +1,32 @@
+<resources>
+  <string name="batch_a_accessibility_back">بازگشت</string>
+  <string name="batch_a_auto_backup_description">۳ پشتیبان جدید، پشتیبان روزانه برای یک هفته و هفتگی برای یک ماه نگه داشته می‌شود، به‌علاوه حداکثر ۵ پشتیبان پیش از حذف گسترده یا بازیابی. در صورت ورود به پشتیبان‌گیری ابری، پشتیبان‌های خودکار در Google Drive هم آپلود می‌شوند.</string>
+  <string name="batch_a_auto_backup_last">آخرین پشتیبان خودکار: %1$s</string>
+  <string name="batch_a_auto_backup_restore">بازیابی پشتیبان خودکار یا محافظت‌شده</string>
+  <string name="batch_a_auto_backup_restore_confirm_title">این پشتیبان بازیابی شود؟</string>
+  <string name="batch_a_auto_backup_section_title">پشتیبان‌گیری خودکار</string>
+  <string name="batch_a_auto_backup_toggle">پشتیبان‌گیری خودکار هنگام خروج از برنامه</string>
+  <string name="batch_a_backup_choose">انتخاب پشتیبان</string>
+  <string name="batch_a_backup_failure">پشتیبان‌گیری ناموفق بود</string>
+  <string name="batch_a_backup_never_backed_up">هنوز پشتیبان‌گیری نشده</string>
+  <string name="batch_a_backup_now">پشتیبان‌گیری الان</string>
+  <string name="batch_a_backup_pdf_files">پشتیبان از فایل‌های پی‌دی‌اف</string>
+  <string name="batch_a_backup_protected_label">نگه‌داشته‌شده پیش از حذف گسترده یا بازیابی</string>
+  <string name="batch_a_backup_restore">بازیابی</string>
+  <string name="batch_a_backup_restore_confirm_message">داده‌های فعلی دستگاه با پشتیبان انتخاب‌شده از Google Drive جایگزین می‌شوند. اگر دادهٔ کاربر وجود داشته باشد، ابتدا یک پشتیبان محلی ایمنی ذخیره می‌شود.</string>
+  <string name="batch_a_backup_restore_confirm_title">بازیابی از Google Drive؟</string>
+  <string name="batch_a_backup_restore_not_found">پشتیبانی برای این حساب پیدا نشد</string>
+  <string name="batch_a_backup_section_title">پشتیبان‌گیری ابری</string>
+  <string name="batch_a_backup_sign_in">ورود با گوگل</string>
+  <string name="batch_a_backup_sign_out">خروج از حساب</string>
+  <string name="batch_a_backup_size_mb">%1$.2f مگابایت</string>
+  <string name="batch_a_backup_success">پشتیبان‌گیری انجام شد</string>
+  <string name="batch_a_local_backup_restore">بازیابی از فایل</string>
+  <string name="batch_a_local_backup_restore_confirm_message">داده‌های فعلی دستگاه با پشتیبان انتخاب‌شده جایگزین می‌شوند. اگر دادهٔ کاربر وجود داشته باشد، ابتدا یک پشتیبان محلی ایمنی ذخیره می‌شود.</string>
+  <string name="batch_a_local_backup_restore_confirm_title">از این فایل بازیابی شود؟</string>
+  <string name="batch_a_local_backup_restore_failure">بازیابی نسخهٔ پشتیبان انجام نشد</string>
+  <string name="batch_a_local_backup_save">ذخیرهٔ نسخهٔ پشتیبان روی دستگاه</string>
+  <string name="batch_a_local_backup_save_failure">ذخیرهٔ نسخهٔ پشتیبان انجام نشد</string>
+  <string name="batch_a_local_backup_save_success">نسخهٔ پشتیبان روی دستگاه ذخیره شد</string>
+  <string name="batch_a_local_backup_section_title">پشتیبان‌گیری محلی</string>
+</resources>

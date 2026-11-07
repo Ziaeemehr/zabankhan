@@ -28,20 +28,17 @@ import okio.Path
 import okio.Path.Companion.toPath
 import kotlin.time.Clock
 
-const val BACKUP_SCHEMA_VERSION = 4
+const val BACKUP_SCHEMA_VERSION = 5
 private const val MAX_BACKUP_BYTES = 256L * 1024 * 1024
 class BackupTooLargeException : IllegalArgumentException("Backup exceeds 256 MiB")
 @Serializable
-data class BackupManifest(val appVersion: String, val schemaVersion: Int, val formatVersion: Int = 1, val filesRoot: String = "")
+data class BackupManifest(val appVersion: String, val schemaVersion: Int, val formatVersion: Int = 1, val filesRoot: String = "", val includesPdfs: Boolean? = null)
 
 fun validateBackupManifest(manifest: BackupManifest, currentSchema: Int = BACKUP_SCHEMA_VERSION) {
     require(manifest.formatVersion == 1) { "Unsupported backup format" }
     require(manifest.schemaVersion in 1..currentSchema) { "Backup needs a newer app version" }
     require(manifest.appVersion.isNotBlank()) { "Missing application version" }
 }
-
-/** The five most recent successful automatic snapshots survive rotation. */
-fun selectBackupsToKeep(names: List<String>): Set<String> = names.filter { it.endsWith(".zip") }.sortedDescending().take(5).toSet()
 
 data class BackupPaths(val database: String, val files: String, val automatic: String, val exports: String)
 expect fun backupPaths(): BackupPaths
@@ -50,14 +47,18 @@ expect fun appVersion(): String
 internal expect fun openBackupDatabase(path: String): com.ziaee.zabankhan.data.AppDatabase
 
 object BackupRuntime {
+    var lastFailure: String? = null
     var onRestored: (() -> Unit)? = null
 }
-private val backupMutex = Mutex()
+internal val backupMutex = Mutex()
 private val fs get() = FileSystem.SYSTEM
 private val json = Json { ignoreUnknownKeys = true }
 
 suspend fun createLocalBackup(container: AppContainer, automatic: Boolean = false): String = backupMutex.withLock {
-    withContext(Dispatchers.IO) {
+    createLocalBackupLocked(container, automatic)
+}
+
+internal suspend fun createLocalBackupLocked(container: AppContainer, automatic: Boolean = false): String = withContext(Dispatchers.IO) {
         container.settings.persistForBackup()
         // Checkpoint through the same Room connection pool before reading the main database file.
         container.database.useWriterConnection { connection ->
@@ -65,13 +66,14 @@ suspend fun createLocalBackup(container: AppContainer, automatic: Boolean = fals
                 check(statement.step() && statement.getLong(0) == 0L) { "Database is busy; try again" }
             }
             val paths = backupPaths()
-            val entries = linkedMapOf("manifest.json" to json.encodeToString(BackupManifest(appVersion(), BACKUP_SCHEMA_VERSION, filesRoot = paths.files)).encodeToByteArray())
+            val includePdfs = container.settings.backupPrefs.backUpPdfFiles()
+            val entries = linkedMapOf("manifest.json" to json.encodeToString(BackupManifest(appVersion(), BACKUP_SCHEMA_VERSION, filesRoot = paths.files, includesPdfs = includePdfs)).encodeToByteArray())
             val sources = linkedMapOf(DB_NAME to paths.database.toPath())
             val base = paths.files.toPath()
             val prefs = base / PREFS_FILE
             check(fs.exists(prefs)) { "Preferences have not been saved yet" }
             sources[PREFS_FILE] = prefs
-            for (directory in listOf("pdfs", "videos")) {
+            for (directory in (listOf("videos", "text_bodies", "text_images") + if (includePdfs) listOf("pdfs") else emptyList())) {
                 val root = base / directory
                 if (fs.exists(root)) fs.listRecursively(root).forEach { file ->
                     if (fs.metadata(file).isRegularFile) sources["$directory/${file.relativeTo(root)}"] = file
@@ -81,20 +83,18 @@ suspend fun createLocalBackup(container: AppContainer, automatic: Boolean = fals
             sources.forEach { (name, file) -> entries[name] = fs.read(file) { readByteArray() } }
             val destination = (if (automatic) paths.automatic else paths.exports).toPath()
             fs.createDirectories(destination)
-            val target = destination / "zabankhan-${Clock.System.now().toEpochMilliseconds().toString().padStart(16, '0')}.zip"
+            var timestamp = Clock.System.now().toEpochMilliseconds()
+            fun targetPath() = destination / "zabankhan-${timestamp.toString().padStart(16, '0')}.zip"
+            while (fs.exists(targetPath())) timestamp++
+            val target = targetPath()
             val temp = target.parent!! / "${target.name}.tmp"
             val archive = ZipArchive.writeStored(entries)
             if (archive.size > MAX_BACKUP_BYTES) throw BackupTooLargeException()
-            fs.write(temp) { write(archive) }
-            fs.atomicMove(temp, target)
-            if (automatic) {
-                val snapshots = fs.list(destination).filter { it.name.startsWith("zabankhan-") && it.name.endsWith(".zip") }
-                val keep = selectBackupsToKeep(snapshots.map { it.name })
-                snapshots.filter { it.name !in keep }.forEach { fs.delete(it) }
-            }
+            try { fs.write(temp) { write(archive) }; fs.atomicMove(temp, target) }
+            finally { fs.delete(temp, mustExist = false) }
+            if (automatic) container.settings.backupPrefs.setLastDatabaseStamp(databaseModifiedAt())
             target.toString()
         }
-    }
 }
 
 suspend fun validateBackup(path: String): BackupManifest = withContext(Dispatchers.IO) {
@@ -107,7 +107,7 @@ private fun validateEntries(entries: Map<String, ByteArray>): BackupManifest {
     validateBackupManifest(manifest)
     validateDatabaseHeader(requireNotNull(entries[DB_NAME]) { "Missing database" }, manifest.schemaVersion)
     require(entries.containsKey(PREFS_FILE)) { "Missing preferences" }
-    require(entries.keys.all { it == "manifest.json" || it == DB_NAME || it == PREFS_FILE || it.startsWith("pdfs/") || it.startsWith("videos/") }) { "Unexpected backup entry" }
+    require(entries.keys.all { it == "manifest.json" || it == DB_NAME || it == PREFS_FILE || it.startsWith("pdfs/") || it.startsWith("videos/") || it.startsWith("text_images/") || it.startsWith("text_bodies/") }) { "Unexpected backup entry" }
     return manifest
 }
 
@@ -166,8 +166,11 @@ suspend fun restoreLocalBackup(container: AppContainer, path: String) = backupMu
             createPrefsStore((stage / PREFS_FILE).toString(), CoroutineScope(stagedPrefsJob + Dispatchers.IO)).edit {
                 // Older archives included this credential; never restore it.
                 it.remove(stringPreferencesKey("llm_api_key"))
+                it.remove(stringPreferencesKey("backup:auto_counts"))
+                it.remove(stringPreferencesKey("backup:database_stamp"))
             }
         } finally { stagedPrefsJob.cancelAndJoin() }
+        AutoBackup.protectCurrentStateLocked(container)
         closed = true
         container.database.close()
         container.settings.closeForRestore()
@@ -176,7 +179,8 @@ suspend fun restoreLocalBackup(container: AppContainer, path: String) = backupMu
         val rollback = base / "restore-previous"
         fs.deleteRecursively(rollback, mustExist = false)
         fs.createDirectories(rollback)
-        val targets = listOf(DB_NAME to paths.database.toPath(), PREFS_FILE to (base / PREFS_FILE), "pdfs" to (base / "pdfs"), "videos" to (base / "videos"))
+        val directories = restoreFileDirectories(manifest.includesPdfs ?: entries.keys.any { it.startsWith("pdfs/") })
+        val targets = listOf(DB_NAME to paths.database.toPath(), PREFS_FILE to (base / PREFS_FILE)) + directories.map { it to (base / it) }
         val moved = mutableListOf<Pair<String, Path>>()
         try {
             for ((name, target) in targets) {
@@ -203,25 +207,20 @@ suspend fun restoreLocalBackup(container: AppContainer, path: String) = backupMu
 
 internal fun rebaseBackupPaths(db: SQLiteConnection, previousRoot: String, newRoot: String) {
     require(previousRoot.isNotBlank() && newRoot.isNotBlank())
-    listOf("UPDATE texts SET pdfPath = replace(pdfPath, ?, ?), externalKey = replace(externalKey, ?, ?)",
+    listOf("UPDATE texts SET pdfPath = replace(pdfPath, ?, ?), externalKey = replace(externalKey, ?, ?), imagePath = replace(imagePath, ?, ?), bodyPath = replace(bodyPath, ?, ?)",
         "UPDATE kv_cache SET value = replace(value, ?, ?) WHERE key LIKE 'watch:history:%'").forEachIndexed { index, sql ->
         db.prepare(sql).use { statement ->
             statement.bindText(1, previousRoot.trimEnd('/') + "/")
             statement.bindText(2, newRoot.trimEnd('/') + "/")
             if (index == 0) {
-                statement.bindText(3, previousRoot.trimEnd('/') + "/")
-                statement.bindText(4, newRoot.trimEnd('/') + "/")
+                for (i in listOf(3, 5, 7)) {
+                    statement.bindText(i, previousRoot.trimEnd('/') + "/")
+                    statement.bindText(i + 1, newRoot.trimEnd('/') + "/")
+                }
             }
             statement.step()
         }
     }
 }
 
-suspend fun automaticBackupIfDue(container: AppContainer) {
-    val dir = backupPaths().automatic.toPath()
-    fs.createDirectories(dir)
-    val last = fs.list(dir).filter { it.name.startsWith("zabankhan-") && it.name.endsWith(".zip") }
-        .mapNotNull { it.name.removePrefix("zabankhan-").removeSuffix(".zip").toLongOrNull() }.maxOrNull()
-    val now = Clock.System.now().toEpochMilliseconds()
-    if (last == null || now - last >= 86_400_000L) createLocalBackup(container, automatic = true)
-}
+suspend fun automaticBackupIfDue(container: AppContainer) = AutoBackup.backUpIfChanged(container)
