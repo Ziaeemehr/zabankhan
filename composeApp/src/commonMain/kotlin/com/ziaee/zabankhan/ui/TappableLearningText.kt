@@ -1,0 +1,104 @@
+package com.ziaee.zabankhan.ui
+
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.text.selection.SelectionContainer
+import androidx.compose.material3.LocalTextStyle
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.text.TextLayoutResult
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.FontStyle
+import androidx.compose.ui.text.style.TextAlign
+import com.ziaee.zabankhan.lang.LanguageSpec
+import com.ziaee.zabankhan.lang.wordAt
+
+/** Plain text whose individual words can be tapped; [onWordTap] gets the tapped word. */
+@Composable
+fun TappableLearningText(
+    text: String,
+    language: LanguageSpec,
+    onWordTap: (String) -> Unit,
+    modifier: Modifier = Modifier,
+    style: TextStyle = LocalTextStyle.current,
+    fontStyle: FontStyle? = null,
+    textAlign: TextAlign? = null,
+    selectable: Boolean = false,
+    annotatedText: AnnotatedString? = null,
+    onOffsetTap: ((Int) -> Boolean)? = null
+) {
+    val offsetTap by rememberUpdatedState(onOffsetTap)
+    val wordTap by rememberUpdatedState(onWordTap)
+    var layout by remember { mutableStateOf<TextLayoutResult?>(null) }
+    // Bumped on every word tap so a leftover selection (and its handles) is dropped
+    // instead of floating over the dictionary sheet.
+    var selectionResets by remember { mutableIntStateOf(0) }
+    val content: @Composable (Modifier) -> Unit = { textModifier ->
+        Text(
+            annotatedText ?: AnnotatedString(text),
+            modifier = textModifier.pointerInput(text, selectable, language) {
+                if (selectable) {
+                    awaitEachGesture {
+                        // Initial pass: SelectionContainer consumes taps while a selection is shown, and a
+                        // tap must still reach the dictionary. A down a parent already took is not a tap.
+                        val down = awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Initial)
+                        var isTap = !down.isConsumed
+                        do {
+                            val event = awaitPointerEvent(PointerEventPass.Initial)
+                            val change = event.changes.firstOrNull { it.id == down.id } ?: break
+                            val elapsed = change.uptimeMillis - down.uptimeMillis
+                            if ((change.position - down.position).getDistance() > viewConfiguration.touchSlop ||
+                                elapsed >= viewConfiguration.longPressTimeoutMillis ||
+                                event.changes.size > 1
+                            ) isTap = false
+                            if (!change.pressed) {
+                                if (isTap) {
+                                    val result = layout
+                                    if (result != null) {
+                                        val offset = result.getOffsetForPosition(change.position)
+                                        val handled = offsetTap?.invoke(offset) == true
+                                        if (handled) selectionResets++
+                                        val word = if (handled) "" else wordAt(text, offset, language)?.text.orEmpty()
+                                        if (word.isNotBlank()) {
+                                            selectionResets++
+                                            wordTap(word)
+                                        }
+                                    }
+                                }
+                                break
+                            }
+                        } while (true)
+                    }
+                } else {
+                    detectTapGestures { pos ->
+                        val result = layout ?: return@detectTapGestures
+                        val offset = result.getOffsetForPosition(pos)
+                        val word = if (offsetTap?.invoke(offset) == true) "" else wordAt(text, offset, language)?.text.orEmpty()
+                        if (word.isNotBlank()) wordTap(word)
+                    }
+                }
+            },
+            style = style,
+            fontStyle = fontStyle,
+            textAlign = textAlign,
+            onTextLayout = { layout = it }
+        )
+    }
+    // The caller's modifier (e.g. Row weight) goes on a Box: SelectionContainer wraps its
+    // content in an inner layout, so a weight passed to it never reaches the Row.
+    if (selectable) Box(modifier, contentAlignment = Alignment.Center) { key(selectionResets) { SelectionContainer { content(Modifier) } } } else content(modifier)
+}

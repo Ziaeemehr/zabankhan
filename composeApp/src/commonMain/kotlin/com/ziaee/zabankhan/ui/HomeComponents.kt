@@ -1,5 +1,6 @@
 package com.ziaee.zabankhan.ui
 
+import kotlinx.coroutines.IO
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -159,11 +160,34 @@ fun WatchVideosCard(language: String, onOpen: () -> Unit, modifier: Modifier = M
         stringResource(Res.string.videos_home_support), onOpen, modifier)
 }
 
-/** French Reader shows the text's saved image; zabankhan stores none, so its fallback frame shows the document type. */
+/** Copied from French Reader's ui/home/HomeComponents.kt; local images decode on both platforms. */
 @Composable
 internal fun DocumentThumbnail(doc: TextDocument, modifier: Modifier = Modifier) {
-    Box(modifier.clip(RoundedCornerShape(8.dp)).background(MaterialTheme.colorScheme.surfaceVariant), contentAlignment = Alignment.Center) {
-        Icon(documentIcon(doc), contentDescription = documentTypeLabel(doc), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+    val image by produceState<androidx.compose.ui.graphics.ImageBitmap?>(null, doc.imagePath) {
+        value = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+            doc.imagePath?.let { saved ->
+                runCatching {
+                    val path = if (saved.startsWith("/")) saved else "${com.ziaee.zabankhan.pdf.AppFiles.filesDir}/$saved"
+                    loadImportImage(path)
+                }.getOrNull()
+            }
+        }
+    }
+    val shape = RoundedCornerShape(8.dp)
+    if (image != null) {
+        androidx.compose.foundation.Image(
+            bitmap = requireNotNull(image),
+            contentDescription = null,
+            contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+            modifier = modifier.clip(shape)
+        )
+    } else {
+        Box(
+            modifier = modifier.clip(shape).background(MaterialTheme.colorScheme.surfaceVariant),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(Icons.AutoMirrored.Filled.Article, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
     }
 }
 

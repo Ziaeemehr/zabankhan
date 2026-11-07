@@ -1,0 +1,18 @@
+<resources>
+  <string name="dataset_title">Dataset</string>
+  <string name="dataset_settings_entry">Built-in dataset</string>
+  <string name="dataset_subtitle">Bundled vocabulary and graded stories. You can safely add them again; duplicates are skipped.</string>
+  <string name="dataset_decks">Decks</string>
+  <string name="dataset_stories">Stories</string>
+  <string name="dataset_cards_count">%1$d cards</string>
+  <string name="dataset_stories_count">%1$d stories</string>
+  <string name="dataset_add">Add</string>
+  <string name="dataset_added">Added</string>
+  <string name="dataset_add_missing">Add missing</string>
+  <string name="dataset_add_all">Add all</string>
+  <string name="dataset_added_result">Added %1$d; skipped %2$d</string>
+  <string name="dataset_remove_deleted_deck_cards">Remove cards of deleted decks</string>
+  <string name="dataset_remove_deleted_deck_cards_confirm">Clean up uncategorized cards from built-in decks? Copies from deleted decks are removed. Copies of decks you added again are merged back into the deck, keeping whichever copy has review progress. Your own words are not touched.</string>
+  <string name="dataset_removed_result">Removed %1$d cards</string>
+  <string name="dataset_empty_language">No bundled content for %1$s.</string>
+</resources>

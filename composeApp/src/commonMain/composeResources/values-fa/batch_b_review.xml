@@ -1,0 +1,5 @@
+<resources>
+<string name="review_intervals">فاصله جعبه‌ها (روز)</string>
+<string name="review_box_interval">جعبه %1$d</string>
+<string name="review_intervals_reset">بازنشانی فاصله‌های پیش‌فرض</string>
+</resources>

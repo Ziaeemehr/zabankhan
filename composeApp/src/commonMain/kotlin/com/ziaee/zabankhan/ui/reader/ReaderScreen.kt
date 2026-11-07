@@ -11,6 +11,6 @@ data class ReaderSelection(val word: String, val sentence: String, val range: In
 
 @Composable
 fun ReaderScreen(vm: AppViewModel, settings: AppSettings, id: Long,
-    onOpenVocab: () -> Unit = {}, back: () -> Unit) = ReaderReferenceTheme(settings.uiLang, settings.themeMode) {
-        ReadingScreen(vm, settings, id, back, onOpenVocab)
+    onOpenVocab: () -> Unit = {}, initialQuery: String = "", back: () -> Unit) = ReaderReferenceTheme(settings.uiLang, settings.themeMode) {
+        ReadingScreen(vm, settings, id, back, onOpenVocab, initialQuery)
     }

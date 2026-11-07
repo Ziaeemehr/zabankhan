@@ -1,0 +1,5 @@
+<resources>
+<string name="review_intervals">Box intervals (days)</string>
+<string name="review_box_interval">Box %1$d</string>
+<string name="review_intervals_reset">Reset intervals to default</string>
+</resources>

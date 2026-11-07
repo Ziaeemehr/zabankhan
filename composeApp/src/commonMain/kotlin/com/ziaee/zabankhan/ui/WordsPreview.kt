@@ -26,6 +26,8 @@ import org.jetbrains.compose.resources.stringResource
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.ui.text.style.TextDirection
 import com.ziaee.zabankhan.lang.Languages
+import com.ziaee.zabankhan.translate.MeaningOption
+import com.ziaee.zabankhan.ui.reader.MeaningOptionPills
 import com.ziaee.zabankhan.srs.looksLikeScript
 
 internal fun flashcardWordAudioText(entry: VocabEntry): String? =
@@ -104,7 +106,14 @@ internal fun EntryFlashcard(
     onDictionary: (() -> Unit)? = null,
     onEdit: (() -> Unit)? = null,
     flipBackEnabled: Boolean = false,
+    meaningOptions: List<MeaningOption> = emptyList(),
+    meaningTarget: String = Languages.PERSIAN.code,
+    onMeaningSelected: (String) -> Unit = {},
 ) {
+    var appliedMeaning by remember(entry.id, entry.word, entry.sentence, meaningTarget) { mutableStateOf<String?>(null) }
+    var previousMeaning by remember(entry.id, entry.word, entry.sentence, meaningTarget) { mutableStateOf<String?>(null) }
+    val language = requireNotNull(Languages.byCode(entry.lang))
+    val wordTap: (String) -> Unit = { if (interactive) onWordTap(it) }
     Box(modifier) {
         FlipCard(
             revealed = revealed,
@@ -121,7 +130,7 @@ internal fun EntryFlashcard(
             },
             back = {
                 Column(Modifier.fillMaxWidth().padding(26.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                    SelectionContainer { Text(entry.word, style = MaterialTheme.typography.headlineMedium.merge(contentStyle(entry.word)), textAlign = TextAlign.Center) }
+                    TappableLearningText(entry.word, language, wordTap, selectable = true, style = MaterialTheme.typography.headlineMedium.merge(contentStyle(entry.word)), textAlign = TextAlign.Center)
                     WordAudioButton(entry, wordAudioLoading, wordAudioError, interactive, onPlayWord)
                     Spacer(Modifier.height(14.dp)); HorizontalDivider(); Spacer(Modifier.height(12.dp))
                     if (onDictionary != null || onEdit != null) {
@@ -144,10 +153,26 @@ internal fun EntryFlashcard(
                         Text(it, style = MaterialTheme.typography.titleMedium.merge(contentStyle(it)))
                         Spacer(Modifier.height(8.dp))
                     }
+                    if (revealed && meaningOptions.isNotEmpty()) {
+                        val options = reviewMeaningOptions(meaningOptions, entry.meaning, appliedMeaning, previousMeaning)
+                        MeaningOptionPills(options, appliedMeaning, meaningTarget, enabled = interactive,
+                            quietMeaning = previousMeaning) { option ->
+                            val replacement = replaceMeaningLine(entry.meaning, option.text, Languages.byCode(entry.lang)?.vocabularyLessonTag)
+                            if (replacement.meaning != entry.meaning) {
+                                previousMeaning = replacement.previousLine
+                                appliedMeaning = option.text
+                                onMeaningSelected(replacement.meaning)
+                            }
+                        }
+                        Spacer(Modifier.height(8.dp))
+                    }
                     if (entry.sentence.isNotBlank()) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text(
+                            TappableLearningText(
                                 entry.sentence,
+                                language,
+                                wordTap,
+                                selectable = true,
                                 style = LocalTextStyle.current.copy(textDirection = TextDirection.Content),
                                 fontStyle = FontStyle.Italic,
                                 textAlign = TextAlign.Center,
@@ -171,18 +196,26 @@ internal fun EntryFlashcard(
     }
 }
 /** French Reader's flip-card front/back, wired to the shared speech/translation services. */
-@Composable internal fun VocabPreviewFlashcard(entry: VocabEntry, vm: AppViewModel, settings: AppSettings) {
+@Composable internal fun VocabPreviewFlashcard(entry: VocabEntry, vm: AppViewModel, settings: AppSettings, onWordTap: (String) -> Unit) {
     var revealed by remember(entry.id) { mutableStateOf(false) }
     var sentenceTranslation by remember(entry.id, entry.sentence) { mutableStateOf<String?>(null) }
     var translationLoading by remember(entry.id, entry.sentence) { mutableStateOf(false) }
     var translationError by remember(entry.id, entry.sentence) { mutableStateOf(false) }
     val tts = remember { createTts() }
     DisposableEffect(entry.id) { onDispose { tts.stop() } }
-    LaunchedEffect(revealed, entry.id, entry.sentence) {
+    LaunchedEffect(revealed, entry.id, settings.reviewAudioAutoplay) {
+        tts.stop()
+        val autoplay = settings.reviewAudioAutoplay
+        when {
+            !revealed && autoplay.front -> flashcardWordAudioText(entry)?.let { tts.pronounce(it, entry.lang, settings) }
+            revealed && autoplay.back -> flashcardSentenceAudioText(entry)?.let { tts.pronounce(it, entry.lang, settings) }
+        }
+    }
+    LaunchedEffect(revealed, entry.id, entry.sentence, settings.meaningLang) {
         if (revealed && entry.sentence.isNotBlank()) {
             translationLoading = true
             translationError = false
-            vm.container.translations(settings).translateText(entry.sentence, entry.lang, settings.meaningLang).fold(
+            vm.container.translations(settings).translateText(entry.sentence, entry.lang, meaningTarget(entry.lang, settings)).fold(
                 onSuccess = { sentenceTranslation = it }, onFailure = { translationError = true })
             translationLoading = false
         }
@@ -194,5 +227,5 @@ internal fun EntryFlashcard(
         wordAudioLoading = false, wordAudioError = false,
         sentenceAudioLoading = false, sentenceAudioError = false,
         sentenceTranslation = sentenceTranslation, sentenceTranslationLoading = translationLoading,
-        sentenceTranslationError = translationError, onWordTap = {}, flipBackEnabled = true)
+        sentenceTranslationError = translationError, onWordTap = onWordTap, flipBackEnabled = true)
 }

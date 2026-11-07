@@ -48,6 +48,7 @@ data class AppOpenRequest(val text: String? = null, val review: Boolean = false,
                 }
             }
             var sharedText by remember { mutableStateOf("") }
+            val libraryOpenQueries = remember { mutableStateMapOf<Long, String>() }
             LaunchedEffect(request) {
                 if (request != null) {
                     when {
@@ -58,6 +59,15 @@ data class AppOpenRequest(val text: String? = null, val review: Boolean = false,
                 }
             }
             com.ziaee.zabankhan.reminder.ReviewReminderLifecycle(container, prefs)
+            LaunchedEffect(prefs.learningLang, prefs.meaningLang) {
+                val language = com.ziaee.zabankhan.lang.Languages.byCode(requireNotNull(prefs.learningLang)) ?: return@LaunchedEffect
+                try {
+                    com.ziaee.zabankhan.content.DatasetSeeder.seedIfNeeded(
+                        com.ziaee.zabankhan.content.DatasetRepository(container.database, language, prefs.meaningLang),
+                        container.database, container.cache)
+                } catch (cancelled: kotlinx.coroutines.CancellationException) { throw cancelled }
+                catch (_: Exception) { /* The catalog remains available for a retry from Words. */ }
+            }
             val entry by nav.currentBackStackEntryAsState()
             val route = entry?.destination?.route
             val labels = listOf(Res.string.nav_home, Res.string.nav_library, Res.string.nav_words, Res.string.nav_review, Res.string.nav_settings)
@@ -83,7 +93,10 @@ data class AppOpenRequest(val text: String? = null, val review: Boolean = false,
             }) { padding ->
                 NavHost(nav, "home", Modifier.padding(padding).consumeWindowInsets(padding)) {
                     composable("home") { HomeScreen(vm, prefs, { id -> vm.action { val doc = container.texts.getById(id); nav.navigate(if (doc?.pdfPath != null) "pdf/$id" else "reader/$id") } }, { nav.navigate("add") }, { nav.navigate("review") }, { nav.navigate("videos") }, { nav.navigate("statistics") }, { nav.navigate("discover") }, { nav.navigate("grammar") }, { nav.navigate("exams") }, { nav.navigate("settings") }, { nav.navigate("words") { popUpTo("home") { saveState = true }; launchSingleTop = true; restoreState = true } }, { nav.navigate("news") }) { video, path, subs -> nav.navigate(watchRoute(video, path, subs)) } }
-                    composable("library") { LibraryScreen(vm, prefs, { id -> vm.action { val doc = container.texts.getById(id); nav.navigate(if (doc?.pdfPath != null) "pdf/$id" else "reader/$id") } }, { nav.navigate("add") }, { nav.navigate("videos") }, { nav.navigate("discover") }) }
+                    composable("library") { LibraryScreen(vm, prefs, { id -> vm.action { val doc = container.texts.getById(id); nav.navigate(if (doc?.pdfPath != null) "pdf/$id" else "reader/$id") } }, { nav.navigate("add") }, { nav.navigate("videos") }, { nav.navigate("discover") }, openAt = { id, query ->
+                        libraryOpenQueries[id] = query
+                        nav.navigate("reader/$id")
+                    }) }
                     composable("videos") { VideoPickerScreen(vm, prefs, { nav.popBackStack() }) { video, path, subs -> nav.navigate(watchRoute(video, path, subs)) } }
                     composable("watch?videoId={videoId}&path={path}&subs={subs}", arguments = listOf("videoId", "path", "subs").map { name -> navArgument(name) { type = NavType.StringType; defaultValue = "" } }) { entry ->
                         WatchScreen(vm, prefs, entry.arguments?.read { getString("videoId") }.orEmpty(), entry.arguments?.read { getString("path") }.orEmpty(), entry.arguments?.read { getString("subs") }.orEmpty()) { nav.popBackStack() }
@@ -93,15 +106,21 @@ data class AppOpenRequest(val text: String? = null, val review: Boolean = false,
                     composable("discover") { com.ziaee.zabankhan.discover.DiscoverScreen(vm, prefs, { nav.popBackStack() }, { nav.navigate("reader/$it") }) }
                     composable("grammar") { com.ziaee.zabankhan.grammar.GrammarScreen(prefs) { nav.popBackStack() } }
                     composable("exams") { com.ziaee.zabankhan.datapack.TcfPracticeScreen(prefs.learningLang.orEmpty()) { nav.popBackStack() } }
-                    composable("words") { WordsScreen(vm, prefs) { nav.navigate("review") } }
+                    composable("words") { WordsScreen(vm, prefs, review = { nav.navigate("review") },
+                        onOpenDataset = { nav.navigate("datasets") }, reviewScope = { nav.navigate("review-scope/$it") }) }
+                    composable("review-scope/{listId}", arguments = listOf(navArgument("listId") { type = NavType.LongType })) {
+                        ReviewScreen(container, prefs, { nav.popBackStack() }, { nav.navigate("settings") },
+                            listScope = requireNotNull(it.arguments?.read { getLong("listId") }))
+                    }
+                    composable("datasets") { DatasetScreen(vm, prefs) { nav.popBackStack() } }
                     composable("review") { ReviewScreen(container, prefs, { nav.popBackStack() }, { nav.navigate("settings") }) }
                     composable("settings") { SettingsScreen(vm, prefs, { nav.navigate("statistics") }, { nav.navigate("grammar") }, { nav.navigate("exams") }) }
                     composable("add") { AddTextScreen(vm, prefs, { sharedText = ""; nav.popBackStack() }, { id -> sharedText = ""; nav.navigate("reader/$id") { popUpTo("add") { inclusive = true } } }, initialText = sharedText) }
                     composable("pdf/{id}", arguments = listOf(navArgument("id") { type = NavType.LongType })) {
-                        ReaderScreen(vm, prefs, requireNotNull(it.arguments?.read { getLong("id") }), onOpenVocab = { nav.navigate("words") }) { nav.popBackStack() }
+                        ReaderScreen(vm, prefs, requireNotNull(it.arguments?.read { getLong("id") }), onOpenVocab = { nav.navigate("words") }, initialQuery = libraryOpenQueries[requireNotNull(it.arguments?.read { getLong("id") })].orEmpty()) { nav.popBackStack() }
                     }
                     composable("reader/{id}", arguments = listOf(navArgument("id") { type = NavType.LongType })) {
-                        ReaderScreen(vm, prefs, requireNotNull(it.arguments?.read { getLong("id") }), onOpenVocab = { nav.navigate("words") }) { nav.popBackStack() }
+                        ReaderScreen(vm, prefs, requireNotNull(it.arguments?.read { getLong("id") }), onOpenVocab = { nav.navigate("words") }, initialQuery = libraryOpenQueries[requireNotNull(it.arguments?.read { getLong("id") })].orEmpty()) { nav.popBackStack() }
                     }
                 }
             }

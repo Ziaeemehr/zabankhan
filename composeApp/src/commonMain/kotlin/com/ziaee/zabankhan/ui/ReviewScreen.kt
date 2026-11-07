@@ -60,6 +60,8 @@ import com.ziaee.zabankhan.ui.reader.boxColor
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.Job
+import com.ziaee.zabankhan.translate.MeaningOption
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.daysUntil
 import kotlinx.datetime.toLocalDateTime
@@ -73,10 +75,42 @@ enum class ReviewStage { OVERVIEW, REVIEW, SUMMARY }
 private const val REVIEW_DAILY_GOAL = 20
 
 /** Identity holder per card presentation (FrenchReader CardSlot), so AnimatedContent never merges equal entries. */
-class CardSlot(val entry: VocabEntry)
+class CardSlot(entry: VocabEntry) { var entry by mutableStateOf(entry) }
 
-class ReviewViewModel(private val container: AppContainer, private val settings: AppSettings) : ViewModel() {
+class ReviewViewModel(private val container: AppContainer, private val settings: AppSettings, private val listScope: Long = -1L) : ViewModel() {
     private val lang = requireNotNull(settings.learningLang)
+    var meaningTarget by mutableStateOf(meaningTarget(lang, settings)); private set
+    var meaningOptions by mutableStateOf<List<MeaningOption>>(emptyList()); private set
+    private var meaningOptionsJob: Job? = null
+    private val meaningOptionsCache = mutableMapOf<Pair<Long, String>, List<MeaningOption>>()
+    fun selectMeaningTarget(target: String) {
+        if (meaningTarget == target) return
+        meaningTarget = target
+        sentenceTranslation = null
+        loadMeaningOptions()
+        translateSentence()
+    }
+    /** French Reader's slot-guarded alternatives lookup; language is supplied by each card. */
+    fun loadMeaningOptions() {
+        val card = slot ?: return
+        val entry = card.entry
+        val target = meaningTarget
+        val key = entry.id to target
+        meaningOptionsJob?.cancel()
+        meaningOptionsCache[key]?.let { meaningOptions = it; return }
+        meaningOptions = emptyList()
+        meaningOptionsJob = viewModelScope.launch {
+            val options = try {
+                container.translations(settings).lookupWord(entry.word, entry.sentence, entry.lang, target).getOrNull()
+                    ?.senses.orEmpty().flatMap { sense -> sense.meanings.map { MeaningOption(it, null, sense.pos) } }
+            } catch (cancelled: CancellationException) { throw cancelled }
+            catch (_: Exception) { emptyList() }
+            if (slot !== card || meaningTarget != target || card.entry.word != entry.word || card.entry.sentence != entry.sentence) return@launch
+            meaningOptionsCache[key] = options
+            meaningOptions = options
+        }
+    }
+    val intervals get() = settings.reviewIntervalDays
     var loading by mutableStateOf(true); private set
     var failed by mutableStateOf(false); private set
     var stage by mutableStateOf(ReviewStage.OVERVIEW); private set
@@ -126,6 +160,9 @@ class ReviewViewModel(private val container: AppContainer, private val settings:
     val current get() = session?.current
     val canUndo get() = stage == ReviewStage.REVIEW && session?.answers?.isNotEmpty() == true && !busy
 
+    private suspend fun scopedEntries() = container.vocab.getAll(lang).filter {
+        listScope == VOCAB_SCOPE_ALL || (if (it.listId == null) VOCAB_SCOPE_UNFILED else it.listId) == listScope
+    }
     init { load() }
 
     private fun run(block: suspend () -> Unit) {
@@ -138,9 +175,9 @@ class ReviewViewModel(private val container: AppContainer, private val settings:
 
     fun load() = run {
         val now = nowMs()
-        val entries = container.vocab.getAll(lang)
+        val entries = scopedEntries()
         val logs = container.vocab.reviewLogSince(lang, 0)
-        overview = reviewOverview(entries, logs, settings.dailyNewCards, now)
+        overview = reviewOverview(entries, logs, settings.dailyNewCards, now, intervals = intervals)
         listNames = container.vocab.observeLists(lang).first().associate { it.id to it.name }
         streak = activityStreak(container.database.activity().observe(lang).first(), localToday(), logs,
             container.database.shadowAttempts().observe(lang).first())
@@ -157,7 +194,7 @@ class ReviewViewModel(private val container: AppContainer, private val settings:
     fun startReview(box: Int? = null) = run {
         val now = nowMs()
         val dayStart = VocabSrs.startOfDayMs(now)
-        val entries = container.vocab.getAll(lang)
+        val entries = scopedEntries()
         val remaining = remainingNewCards(container.vocab.reviewLogSince(lang, 0), settings.dailyNewCards, dayStart)
         val ids = buildReviewQueue(entries.map { it.reviewCard() }, now, dayStart, remaining, box).map { it.id }
         begin(ids.mapNotNull { id -> entries.firstOrNull { it.id == id } }, learned = false)
@@ -165,10 +202,12 @@ class ReviewViewModel(private val container: AppContainer, private val settings:
 
     fun startLearnedReview() = run {
         learnedReviewed = 0
-        begin(container.vocab.getAll(lang).filter { it.learned }.sortedBy { it.id }, learned = true)
+        begin(scopedEntries().filter { it.learned }.sortedBy { it.id }, learned = true)
     }
 
     private fun show() {
+        meaningOptionsJob?.cancel()
+        meaningOptions = emptyList()
         sentenceTranslation = null; sentenceTranslationError = false; sentenceTranslationLoading = false
         shadowingController.cancel()
         slot = current?.let(::CardSlot)
@@ -182,7 +221,7 @@ class ReviewViewModel(private val container: AppContainer, private val settings:
         val learnedKeep = isLearnedReview && answer != VocabAnswer.FORGOT
         val boxBefore = if (isLearnedReview) 5 else before.leitnerBox
         val after = if (learnedKeep) before.copy(lastReviewedAtMs = now) else {
-            val schedule = VocabSrs.apply(before.srsState(), answer, now)
+            val schedule = VocabSrs.apply(before.srsState(), answer, now, intervals)
             // "Again" keeps the card due today so leaving early does not push it to tomorrow.
             before.withState(if (answer == VocabAnswer.FORGOT) schedule.copy(nextReviewAtMs = now) else schedule)
         }
@@ -212,7 +251,11 @@ class ReviewViewModel(private val container: AppContainer, private val settings:
         container.vocab.update(now)
         session = session?.let { s -> s.copy(cards = s.cards.map { it.patched() },
             answers = s.answers.map { it.copy(before = it.before.patched(), after = it.after.patched()) }) }
-        show()
+        val changedText = slot?.entry?.let { it.word != now.word || it.sentence != now.sentence } == true
+        if (changedText) {
+            meaningOptionsCache.keys.removeAll { it.first == now.id }
+            show()
+        } else slot?.entry = now
     }
 
     fun consumeMove() { move = null }
@@ -222,7 +265,7 @@ class ReviewViewModel(private val container: AppContainer, private val settings:
         studyTimeMs = timer.pause(now).values.sum()
         viewModelScope.launch {
             try {
-                val entries = container.vocab.getAll(lang)
+                val entries = scopedEntries()
                 nextScheduledAtMs = entries.filter { !it.learned && it.nextReviewAtMs > now }.minOfOrNull { it.nextReviewAtMs }
                 dayTotals = reviewDayTotals(container.vocab.reviewLogSince(lang, VocabSrs.startOfDayMs(now)), VocabSrs.startOfDayMs(now))
             } catch (e: CancellationException) { throw e } catch (_: Exception) { failed = true }
@@ -236,18 +279,19 @@ class ReviewViewModel(private val container: AppContainer, private val settings:
         val entry = current ?: return
         if (entry.sentence.isBlank()) return
         val requested = slot
+        val target = meaningTarget
         sentenceTranslationLoading = true; sentenceTranslationError = false
         viewModelScope.launch {
             val result = try {
-                container.translations(settings).translateText(entry.sentence, entry.lang, meaningTarget(entry.lang, settings))
+                container.translations(settings).translateText(entry.sentence, entry.lang, target)
             } catch (e: CancellationException) { throw e } catch (e: Exception) { Result.failure(e) }
-            if (slot !== requested) return@launch
+            if (slot !== requested || meaningTarget != target) return@launch
             result.fold({ sentenceTranslation = it }, { sentenceTranslationError = true })
             sentenceTranslationLoading = false
         }
     }
 
-    override fun onCleared() { shadowingController.cancel(); timer.pause(nowMs()) }
+    override fun onCleared() { meaningOptionsJob?.cancel(); shadowingController.cancel(); timer.pause(nowMs()) }
 }
 
 /** Same rule as the dictionary sheet: meanings in the chosen language unless it is the card's own language. */
@@ -256,8 +300,8 @@ internal fun meaningTarget(cardLang: String, settings: AppSettings): String =
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ReviewScreen(container: AppContainer, settings: AppSettings, onBack: () -> Unit = {}, onOpenSettings: () -> Unit = {}) {
-    val vm = viewModel(key = "review:${container.hashCode()}:${settings.learningLang}:${settings.dailyNewCards}") { ReviewViewModel(container, settings) }
+fun ReviewScreen(container: AppContainer, settings: AppSettings, onBack: () -> Unit = {}, onOpenSettings: () -> Unit = {}, listScope: Long = -1L) {
+    val vm = viewModel(key = "review:${container.hashCode()}:${settings.learningLang}:${settings.dailyNewCards}:${settings.reviewIntervalDays}:$listScope") { ReviewViewModel(container, settings, listScope) }
     val snackbar = remember { SnackbarHostState() }
     val tts = remember { createTts() }
     DisposableEffect(Unit) { onDispose { tts.stop() } }
@@ -295,6 +339,10 @@ fun ReviewScreen(container: AppContainer, settings: AppSettings, onBack: () -> U
     }, modelLanguage = languageName(language), modelSizeMb = language.offlineSpeechModel?.downloadMb ?: 0, systemLabel = stringResource(Res.string.shadowing_use_android_engine))
     var editing by remember { mutableStateOf<VocabEntry?>(null) }
     val currentRevealed = vm.slot != null && vm.slot === revealedSlot
+    LaunchedEffect(settings.meaningLang) { vm.selectMeaningTarget(meaningTarget(requireNotNull(settings.learningLang), settings)) }
+    LaunchedEffect(currentRevealed, vm.slot, vm.current?.word, vm.current?.sentence, vm.meaningTarget) {
+        if (currentRevealed) vm.loadMeaningOptions()
+    }
     LaunchedEffect(vm.stage) { if (vm.stage == ReviewStage.OVERVIEW) vm.load() }
     LaunchedEffect(vm.move) {
         val (before, after) = vm.move ?: return@LaunchedEffect
@@ -549,6 +597,9 @@ private fun ReviewCard(
                 sentenceTranslationLoading = vm.sentenceTranslationLoading,
                 sentenceTranslationError = vm.sentenceTranslationError,
                 onEdit = onEdit,
+                meaningOptions = if (entry.id == vm.current?.id) vm.meaningOptions else emptyList(),
+                meaningTarget = vm.meaningTarget,
+                onMeaningSelected = { vm.edit(entry.copy(meaning = it)) },
                 modifier = cardModifier
             )
         },
@@ -566,10 +617,10 @@ private fun ReviewCard(
             val thisSession = stringResource(Res.string.interval_this_session)
             val state = entry.srsState()
             val learningStep = !vm.isLearnedReview && VocabSrs.isLearningStep(state, nowMs())
-            ReviewAnswerButton(stringResource(Res.string.vocab_answer_again), if (vm.isLearnedReview) intervalLabel(VocabSrs.DEFAULT_INTERVAL_DAYS[0]) else thisSession, Modifier.weight(1f), MaterialTheme.colorScheme.error, interactive) { vm.answer(VocabAnswer.FORGOT) }
+            ReviewAnswerButton(stringResource(Res.string.vocab_answer_again), if (vm.isLearnedReview) intervalLabel(vm.intervals[0]) else thisSession, Modifier.weight(1f), MaterialTheme.colorScheme.error, interactive) { vm.answer(VocabAnswer.FORGOT) }
             // A card still being learned has no "hard": plain Leitner, right or wrong.
-            if (!learningStep) ReviewAnswerButton(stringResource(Res.string.vocab_answer_hard), if (vm.isLearnedReview) null else intervalLabel(VocabSrs.previewIntervalDays(state, VocabAnswer.HARD)), Modifier.weight(1f), enabled = interactive) { vm.answer(VocabAnswer.HARD) }
-            ReviewAnswerButton(stringResource(Res.string.vocab_answer_good), if (vm.isLearnedReview) null else intervalLabel(VocabSrs.previewIntervalDays(state, VocabAnswer.KNEW)), Modifier.weight(1f), MaterialTheme.colorScheme.primary, interactive) { vm.answer(VocabAnswer.KNEW) }
+            if (!learningStep) ReviewAnswerButton(stringResource(Res.string.vocab_answer_hard), if (vm.isLearnedReview) null else intervalLabel(VocabSrs.previewIntervalDays(state, VocabAnswer.HARD, vm.intervals)), Modifier.weight(1f), enabled = interactive) { vm.answer(VocabAnswer.HARD) }
+            ReviewAnswerButton(stringResource(Res.string.vocab_answer_good), if (vm.isLearnedReview) null else intervalLabel(VocabSrs.previewIntervalDays(state, VocabAnswer.KNEW, vm.intervals)), Modifier.weight(1f), MaterialTheme.colorScheme.primary, interactive) { vm.answer(VocabAnswer.KNEW) }
         }
     }
 }
@@ -622,8 +673,13 @@ internal fun EntryFlashcard(
     sentenceTranslationLoading: Boolean,
     sentenceTranslationError: Boolean,
     onEdit: () -> Unit,
-    modifier: Modifier
+    modifier: Modifier,
+    meaningOptions: List<MeaningOption> = emptyList(),
+    meaningTarget: String = Languages.PERSIAN.code,
+    onMeaningSelected: (String) -> Unit = {},
 ) {
+    var appliedMeaning by remember(entry.id, entry.word, entry.sentence, meaningTarget) { mutableStateOf<String?>(null) }
+    var previousMeaning by remember(entry.id, entry.word, entry.sentence, meaningTarget) { mutableStateOf<String?>(null) }
     val wordStyle = centeredContent(MaterialTheme.typography.headlineMedium)
     FlipCard(
         revealed = revealed,
@@ -652,6 +708,19 @@ internal fun EntryFlashcard(
                 Text(it, style = centeredContent(MaterialTheme.typography.bodyMedium), color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
             if (alternatives.isNotEmpty()) Spacer(Modifier.height(8.dp))
+            if (revealed && meaningOptions.isNotEmpty()) {
+                val options = reviewMeaningOptions(meaningOptions, entry.meaning, appliedMeaning, previousMeaning)
+                com.ziaee.zabankhan.ui.reader.MeaningOptionPills(options, appliedMeaning, meaningTarget, enabled = interactive,
+                    quietMeaning = previousMeaning) { option ->
+                    val replacement = replaceMeaningLine(entry.meaning, option.text, Languages.byCode(entry.lang)?.vocabularyLessonTag)
+                    if (replacement.meaning != entry.meaning) {
+                        previousMeaning = replacement.previousLine
+                        appliedMeaning = option.text
+                        onMeaningSelected(replacement.meaning)
+                    }
+                }
+                Spacer(Modifier.height(8.dp))
+            }
             if (entry.sentence.isNotBlank()) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(entry.sentence, style = centeredContent(LocalTextStyle.current), fontStyle = FontStyle.Italic, modifier = Modifier.weight(1f))

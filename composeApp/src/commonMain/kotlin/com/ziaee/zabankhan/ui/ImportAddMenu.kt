@@ -34,12 +34,14 @@ fun ImportAddMenu(
     var busy by remember { mutableStateOf(false) }
     var preview by remember { mutableStateOf<String?>(null) }
     var previewTitle by remember { mutableStateOf("") }
+    var pendingCsv by remember { mutableStateOf<Pair<String, CsvWordFile>?>(null) }
     var pendingAnki by remember { mutableStateOf<String?>(null) }
     var keepProgress by remember { mutableStateOf(true) }
     var result by remember { mutableStateOf<WordImportResult?>(null) }
     var sample by remember { mutableStateOf(false) }
     val fallback = stringResource(Res.string.h1_imported_words)
     val spec = requireNotNull(Languages.learnable.firstOrNull { it.code == settings.learningLang })
+    val lists by remember(spec.code) { vm.container.vocab.observeLists(spec.code) }.collectAsState(emptyList())
     val repository = remember(vm, spec, settings.meaningLang) { ImportRepository(vm.container.database, spec, settings.meaningLang) }
     fun picked(kind: FileKind): (PickedFile?) -> Unit = { file ->
         if (file != null) vm.action {
@@ -54,7 +56,7 @@ fun ImportAddMenu(
                         previewTitle = file.displayName.substringBeforeLast('.')
                         preview = words.joinToString(" ") { it.text }
                     }
-                    FileKind.CSV -> result = withContext(Dispatchers.IO) { repository.csv(FileSystem.SYSTEM.read(file.path.toPath()) { readUtf8() }, fallback) }
+                    FileKind.CSV -> pendingCsv = file.displayName.substringBeforeLast('.') to withContext(Dispatchers.IO) { parseCsvWords(FileSystem.SYSTEM.read(file.path.toPath()) { readUtf8() }) }
                     FileKind.JSON -> pendingAnki = withContext(Dispatchers.IO) { FileSystem.SYSTEM.read(file.path.toPath()) { readUtf8() } }
                     else -> Unit
                 }
@@ -98,6 +100,12 @@ fun ImportAddMenu(
                 vm.action { open(vm.container.texts.insert(TextDocument(lang = spec.code, title = previewTitle.trim(), body = body))) }
             }) { Text(stringResource(Res.string.save)) }
         }, dismissButton = { TextButton(onClick = { preview = null }) { Text(stringResource(Res.string.cancel)) } })
+    }
+    pendingCsv?.let { (name, file) ->
+        CsvImportDialog(name.ifBlank { fallback }, file, lists, { pendingCsv = null }) { target ->
+            pendingCsv = null
+            vm.action { result = withContext(Dispatchers.IO) { repository.csv(file, target) } }
+        }
     }
     pendingAnki?.let { jsonText ->
         AlertDialog(onDismissRequest = { pendingAnki = null }, title = { Text(stringResource(Res.string.h1_import_anki)) }, text = {

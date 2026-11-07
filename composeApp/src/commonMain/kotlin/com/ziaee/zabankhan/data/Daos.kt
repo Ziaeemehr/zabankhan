@@ -12,6 +12,12 @@ import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface TextDao {
+    @Query("UPDATE texts SET level = :level WHERE id IN (:ids)")
+    suspend fun setLevels(ids: List<Long>, level: String?)
+
+    @Query("UPDATE texts SET readMark = :mark WHERE id IN (:ids)")
+    suspend fun setReadMarks(ids: List<Long>, mark: Int)
+
     @Query("SELECT texts.id, snippet(texts_fts, '', '', '…', 1, 12) AS snippet FROM texts_fts JOIN texts ON texts.id = texts_fts.rowid WHERE texts.lang = :lang AND texts_fts MATCH :query LIMIT :limit")
     suspend fun searchFullText(lang: String, query: String, limit: Int = 100): List<TextSearchHit>
 
@@ -92,6 +98,21 @@ interface VocabDao {
     fun observeLists(lang: String): Flow<List<VocabList>>
 
     @Insert suspend fun insertList(list: VocabList): Long
+
+    @Query("UPDATE vocab_lists SET name = :name WHERE id = :id")
+    suspend fun renameList(id: Long, name: String)
+
+    @Query("DELETE FROM vocab WHERE listId = :listId")
+    suspend fun deleteCardsInList(listId: Long)
+
+    @Query("UPDATE vocab SET listId = NULL WHERE listId = :listId")
+    suspend fun clearList(listId: Long)
+
+    @Transaction
+    suspend fun deleteListAndCards(listId: Long, deleteCards: Boolean) {
+        if (deleteCards) deleteCardsInList(listId) else clearList(listId)
+        deleteList(listId)
+    }
 
     @Query("DELETE FROM vocab_lists WHERE id = :id")
     suspend fun deleteList(id: Long)

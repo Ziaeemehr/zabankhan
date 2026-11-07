@@ -244,6 +244,18 @@ fun SettingsScreen(vm: AppViewModel, settings: AppSettings, progress: () -> Unit
                                         com.ziaee.zabankhan.data.AudioAutoplay.BOTH -> Res.string.review_autoplay_both
                                     })
                                 }) { vm.action { repository.setReviewAudioAutoplay(it) } }
+                                // Copied from French Reader SettingsScreen review settings.
+                                Text(stringResource(Res.string.review_intervals), style = MaterialTheme.typography.bodySmall,
+                                    modifier = Modifier.padding(top = 6.dp, bottom = 3.dp))
+                                settings.reviewIntervalDays.forEachIndexed { index, days ->
+                                    StepperSetting(stringResource(Res.string.review_box_interval, index + 1), days.toInt(), 1, 365) { value ->
+                                        val intervals = settings.reviewIntervalDays.toMutableList().also { it[index] = value.toLong() }
+                                        vm.action { repository.setReviewIntervals(intervals) }
+                                    }
+                                }
+                                TextButton(onClick = { vm.action { repository.resetReviewIntervals() } }) {
+                                    Text(stringResource(Res.string.review_intervals_reset))
+                                }
                                 com.ziaee.zabankhan.reminder.ReviewReminderSettings(vm, settings)
 
                             }

@@ -97,3 +97,12 @@ internal fun homeReadingMetrics(doc: TextDocument, wordsPerMinute: Int = 200): H
     val remaining = if (fraction >= 1f || totalMinutes == 0) 0 else ceil(totalMinutes * (1 - fraction).toDouble()).toInt().coerceAtLeast(1)
     return HomeReadingMetrics(fraction, (fraction * 100).toInt(), totalMinutes, remaining)
 }
+
+internal fun readingStatus(document: TextDocument, completed: Boolean): ReadingStatus = when {
+    isTextFinished(document, completed) -> ReadingStatus.READ
+    isTextNotStarted(document) -> ReadingStatus.NOT_STARTED
+    else -> ReadingStatus.IN_PROGRESS
+}
+
+internal fun readMarkToStore(chosen: Int, completedAutomatically: Boolean): Int =
+    if ((chosen == READ_MARK_FINISHED) == completedAutomatically) READ_MARK_AUTOMATIC else chosen

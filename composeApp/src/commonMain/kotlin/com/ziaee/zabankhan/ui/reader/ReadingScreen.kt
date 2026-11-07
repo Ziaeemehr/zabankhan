@@ -106,7 +106,7 @@ private val LocalReaderFindRevision = staticCompositionLocalOf { 0 }
 @OptIn(ExperimentalMaterial3Api::class, kotlinx.coroutines.FlowPreview::class)
 @Composable
 fun ReadingScreen(vm: AppViewModel, settings: AppSettings, textId: Long, onBack: () -> Unit,
-    onOpenVocab: () -> Unit = {}) {
+    onOpenVocab: () -> Unit = {}, initialQuery: String = "") {
     val document by remember(textId) { vm.container.texts.observeById(textId) }.collectAsState(null)
     var loaded by remember(textId) { mutableStateOf(false) }
     LaunchedEffect(textId) { loaded = vm.container.texts.getById(textId) == null }
@@ -164,8 +164,8 @@ fun ReadingScreen(vm: AppViewModel, settings: AppSettings, textId: Long, onBack:
     var showContentsSheet by remember { mutableStateOf(false) }
     var showGestureGuide by remember { mutableStateOf(false) }
     var showTranslations by remember(textId) { mutableStateOf(false) }
-    var findOpen by remember(textId) { mutableStateOf(false) }
-    var findQuery by remember(textId) { mutableStateOf("") }
+    var findOpen by remember(textId, initialQuery) { mutableStateOf(initialQuery.isNotBlank()) }
+    var findQuery by remember(textId, initialQuery) { mutableStateOf(initialQuery) }
     var findFocusRequest by remember { mutableStateOf(false) }
     var findIndex by remember(findQuery) { mutableIntStateOf(0) }
     var findRevision by remember { mutableIntStateOf(0) }

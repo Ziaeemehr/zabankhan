@@ -29,6 +29,7 @@ data class LanguageSpec(
     val offlineSpeechModel: OfflineSpeechModel? = null,
     val grammarSearchStopWords: Set<String> = emptySet(),
     val grammarAlternativeSeparator: String? = null,
+    val vocabularyLessonTag: Regex? = null,
 )
 
 object Languages {
@@ -49,6 +50,7 @@ object Languages {
         voicePreview = "Bonjour ! Voici un exemple de cette voix naturelle.",
         grammarSearchStopWords = setOf("et", "ou", "vs", "la", "le", "les", "de", "des", "du", "un", "une"),
         grammarAlternativeSeparator = " ou ",
+        vocabularyLessonTag = Regex("\\s*—\\s*Leçon\\s+(\\d+)\\s*$"),
     )
     val ENGLISH = LanguageSpec(
         "en", "English", "English", Script.LATIN, TextDir.LTR, emptyList(), "en-US", "en-US", listOf(

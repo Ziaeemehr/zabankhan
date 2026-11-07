@@ -97,8 +97,16 @@ fun NewsScreen(vm: AppViewModel, settings: AppSettings, onBack: () -> Unit, onOp
                         val id = existingId ?: run {
                             val body = ArticleExtractor.extract(http.contentGet(headline.item.link))
                             check(!body.isNullOrBlank()) { "No article text" }
-                            vm.container.texts.insert(TextDocument(lang = lang, title = headline.item.title, body = body,
-                                sourceUrl = headline.item.link, sourceName = headline.source.name, externalKey = newsExternalKey(lang, headline.item.link)))
+                            val document = TextDocument(lang = lang, title = headline.item.title, body = body,
+                                sourceUrl = headline.item.link, sourceName = headline.source.name, externalKey = newsExternalKey(lang, headline.item.link))
+                            val documentId = vm.container.texts.insert(document)
+                            // French Reader ArticleImportRepository.persistImage: image failure never loses the article.
+                            headline.item.imageUrl?.let { url ->
+                                val relative = com.ziaee.zabankhan.images.ArticleImageStore(http).downloadAndStore(documentId, url)
+                                if (relative != null) vm.container.texts.update(document.copy(id = documentId,
+                                    imagePath = "${com.ziaee.zabankhan.pdf.AppFiles.filesDir}/$relative"))
+                            }
+                            documentId
                         }
                         selected = null
                         onOpenText(id)

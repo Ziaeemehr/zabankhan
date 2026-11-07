@@ -1,0 +1,18 @@
+<resources>
+  <string name="dataset_title">Données</string>
+  <string name="dataset_settings_entry">Données intégrées</string>
+  <string name="dataset_subtitle">Vocabulaire et histoires graduées intégrés. Vous pouvez les ajouter à nouveau sans risque ; les doublons sont ignorés.</string>
+  <string name="dataset_decks">Paquets</string>
+  <string name="dataset_stories">Histoires</string>
+  <string name="dataset_cards_count">%1$d cartes</string>
+  <string name="dataset_stories_count">%1$d histoires</string>
+  <string name="dataset_add">Ajouter</string>
+  <string name="dataset_added">Ajouté</string>
+  <string name="dataset_add_missing">Ajouter les éléments manquants</string>
+  <string name="dataset_add_all">Tout ajouter</string>
+  <string name="dataset_added_result">%1$d ajoutés ; %2$d ignorés</string>
+  <string name="dataset_remove_deleted_deck_cards">Supprimer les cartes des paquets supprimés</string>
+  <string name="dataset_remove_deleted_deck_cards_confirm">Nettoyer les cartes non classées des paquets intégrés ? Les copies des paquets supprimés sont effacées. Les copies des paquets ajoutés à nouveau sont fusionnées en conservant la progression. Vos propres mots restent inchangés.</string>
+  <string name="dataset_removed_result">%1$d cartes supprimées</string>
+  <string name="dataset_empty_language">Aucun contenu intégré pour %1$s.</string>
+</resources>

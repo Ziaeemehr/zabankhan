@@ -15,3 +15,17 @@ fun filterVocabulary(words: List<VocabEntry>, deck: Long, query: String, status:
             normalizeForMatch(entry.word + " " + entry.meaning.orEmpty() + " " + entry.sentence, language).contains(needle)
     }
 }
+
+/** Spreadsheet examples follow the active pack's language, including English learning screens. */
+internal fun wordsCsvSample(language: String): String = when (language) {
+    "fr" -> """word,meaning,sentence,deck
+bonjour,hello / سلام,"Bonjour, comment ça va ?",Basics
+merci,thank you / مرسی,Merci beaucoup !,Basics
+la gare,train station / ایستگاه قطار,Je vais à la gare.,Voyage
+"""
+    else -> """word,meaning,sentence,deck
+hello,سلام,"Hello, how are you?",Basics
+thank you,متشکرم,Thank you very much!,Basics
+the station,ایستگاه,I am going to the station.,Travel
+"""
+}

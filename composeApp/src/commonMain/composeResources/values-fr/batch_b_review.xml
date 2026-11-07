@@ -1,0 +1,5 @@
+<resources>
+<string name="review_intervals">Intervalles des boîtes (jours)</string>
+<string name="review_box_interval">Boîte %1$d</string>
+<string name="review_intervals_reset">Rétablir les intervalles par défaut</string>
+</resources>

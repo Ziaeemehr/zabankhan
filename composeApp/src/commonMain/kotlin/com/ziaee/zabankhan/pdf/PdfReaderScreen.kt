@@ -85,6 +85,9 @@ private data class PdfRange(val page: Int, val first: Int, val last: Int, val wo
         return
     }
     com.ziaee.zabankhan.statistics.TrackActivity(vm.container, text.id, text.lang, com.ziaee.zabankhan.statistics.ActivityKind.READING)
+    LaunchedEffect(text.id, handle.pageCount) {
+        vm.container.cache.put("pdf:page-count:${text.id}", handle.pageCount.toString())
+    }
     val list = rememberLazyListState(text.lastOffset.coerceIn(0, handle.pageCount - 1))
     val layout = remember(handle, text.lang) { PdfPageWords(path, handle, text.lang) }
     val vocab by remember(text.lang) { vm.container.vocab.observeAll(text.lang) }.collectAsState(emptyList())

@@ -16,10 +16,16 @@ class TranslationRepository(private val http: HttpClient, private val cache: Key
     private val overrides = TranslationOverrides(cache)
     private val translations = TranslationCache(cache)
     private val modelCache = LlmCache(cache)
+    private val bundledSentences = mutableMapOf<String, com.ziaee.zabankhan.content.BundledSentenceTranslations>()
     private val engines = listOf("google-gtx", "google-clients5", "mymemory")
 
     suspend fun translateText(text: String, source: String, target: String): Result<String> = result {
         overrides.getOverride(text, source, target)?.let { return@result it }
+        Languages.byCode(TranslationService.baseLanguage(source))?.let { spec ->
+            val bundled = bundledSentences[spec.code] ?: com.ziaee.zabankhan.content.BundledSentenceTranslations.forLanguage(spec)
+                .also { bundledSentences[spec.code] = it }
+            bundled.get(text, target)?.let { return@result it }
+        }
         if (TranslationService.baseLanguage(source) == TranslationService.baseLanguage(target)) return@result text
         if (llm != null) {
             modelCache.get(text, source, target, llm.cacheId)?.let { return@result it }

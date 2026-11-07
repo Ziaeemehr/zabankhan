@@ -27,6 +27,23 @@ class ImportRepository(private val db: AppDatabase, private val spec: LanguageSp
         first
     } }
     suspend fun csv(raw: String, fallbackDeck: String): WordImportResult = words(raw, false, fallbackDeck, false)
+    /** French Reader's CSV target chooser: deck column, existing deck, or a new deck name. */
+    suspend fun csv(file: CsvWordFile, target: CsvImportTarget): WordImportResult = db.useWriterConnection { connection -> connection.immediateTransaction {
+        val lists = db.vocab().observeLists(spec.code).first()
+        val nameById = lists.associate { it.id to it.name.lowercase() }
+        val keys = db.vocab().getAll(spec.code).mapNotNull { e -> nameById[e.listId]?.let { it to e.word.lowercase() } }.toSet()
+        val ids = lists.associate { it.name.lowercase() to it.id }.toMutableMap()
+        val plan = planCsvImport(file, target, keys)
+        val now = nowMs()
+        for ((index, item) in plan.words.withIndex()) {
+            val deckId = ids[item.deck.lowercase()] ?: db.vocab().insertList(VocabList(lang = spec.code, name = item.deck))
+                .also { ids[item.deck.lowercase()] = it }
+            db.vocab().insert(VocabEntry(lang = spec.code, meaningLang = meaningLang, word = item.word.word,
+                meaning = item.word.meaning, sentence = item.word.sentence, listId = deckId,
+                createdAtMs = now + index, nextReviewAtMs = now))
+        }
+        WordImportResult(plan.words.size, plan.skipped + file.malformedRows, plan.deckNames.count { name -> lists.none { it.name.equals(name, ignoreCase = true) } })
+    } }
     suspend fun anki(raw: String, keepProgress: Boolean): WordImportResult = words(raw, true, "", keepProgress)
     private suspend fun words(raw: String, anki: Boolean, fallback: String, keep: Boolean): WordImportResult = db.useWriterConnection { connection -> connection.immediateTransaction {
         val lists = db.vocab().observeLists(spec.code).first()
@@ -39,16 +56,16 @@ class ImportRepository(private val db: AppDatabase, private val spec: LanguageSp
             val export = parseAnkiExport(raw)
             val plan = planAnkiImport(export, keys)
             for (w in plan.words) db.vocab().insert(buildVocabEntry(w.card, w.mapped, deck(w.listName), keep, export.todayDay, now, spec.code, meaningLang))
-            WordImportResult(plan.words.size, plan.skipped)
+            WordImportResult(plan.words.size, plan.skipped, plan.words.map { it.listName.lowercase() }.distinct().count { name -> lists.none { it.name.lowercase() == name } })
         } else {
             val file = parseCsvWords(raw)
             val plan = planCsvImport(file, CsvImportTarget.DeckColumn(fallback), keys)
             plan.words.forEachIndexed { i, w -> db.vocab().insert(VocabEntry(lang = spec.code, meaningLang = meaningLang, word = w.word.word, meaning = w.word.meaning, sentence = w.word.sentence, listId = deck(w.deck), createdAtMs = now + i, nextReviewAtMs = now)) }
-            WordImportResult(plan.words.size, plan.skipped + file.malformedRows)
+            WordImportResult(plan.words.size, plan.skipped + file.malformedRows, plan.deckNames.count { name -> lists.none { it.name.equals(name, ignoreCase = true) } })
         }
     } }
 }
-data class WordImportResult(val imported: Int, val skipped: Int)
+data class WordImportResult(val imported: Int, val skipped: Int, val decks: Int = 0)
 
 fun markdownToPlainText(markdown: String): String {
     val lines = markdown.lines()

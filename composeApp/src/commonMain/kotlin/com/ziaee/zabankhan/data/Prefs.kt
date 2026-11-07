@@ -33,6 +33,7 @@ data class AppSettings(
     val uiLang: String = "system",
     val themeMode: String = "SYSTEM",
     val dailyNewCards: Int = 10,
+    val reviewIntervalDays: List<Long> = com.ziaee.zabankhan.srs.VocabSrs.DEFAULT_INTERVAL_DAYS,
     val dailyGoalMinutes: Int = 10,
     val readerFontSize: Int = 20,
     val readerFontScale: String = "MEDIUM",
@@ -85,6 +86,7 @@ class SettingsRepository(private val store: DataStore<Preferences>, private val 
         val ui = stringPreferencesKey("ui_lang")
         val theme = stringPreferencesKey("theme_mode")
         val newCards = intPreferencesKey("daily_new_cards")
+        val intervals = stringPreferencesKey("review_intervals")
         val dailyGoal = intPreferencesKey("daily_goal_minutes")
         val font = intPreferencesKey("reader_font_size")
         val fontScale = stringPreferencesKey("reader_font_scale")
@@ -127,6 +129,7 @@ class SettingsRepository(private val store: DataStore<Preferences>, private val 
             uiLang = p[K.ui] ?: "system",
             themeMode = p[K.theme] ?: "SYSTEM",
             dailyNewCards = p[K.newCards] ?: 10,
+            reviewIntervalDays = restoreReviewIntervals(p[K.intervals]),
             dailyGoalMinutes = (p[K.dailyGoal] ?: 10).coerceIn(1, 120),
             readerFontSize = p[K.font] ?: 20,
             readerFontScale = p[K.fontScale]?.takeIf { value -> com.ziaee.zabankhan.ui.theme.FontScale.entries.any { it.name == value } } ?: "MEDIUM",
@@ -195,6 +198,11 @@ class SettingsRepository(private val store: DataStore<Preferences>, private val 
     suspend fun setUiLang(code: String) = store.edit { it[K.ui] = code }
     suspend fun setThemeMode(mode: String) = store.edit { it[K.theme] = mode }
     suspend fun setDailyGoalMinutes(minutes: Int) = store.edit { it[K.dailyGoal] = minutes.coerceIn(1, 120) }
+    suspend fun setReviewIntervals(days: List<Long>) = store.edit {
+        require(days.size == 5 && days.all { day -> day in 1..365 })
+        it[K.intervals] = days.joinToString(",")
+    }
+    suspend fun resetReviewIntervals() = store.edit { it.remove(K.intervals) }
     suspend fun setDailyNewCards(n: Int) = store.edit { it[K.newCards] = n.coerceIn(0, 100) }
     suspend fun setReaderFontSize(sp: Int) = store.edit { it[K.font] = sp.coerceIn(12, 40) }
     suspend fun setReaderFontScale(value: String) = store.edit {
@@ -249,3 +257,9 @@ class SettingsRepository(private val store: DataStore<Preferences>, private val 
         secretRevision.value += 1
     }
 }
+
+/** French Reader VocabPrefs.getIntervals, with the bounds used by its settings stepper. */
+internal fun restoreReviewIntervals(raw: String?): List<Long> = raw?.split(',')
+    ?.mapNotNull(String::toLongOrNull)
+    ?.takeIf { it.size == 5 && it.all { day -> day in 1..365 } }
+    ?: com.ziaee.zabankhan.srs.VocabSrs.DEFAULT_INTERVAL_DAYS
