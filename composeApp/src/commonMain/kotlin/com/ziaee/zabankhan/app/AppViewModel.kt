@@ -9,6 +9,9 @@ import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 
 class AppViewModel(val container: AppContainer) : ViewModel() {
+    val progress = com.ziaee.zabankhan.progress.ProgressRepository(container).observe()
+        .catch { error -> if (error is CancellationException) throw error else failed = true }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
     val settings = container.settings.settings.stateIn(viewModelScope, SharingStarted.Eagerly, null)
     var failed by mutableStateOf(false); private set
     /** Port of ReadingViewModel.saveEdit: body edits restart reading; renames keep position. */

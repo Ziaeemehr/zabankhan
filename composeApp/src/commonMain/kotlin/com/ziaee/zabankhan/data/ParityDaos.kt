@@ -147,6 +147,9 @@ interface ResourceDao {
 
 @Dao
 interface ExamAttemptDao {
+    @Query("SELECT * FROM exam_attempts")
+    fun observeProgressExams(): Flow<List<ExamAttempt>>
+
     @Insert suspend fun insert(attempt: ExamAttempt): Long
     @Update suspend fun update(attempt: ExamAttempt)
     @Query("DELETE FROM exam_attempts WHERE id = :id") suspend fun deleteById(id: Long)

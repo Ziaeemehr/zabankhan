@@ -43,8 +43,9 @@ import com.ziaee.zabankhan.watch.WatchHistory
     vm: AppViewModel, settings: AppSettings, open: (Long) -> Unit, add: () -> Unit,
     review: () -> Unit, watch: () -> Unit, progress: () -> Unit = {}, discover: () -> Unit = {},
     grammar: () -> Unit = {}, exams: () -> Unit = {}, openSettings: () -> Unit = {},
-    words: () -> Unit = {}, news: () -> Unit = {}, watchVideo: (String, String, String) -> Unit = { _, _, _ -> },
+    words: () -> Unit = {}, news: () -> Unit = {}, achievements: () -> Unit = {}, watchVideo: (String, String, String) -> Unit = { _, _, _ -> },
 ) {
+    val motivation by vm.progress.collectAsState()
     val lang = requireNotNull(settings.learningLang)
     val spec = requireNotNull(Languages.byCode(lang))
     val recentState by remember(lang) { vm.container.texts.observeRecent(lang) }.collectAsState(initial = null)
@@ -104,7 +105,7 @@ import com.ziaee.zabankhan.watch.WatchHistory
                 ProgressCard(
                     HomeProgress(activityStreak(activity, today, reviews, attemptsState.orEmpty()), allWords.count { it.createdAtMs >= com.ziaee.zabankhan.data.nowMs() - 7 * 86_400_000L },
                         allWords.count { it.srsState().status() == VocabStatus.LEARNED }, activityMinutes(activity, today, 1).total.roundToInt(), settings.dailyGoalMinutes),
-                    onOpen = progress, onSavedWords = words,
+                    onOpen = progress, onSavedWords = words, motivation = motivation, onAchievements = achievements,
                     modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
                 )
             }

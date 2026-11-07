@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="progress_achievements">دستاوردها</string>
+    <string name="progress_level">سطح %1$s</string>
+    <string name="progress_total">%1$s امتیاز کل</string>
+    <string name="progress_next">%1$s امتیاز تا سطح بعد</string>
+    <string name="progress_weekly_goal">هدف هفتگی (امتیاز)</string>
+    <string name="progress_weekly">این هفته: %1$s از %2$s امتیاز</string>
+    <string name="progress_weekly_explanation">از دوشنبه تا یکشنبه به وقت محلی. دقایق مطالعه، مرورها، آزمون‌ها و روزهای زنجیرهٔ این هفته حساب می‌شوند. واژه‌های یادگرفته‌شده و متن‌های تمام‌شده فقط در امتیاز کل حساب می‌شوند.</string>
+    <string name="progress_badges_language">نشان‌ها · %1$s</string>
+    <string name="progress_locked">قفل‌شده</string>
+    <string name="progress_unlocked">به‌دست‌آمده</string>
+    <string name="progress_badge_count">%1$s از %2$s</string>
+    <string name="progress_celebration">سطح %1$s · %2$s نشان جدید. ادامه بده!</string>
+    <string name="progress_badge_first_text">اولین متن تمام‌شده</string>
+    <string name="progress_badge_streak_7">زنجیرهٔ ۷ روزه</string>
+    <string name="progress_badge_streak_30">زنجیرهٔ ۳۰ روزه</string>
+    <string name="progress_badge_learned_100">۱۰۰ واژهٔ یادگرفته‌شده</string>
+    <string name="progress_badge_learned_500">۵۰۰ واژهٔ یادگرفته‌شده</string>
+    <string name="progress_badge_learned_1000">۱۰۰۰ واژهٔ یادگرفته‌شده</string>
+    <string name="progress_badge_reviews_1000">۱۰۰۰ مرور</string>
+    <string name="progress_badge_texts_10">۱۰ متن تمام‌شده</string>
+    <string name="progress_badge_reading_600">۱۰ ساعت مطالعه</string>
+</resources>

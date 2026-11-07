@@ -34,12 +34,22 @@ import org.jetbrains.compose.resources.stringResource
 data class HomeProgress(val streakDays: Int, val weekNewWords: Int, val learnedWords: Int, val todayMinutes: Int, val goalMinutes: Int)
 
 @Composable
-fun ProgressCard(state: HomeProgress, onOpen: () -> Unit, onSavedWords: () -> Unit, modifier: Modifier = Modifier) {
+fun ProgressCard(state: HomeProgress, onOpen: () -> Unit, onSavedWords: () -> Unit, modifier: Modifier = Modifier,
+    motivation: com.ziaee.zabankhan.progress.ProgressSummary? = null, onAchievements: () -> Unit = {}) {
     val progress = (state.todayMinutes.toFloat() / state.goalMinutes.coerceAtLeast(1)).coerceIn(0f, 1f)
     val goalReached = progress >= 1f
     val colors = MaterialTheme.colorScheme
     Card(onClick = onOpen, modifier = modifier) {
         Column(Modifier.padding(start = 14.dp, end = 6.dp, top = 12.dp, bottom = 6.dp)) {
+            motivation?.let { summary ->
+                Row(Modifier.fillMaxWidth().padding(end = 8.dp), verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    AssistChip(onClick = onAchievements, label = { Text(stringResource(Res.string.progress_level, summary.level.toString())) },
+                        leadingIcon = { Icon(Icons.Default.EmojiEvents, null, Modifier.size(16.dp)) })
+                    LinearProgressIndicator(progress = { summary.levelFraction }, modifier = Modifier.weight(1f).height(3.dp),
+                        drawStopIndicator = {})
+                }
+            }
             Row(Modifier.fillMaxWidth().padding(end = 8.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 ProgressStat(Icons.Default.LocalFireDepartment, Color(0xFFF2994A), state.streakDays.toString(),
                     pluralStringResource(Res.plurals.home_streak_days, state.streakDays), Modifier.weight(1f))

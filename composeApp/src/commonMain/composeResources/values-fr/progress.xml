@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="progress_achievements">Réussites</string>
+    <string name="progress_level">Niveau %1$s</string>
+    <string name="progress_total">%1$s points au total</string>
+    <string name="progress_next">%1$s points avant le prochain niveau</string>
+    <string name="progress_weekly_goal">Objectif hebdomadaire (points)</string>
+    <string name="progress_weekly">Cette semaine : %1$s / %2$s points</string>
+    <string name="progress_weekly_explanation">Du lundi au dimanche, en heure locale. Les minutes de lecture, révisions, essais d’examen et jours de série de cette semaine comptent. Les mots appris et textes terminés comptent uniquement dans le total.</string>
+    <string name="progress_badges_language">Badges · %1$s</string>
+    <string name="progress_locked">Verrouillé</string>
+    <string name="progress_unlocked">Débloqué</string>
+    <string name="progress_badge_count">%1$s / %2$s</string>
+    <string name="progress_celebration">Niveau %1$s · %2$s nouveaux badges. Continuez !</string>
+    <string name="progress_badge_first_text">Premier texte terminé</string>
+    <string name="progress_badge_streak_7">Série de 7 jours</string>
+    <string name="progress_badge_streak_30">Série de 30 jours</string>
+    <string name="progress_badge_learned_100">100 mots appris</string>
+    <string name="progress_badge_learned_500">500 mots appris</string>
+    <string name="progress_badge_learned_1000">1 000 mots appris</string>
+    <string name="progress_badge_reviews_1000">1 000 révisions</string>
+    <string name="progress_badge_texts_10">10 textes terminés</string>
+    <string name="progress_badge_reading_600">10 heures de lecture</string>
+</resources>

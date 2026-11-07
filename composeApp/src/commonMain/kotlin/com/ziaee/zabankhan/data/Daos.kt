@@ -12,6 +12,9 @@ import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface TextDao {
+    @Query("SELECT * FROM texts")
+    fun observeProgressTexts(): Flow<List<TextDocument>>
+
     @Query("UPDATE texts SET level = :level WHERE id IN (:ids)")
     suspend fun setLevels(ids: List<Long>, level: String?)
 
@@ -69,6 +72,12 @@ interface TextDao {
 
 @Dao
 interface VocabDao {
+    @Query("SELECT * FROM review_log")
+    fun observeProgressReviews(): Flow<List<ReviewLogEntry>>
+
+    @Query("SELECT * FROM vocab")
+    fun observeProgressWords(): Flow<List<VocabEntry>>
+
     @Query("SELECT * FROM vocab WHERE lang = :lang ORDER BY createdAtMs DESC")
     fun observeAll(lang: String): Flow<List<VocabEntry>>
 
@@ -151,6 +160,9 @@ interface HighlightDao {
 
 @Dao
 interface ActivityDao {
+    @Query("SELECT * FROM activity_log")
+    fun observeProgressActivity(): Flow<List<ActivityLogEntry>>
+
     @Query("SELECT * FROM activity_log WHERE lang = :lang ORDER BY date")
     fun observe(lang: String): Flow<List<ActivityLogEntry>>
 
@@ -184,6 +196,9 @@ interface PdfHighlightDao {
 
 @Dao
 interface ShadowAttemptDao {
+    @Query("SELECT * FROM shadow_attempts")
+    fun observeProgressShadow(): Flow<List<ShadowAttempt>>
+
     @Query("SELECT * FROM shadow_attempts WHERE lang = :lang ORDER BY timestampMs")
     fun observe(lang: String): Flow<List<ShadowAttempt>>
     @Insert suspend fun insert(attempt: ShadowAttempt): Long

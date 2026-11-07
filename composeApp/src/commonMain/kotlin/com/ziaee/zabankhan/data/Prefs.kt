@@ -39,6 +39,7 @@ data class AppSettings(
     val dailyNewCards: Int = 10,
     val reviewIntervalDays: List<Long> = com.ziaee.zabankhan.srs.VocabSrs.DEFAULT_INTERVAL_DAYS,
     val dailyGoalMinutes: Int = 10,
+    val weeklyPointsGoal: Int = com.ziaee.zabankhan.progress.DEFAULT_WEEKLY_GOAL,
     val readerFontSize: Int = 20,
     val readerFontScale: String = "MEDIUM",
     val readingBackground: String = "SEPIA",
@@ -78,6 +79,7 @@ class SettingsRepository(private val store: DataStore<Preferences>, private val 
         secrets.remove(LLM_API_KEY)
         scope?.coroutineContext?.get(Job)?.cancelAndJoin()
     }
+    private val progressPrefs = com.ziaee.zabankhan.progress.ProgressPreferences(store)
     val backupPrefs = com.ziaee.zabankhan.backup.BackupPrefs(store)
     private val secretMutex = Mutex()
     private val secretRevision = MutableStateFlow(0)
@@ -146,6 +148,7 @@ class SettingsRepository(private val store: DataStore<Preferences>, private val 
             dailyNewCards = p[K.newCards] ?: 10,
             reviewIntervalDays = restoreReviewIntervals(p[K.intervals]),
             dailyGoalMinutes = (p[K.dailyGoal] ?: 10).coerceIn(1, 120),
+            weeklyPointsGoal = com.ziaee.zabankhan.progress.ProgressPreferences.readGoal(p),
             readerFontSize = p[K.font] ?: 20,
             readerFontScale = p[K.fontScale]?.takeIf { value -> com.ziaee.zabankhan.ui.theme.FontScale.entries.any { it.name == value } } ?: "MEDIUM",
             readingBackground = p[K.readingBackground]?.takeIf { value -> com.ziaee.zabankhan.ui.theme.ReadingBackground.entries.any { it.name == value } } ?: "SEPIA",
@@ -237,6 +240,9 @@ class SettingsRepository(private val store: DataStore<Preferences>, private val 
     suspend fun setMeaningLang(code: String) = store.edit { it[K.meaning] = code }
     suspend fun setUiLang(code: String) = store.edit { it[K.ui] = code }
     suspend fun setThemeMode(mode: String) = store.edit { it[K.theme] = mode }
+    suspend fun setWeeklyPointsGoal(points: Int) = progressPrefs.setGoal(points)
+    suspend fun claimProgress(summary: com.ziaee.zabankhan.progress.ProgressSummary) = progressPrefs.claim(summary)
+
     suspend fun setDailyGoalMinutes(minutes: Int) = store.edit { it[K.dailyGoal] = minutes.coerceIn(1, 120) }
     suspend fun setReviewIntervals(days: List<Long>) = store.edit {
         require(days.size == 5 && days.all { day -> day in 1..365 })

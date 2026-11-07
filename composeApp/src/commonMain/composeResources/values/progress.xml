@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="progress_achievements">Achievements</string>
+    <string name="progress_level">Level %1$s</string>
+    <string name="progress_total">%1$s total points</string>
+    <string name="progress_next">%1$s points to the next level</string>
+    <string name="progress_weekly_goal">Weekly goal (points)</string>
+    <string name="progress_weekly">This week: %1$s / %2$s points</string>
+    <string name="progress_weekly_explanation">Monday–Sunday, local time. Reading minutes, reviews, exams and this week’s streak days count. Learned words and finished texts count only in total points.</string>
+    <string name="progress_badges_language">Badges · %1$s</string>
+    <string name="progress_locked">Locked</string>
+    <string name="progress_unlocked">Unlocked</string>
+    <string name="progress_badge_count">%1$s / %2$s</string>
+    <string name="progress_celebration">Level %1$s · %2$s new badges. Keep going!</string>
+    <string name="progress_badge_first_text">First finished text</string>
+    <string name="progress_badge_streak_7">7-day streak</string>
+    <string name="progress_badge_streak_30">30-day streak</string>
+    <string name="progress_badge_learned_100">100 learned words</string>
+    <string name="progress_badge_learned_500">500 learned words</string>
+    <string name="progress_badge_learned_1000">1,000 learned words</string>
+    <string name="progress_badge_reviews_1000">1,000 reviews</string>
+    <string name="progress_badge_texts_10">10 finished texts</string>
+    <string name="progress_badge_reading_600">10 hours of reading</string>
+</resources>

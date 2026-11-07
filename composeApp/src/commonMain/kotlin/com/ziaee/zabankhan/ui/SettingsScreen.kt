@@ -150,6 +150,10 @@ fun SettingsScreen(vm: AppViewModel, settings: AppSettings, progress: () -> Unit
                                 StepperSetting(stringResource(Res.string.h2_daily_goal), settings.dailyGoalMinutes, 1, 120) {
                                     vm.action { repository.setDailyGoalMinutes(it) }
                                 }
+                                StepperSetting(stringResource(Res.string.progress_weekly_goal), settings.weeklyPointsGoal,
+                                    com.ziaee.zabankhan.progress.MIN_WEEKLY_GOAL, com.ziaee.zabankhan.progress.MAX_WEEKLY_GOAL) {
+                                    vm.action { repository.setWeeklyPointsGoal(it) }
+                                }
                                 com.ziaee.zabankhan.reminder.ReviewReminderSettings(vm, settings)
                             }
                             1 -> {

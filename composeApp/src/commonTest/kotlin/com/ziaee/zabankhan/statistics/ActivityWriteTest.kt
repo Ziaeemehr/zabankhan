@@ -10,6 +10,7 @@ import kotlin.test.*
 class ActivityWriteTest {
     private class Dao(private val failure: Exception? = null, private val failOnWrite: Boolean = false) : ActivityDao {
         var stored = ActivityLogEntry("2026-11-05", "en", readingMs = 10)
+        override fun observeProgressActivity() = flowOf(listOf(stored))
         override fun observe(lang: String) = flowOf(listOf(stored))
         override suspend fun get(date: String, lang: String): ActivityLogEntry {
             if (!failOnWrite) failure?.let { throw it }
