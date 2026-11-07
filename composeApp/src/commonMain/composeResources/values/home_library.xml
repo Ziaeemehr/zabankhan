@@ -5,7 +5,7 @@
         <item quantity="one">day in a row</item>
         <item quantity="other">days in a row</item>
     </plurals>
-    <string name="home_minutes_week">min this week</string>
+    <string name="home_new_words_week">new words this week</string>
     <string name="review_learned_words">Learned words</string>
     <string name="activity_goal_done">Today’s goal done ✓</string>
     <string name="home_goal_caption">Today %1$s/%2$s min</string>

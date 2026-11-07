@@ -31,7 +31,7 @@ import org.jetbrains.compose.resources.stringResource
 
 // Ported from French Reader's ui/home/HomeComponents.kt.
 
-data class HomeProgress(val streakDays: Int, val weekMinutes: Int, val learnedWords: Int, val todayMinutes: Int, val goalMinutes: Int)
+data class HomeProgress(val streakDays: Int, val weekNewWords: Int, val learnedWords: Int, val todayMinutes: Int, val goalMinutes: Int)
 
 @Composable
 fun ProgressCard(state: HomeProgress, onOpen: () -> Unit, onSavedWords: () -> Unit, modifier: Modifier = Modifier) {
@@ -43,9 +43,9 @@ fun ProgressCard(state: HomeProgress, onOpen: () -> Unit, onSavedWords: () -> Un
             Row(Modifier.fillMaxWidth().padding(end = 8.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 ProgressStat(Icons.Default.LocalFireDepartment, Color(0xFFF2994A), state.streakDays.toString(),
                     pluralStringResource(Res.plurals.home_streak_days, state.streakDays), Modifier.weight(1f))
-                // The week's total keeps growing; today's goal is the bar below.
-                ProgressStat(Icons.Default.Timer, colors.primary, state.weekMinutes.toString(),
-                    stringResource(Res.string.home_minutes_week), Modifier.weight(1f))
+                // New words saved this week: a number the reader can act on; time spent is the goal bar below.
+                ProgressStat(Icons.Default.BookmarkAdded, colors.primary, state.weekNewWords.toString(),
+                    stringResource(Res.string.home_new_words_week), Modifier.weight(1f))
                 // Learned words only: saving is one tap, learning is the progress that matters.
                 ProgressStat(Icons.Default.School, colors.tertiary, state.learnedWords.toString(),
                     stringResource(Res.string.review_learned_words),

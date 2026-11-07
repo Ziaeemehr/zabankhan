@@ -4,7 +4,7 @@
         <item quantity="one">jour d’affilée</item>
         <item quantity="other">jours d’affilée</item>
     </plurals>
-    <string name="home_minutes_week">min cette semaine</string>
+    <string name="home_new_words_week">nouveaux mots cette semaine</string>
     <string name="review_learned_words">Mots appris</string>
     <string name="activity_goal_done">Objectif du jour atteint ✓</string>
     <string name="home_goal_caption">Aujourd’hui %1$s/%2$s min</string>
