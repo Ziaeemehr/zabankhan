@@ -308,26 +308,22 @@ private data class PdfRange(val page: Int, val first: Int, val last: Int, val wo
             var toolbarSize by remember { mutableStateOf(IntSize.Zero) }
             val maxToolbarX = (toolbarAreaSize.width - toolbarSize.width).coerceAtLeast(0)
             val maxToolbarY = (toolbarAreaSize.height - toolbarSize.height).coerceAtLeast(0)
-            val offsetX = remember { Animatable(0f) }
             val targetX = (toolbarFractionX * maxToolbarX).toInt().coerceIn(0, maxToolbarX)
             val targetY = (toolbarFractionY * maxToolbarY).toInt().coerceIn(0, maxToolbarY)
-            LaunchedEffect(targetX, toolbarSize, toolbarAreaSize) { offsetX.snapTo(targetX.toFloat()) }
-            val dragModifier = Modifier.offset { IntOffset(offsetX.value.toInt().coerceIn(0, maxToolbarX), targetY) }
+            val dragModifier = Modifier.offset { IntOffset(targetX, targetY) }
+            // The drag handlers are installed once (pointerInput(Unit)), so read live state here, not captured vals.
             fun moveToolbar(delta: Offset) {
-                val nextX = (offsetX.value + delta.x).toInt().coerceIn(0, maxToolbarX)
-                val nextY = (targetY + delta.y).toInt().coerceIn(0, maxToolbarY)
-                toolbarFractionX = if (maxToolbarX == 0) 0f else nextX.toFloat() / maxToolbarX
-                toolbarFractionY = if (maxToolbarY == 0) 0f else nextY.toFloat() / maxToolbarY
-                scope.launch { offsetX.snapTo(nextX.toFloat()) }
+                val maxX = (toolbarAreaSize.width - toolbarSize.width).coerceAtLeast(0)
+                val maxY = (toolbarAreaSize.height - toolbarSize.height).coerceAtLeast(0)
+                if (maxX > 0) toolbarFractionX = ((toolbarFractionX * maxX + delta.x) / maxX).coerceIn(0f, 1f)
+                if (maxY > 0) toolbarFractionY = ((toolbarFractionY * maxY + delta.y) / maxY).coerceIn(0f, 1f)
             }
             fun settleToolbar() {
+                val maxX = (toolbarAreaSize.width - toolbarSize.width).coerceAtLeast(0)
+                if (maxX == 0) return
                 val edge = with(density) { 24.dp.roundToPx() }
-                val x = offsetX.value.toInt().coerceIn(0, maxToolbarX)
-                val target = when { x <= edge -> 0; maxToolbarX - x <= edge -> maxToolbarX; else -> null }
-                if (target != null) scope.launch {
-                    offsetX.animateTo(target.toFloat(), tween(200))
-                    toolbarFractionX = if (maxToolbarX == 0) 0f else target.toFloat() / maxToolbarX
-                }
+                val x = toolbarFractionX * maxX
+                if (x <= edge) toolbarFractionX = 0f else if (maxX - x <= edge) toolbarFractionX = 1f
             }
             BoxWithConstraints(Modifier.fillMaxSize().clipToBounds()
                 .scrollable(horizontalPan, Orientation.Horizontal,

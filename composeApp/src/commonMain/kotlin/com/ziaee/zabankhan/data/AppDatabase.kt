@@ -11,8 +11,8 @@ import kotlinx.coroutines.IO
 
 @Database(
     entities = [
-        TextSearchEntry::class, LibraryTag::class, TextTagCrossRef::class, HeadlineEntity::class, ResourceLink::class, ExamAttempt::class, StudySource::class, StudySession::class,
-        PdfInk::class, ShadowAttempt::class, PdfHighlight::class, TextDocument::class, LibraryFolder::class, VocabEntry::class, VocabList::class,
+        TextDocument::class, TextSearchEntry::class, LibraryTag::class, TextTagCrossRef::class, HeadlineEntity::class, ResourceLink::class, ExamAttempt::class, StudySource::class, StudySession::class,
+        PdfInk::class, ShadowAttempt::class, PdfHighlight::class, LibraryFolder::class, VocabEntry::class, VocabList::class,
         ReviewLogEntry::class, HighlightEntry::class, ActivityLogEntry::class, CacheEntry::class,
     ],
     version = 5,

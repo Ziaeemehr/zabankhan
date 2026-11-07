@@ -21,3 +21,6 @@
 # Vosk loads its native entry points through JNA reflection (both Android flavors).
 -keep class org.vosk.** { *; }
 -keep class com.sun.jna.** { *; }
+
+# JNA (Vosk) references desktop AWT classes that do not exist on Android.
+-dontwarn java.awt.**

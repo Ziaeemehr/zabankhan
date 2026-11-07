@@ -14,6 +14,7 @@ import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.Role
 import androidx.compose.material3.*
@@ -44,28 +45,93 @@ import org.jetbrains.compose.resources.stringResource
     var selected by rememberSaveable { mutableStateOf(emptyList<String>()) }
     var meaning by rememberSaveable { mutableStateOf(Languages.PERSIAN.code) }
     var busy by remember { mutableStateOf(false) }
-    Page {
-        Heading(stringResource(Res.string.app_name))
-        Text(stringResource(Res.string.welcome), style = MaterialTheme.typography.titleLarge)
-        Text(stringResource(Res.string.learning_languages))
-        FlowRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            Languages.learnable.forEach { lang -> FilterChip(selected = lang.code in selected, onClick = {
-                selected = if (lang.code in selected) selected - lang.code else selected + lang.code
-                if (selected.firstOrNull() == meaning) meaning = if (meaning == Languages.PERSIAN.code) Languages.ENGLISH.code else Languages.PERSIAN.code
-            }, label = { Column(Modifier.padding(8.dp)) { Text(lang.nativeName); languageName(lang).takeIf { it != lang.nativeName }?.let { Text(it) } } }) }
-        }
-        val meanings = listOf(Languages.PERSIAN, Languages.ENGLISH).filter { it.code != selected.firstOrNull() }
-        Choice(stringResource(Res.string.meaning_language), meaning, meanings.map { it.code to languageName(it) }) { meaning = it }
-        Button(enabled = selected.isNotEmpty() && !busy, onClick = {
-            busy = true
-            vm.action {
-                try {
-                    vm.container.settings.setMeaningLang(meaning)
-                    selected.reversed().forEach { vm.container.settings.addLearningLang(it) }
-                } finally { busy = false }
+    val scroll = rememberScrollState()
+    val colors = MaterialTheme.colorScheme
+    val enabled = selected.isNotEmpty() && !busy
+    val buttonScale by androidx.compose.animation.core.animateFloatAsState(if (enabled) 1f else .97f, animationSpec = androidx.compose.animation.core.tween(280), label = "onboardingStartScale")
+    BoxWithConstraints(Modifier.fillMaxSize()) {
+        val wide = maxWidth >= 600.dp
+        Box(Modifier.fillMaxSize().background(androidx.compose.ui.graphics.Brush.verticalGradient(listOf(colors.primaryContainer, colors.tertiaryContainer.copy(alpha = .72f), colors.surface)))) {
+            androidx.compose.foundation.Canvas(Modifier.fillMaxSize()) {
+                drawCircle(colors.primary.copy(alpha = .08f), radius = size.minDimension * .34f, center = androidx.compose.ui.geometry.Offset(size.width * .94f, size.height * .09f))
+                drawCircle(colors.tertiary.copy(alpha = .09f), radius = size.minDimension * .22f, center = androidx.compose.ui.geometry.Offset(size.width * .03f, size.height * .58f))
+                drawCircle(colors.secondary.copy(alpha = .06f), radius = size.minDimension * .15f, center = androidx.compose.ui.geometry.Offset(size.width * .92f, size.height * .83f))
             }
-        }) { Text(stringResource(Res.string.continue_action)) }
-        if (vm.failed) Text(stringResource(Res.string.error_save), color = MaterialTheme.colorScheme.error)
+            Column(Modifier.fillMaxSize().verticalScroll(scroll).safeDrawingPadding().padding(horizontal = 20.dp, vertical = 24.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                Column(Modifier.widthIn(max = 560.dp).fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(20.dp)) {
+                    androidx.compose.animation.AnimatedVisibility(true, enter = androidx.compose.animation.fadeIn(androidx.compose.animation.core.tween(260)) + androidx.compose.animation.slideInVertically(androidx.compose.animation.core.tween(260)) { it / 7 }) {
+                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Text("Zabankhan · زبان‌خوان", style = MaterialTheme.typography.headlineLarge, color = colors.onPrimaryContainer)
+                            Text(stringResource(Res.string.onboarding_tagline), style = MaterialTheme.typography.titleMedium, color = colors.onSurfaceVariant)
+                        }
+                    }
+                    androidx.compose.animation.AnimatedVisibility(true, enter = androidx.compose.animation.fadeIn(androidx.compose.animation.core.tween(260, delayMillis = 90)) + androidx.compose.animation.slideInVertically(androidx.compose.animation.core.tween(260, delayMillis = 90)) { it / 8 }) {
+                        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                            OnboardingValue(Icons.Default.MenuBook, stringResource(Res.string.onboarding_value_read))
+                            OnboardingValue(Icons.Default.Bookmark, stringResource(Res.string.onboarding_value_review))
+                            OnboardingValue(Icons.Default.CloudOff, stringResource(Res.string.onboarding_value_dictionary))
+                        }
+                    }
+                    androidx.compose.animation.AnimatedVisibility(true, enter = androidx.compose.animation.fadeIn(androidx.compose.animation.core.tween(260, delayMillis = 170)) + androidx.compose.animation.slideInVertically(androidx.compose.animation.core.tween(260, delayMillis = 170)) { it / 9 }) {
+                        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                            Text(stringResource(Res.string.learning_languages), style = MaterialTheme.typography.titleLarge)
+                            FlowRow(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalArrangement = Arrangement.spacedBy(12.dp), maxItemsInEachRow = if (wide) 2 else 1) {
+                                Languages.learnable.forEach { lang ->
+                                    val isSelected = lang.code in selected
+                                    Surface(onClick = {
+                                        selected = if (isSelected) selected - lang.code else selected + lang.code
+                                        if (selected.firstOrNull() == meaning) meaning = if (meaning == Languages.PERSIAN.code) Languages.ENGLISH.code else Languages.PERSIAN.code
+                                    }, modifier = Modifier.fillMaxWidth(if (wide) .485f else 1f), shape = RoundedCornerShape(20.dp), color = if (isSelected) colors.primaryContainer else colors.surface.copy(alpha = .88f), border = androidx.compose.foundation.BorderStroke(if (isSelected) 2.dp else 1.dp, if (isSelected) colors.primary else colors.outlineVariant), tonalElevation = if (isSelected) 2.dp else 0.dp) {
+                                        Row(Modifier.padding(horizontal = 16.dp, vertical = 15.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                                            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                                                Text(lang.nativeName, style = MaterialTheme.typography.titleMedium)
+                                                Text(languageName(lang), style = MaterialTheme.typography.bodyMedium, color = colors.onSurfaceVariant)
+                                            }
+                                            Surface(shape = RoundedCornerShape(50), color = colors.secondaryContainer) { Text(lang.code.uppercase(), Modifier.padding(horizontal = 9.dp, vertical = 5.dp), style = MaterialTheme.typography.labelMedium, color = colors.onSecondaryContainer) }
+                                            if (isSelected) Icon(Icons.Default.CheckCircle, contentDescription = null, tint = colors.primary)
+                                        }
+                                    }
+                                }
+                            }
+                            val meanings = listOf(Languages.PERSIAN, Languages.ENGLISH).filter { it.code != selected.firstOrNull() }
+                            if (meanings.isNotEmpty()) {
+                                Text(stringResource(Res.string.meaning_language), style = MaterialTheme.typography.labelLarge, color = colors.onSurfaceVariant)
+                                SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
+                                    meanings.forEachIndexed { index, lang ->
+                                        SegmentedButton(selected = meaning == lang.code, onClick = { meaning = lang.code }, shape = SegmentedButtonDefaults.itemShape(index, meanings.size)) { Text(languageName(lang), style = MaterialTheme.typography.labelLarge) }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    androidx.compose.animation.AnimatedVisibility(true, enter = androidx.compose.animation.fadeIn(androidx.compose.animation.core.tween(260, delayMillis = 240)) + androidx.compose.animation.slideInVertically(androidx.compose.animation.core.tween(260, delayMillis = 240)) { it / 10 }) {
+                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Button(enabled = enabled, onClick = {
+                                busy = true
+                                vm.action {
+                                    try {
+                                        vm.container.settings.setMeaningLang(meaning)
+                                        selected.reversed().forEach { vm.container.settings.addLearningLang(it) }
+                                    } finally { busy = false }
+                                }
+                            }, modifier = Modifier.fillMaxWidth().graphicsLayer { scaleX = buttonScale; scaleY = buttonScale }, contentPadding = PaddingValues(vertical = 16.dp), shape = RoundedCornerShape(18.dp)) { Text(stringResource(Res.string.onboarding_start), style = MaterialTheme.typography.titleMedium) }
+                            if (vm.failed) Text(stringResource(Res.string.error_save), color = colors.error, style = MaterialTheme.typography.bodyMedium)
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun OnboardingValue(icon: androidx.compose.ui.graphics.vector.ImageVector, label: String) {
+    val colors = MaterialTheme.colorScheme
+    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+        Surface(shape = CircleShape, color = colors.secondaryContainer.copy(alpha = .9f), modifier = Modifier.size(42.dp)) {
+            Box(contentAlignment = Alignment.Center) { Icon(icon, contentDescription = null, tint = colors.onSecondaryContainer, modifier = Modifier.size(21.dp)) }
+        }
+        Text(label, style = MaterialTheme.typography.bodyLarge, color = colors.onSurface)
     }
 }
 

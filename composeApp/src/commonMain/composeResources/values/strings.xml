@@ -5,10 +5,13 @@
     <string name="nav_words">Words</string>
     <string name="nav_review">Review</string>
     <string name="nav_settings">Settings</string>
-    <string name="welcome">Read, discover, remember</string>
     <string name="learning_languages">Learning languages</string>
     <string name="meaning_language">Meaning language</string>
-    <string name="continue_action">Continue</string>
+    <string name="onboarding_tagline">Read real texts. Learn words in context.</string>
+    <string name="onboarding_value_read">Read naturally, tap any word to translate</string>
+    <string name="onboarding_value_review">Save words and review them with Leitner</string>
+    <string name="onboarding_value_dictionary">Keep your own dictionary, available offline</string>
+    <string name="onboarding_start">Start</string>
     <string name="save">Save</string>
     <string name="cancel">Cancel</string>
     <string name="delete">Delete</string>

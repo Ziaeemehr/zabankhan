@@ -71,6 +71,10 @@ kotlin {
             implementation(libs.kotlinx.coroutines.test)
             implementation(libs.ktor.client.mock)
         }
+        androidUnitTest.dependencies {
+            implementation("androidx.test:core-ktx:1.6.1")
+            implementation("org.robolectric:robolectric:4.14.1")
+        }
         iosTest.dependencies {
             @OptIn(org.jetbrains.compose.ExperimentalComposeLibrary::class)
             implementation(compose.uiTest)

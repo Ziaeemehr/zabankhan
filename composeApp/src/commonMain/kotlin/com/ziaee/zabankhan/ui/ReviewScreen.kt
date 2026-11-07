@@ -349,14 +349,18 @@ fun ReviewScreen(container: AppContainer, settings: AppSettings, onBack: () -> U
         if (currentRevealed) vm.loadMeaningOptions()
     }
     LaunchedEffect(vm.stage) { if (vm.stage == ReviewStage.OVERVIEW) vm.load() }
+    // Box-move feedback: a small transient pill at the top, so it never covers the answer buttons.
+    var moveHint by remember { mutableStateOf<String?>(null) }
     LaunchedEffect(vm.move) {
         val (before, after) = vm.move ?: return@LaunchedEffect
-        snackbar.showSnackbar(when {
+        vm.consumeMove()
+        moveHint = when {
             after > before -> getString(Res.string.review_moved_forward, after)
             after < before -> getString(Res.string.review_returned_box_one)
             else -> getString(Res.string.review_stayed_box, after)
-        })
-        vm.consumeMove()
+        }
+        kotlinx.coroutines.delay(1200)
+        moveHint = null
     }
     LaunchedEffect(vm.slot, currentRevealed) {
         tts.stop()
@@ -419,6 +423,14 @@ fun ReviewScreen(container: AppContainer, settings: AppSettings, onBack: () -> U
                                 onEdit = { editing = sl.entry })
                         }
                     }
+                }
+            }
+            androidx.compose.animation.AnimatedVisibility(moveHint != null, Modifier.align(Alignment.TopCenter).padding(top = 4.dp),
+                enter = androidx.compose.animation.fadeIn(), exit = androidx.compose.animation.fadeOut()) {
+                Surface(shape = CircleShape, color = MaterialTheme.colorScheme.inverseSurface.copy(alpha = .85f)) {
+                    Text(moveHint.orEmpty(), Modifier.padding(horizontal = 12.dp, vertical = 4.dp),
+                        style = MaterialTheme.typography.labelMedium.merge(contentStyle(moveHint.orEmpty())),
+                        color = MaterialTheme.colorScheme.inverseOnSurface)
                 }
             }
         }

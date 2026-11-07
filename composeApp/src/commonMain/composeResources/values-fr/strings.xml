@@ -5,10 +5,13 @@
     <string name="nav_words">Mots</string>
     <string name="nav_review">Révision</string>
     <string name="nav_settings">Réglages</string>
-    <string name="welcome">Lire, découvrir, retenir</string>
     <string name="learning_languages">Langues à apprendre</string>
     <string name="meaning_language">Langue des traductions</string>
-    <string name="continue_action">Continuer</string>
+    <string name="onboarding_tagline">Lisez des textes authentiques. Apprenez les mots en contexte.</string>
+    <string name="onboarding_value_read">Lisez naturellement et touchez un mot pour le traduire</string>
+    <string name="onboarding_value_review">Enregistrez des mots et révisez-les avec Leitner</string>
+    <string name="onboarding_value_dictionary">Gardez votre dictionnaire personnel, même hors ligne</string>
+    <string name="onboarding_start">Commencer</string>
     <string name="save">Enregistrer</string>
     <string name="cancel">Annuler</string>
     <string name="delete">Supprimer</string>

@@ -5,10 +5,13 @@
     <string name="nav_words">واژه‌ها</string>
     <string name="nav_review">مرور</string>
     <string name="nav_settings">تنظیمات</string>
-    <string name="welcome">بخوان، کشف کن، به خاطر بسپار</string>
     <string name="learning_languages">زبان‌های یادگیری</string>
     <string name="meaning_language">زبان معنی</string>
-    <string name="continue_action">ادامه</string>
+    <string name="onboarding_tagline">متن‌های واقعی بخوانید و واژه‌ها را در بافت یاد بگیرید.</string>
+    <string name="onboarding_value_read">روان بخوانید و با لمس هر واژه، معنی‌اش را ببینید</string>
+    <string name="onboarding_value_review">واژه‌ها را ذخیره کنید و با روش لایتنر مرور کنید</string>
+    <string name="onboarding_value_dictionary">واژه‌نامهٔ شخصی‌تان را آفلاین همراه داشته باشید</string>
+    <string name="onboarding_start">شروع</string>
     <string name="save">ذخیره</string>
     <string name="cancel">لغو</string>
     <string name="delete">حذف</string>
