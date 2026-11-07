@@ -9,7 +9,7 @@ import kotlin.coroutines.resume
 object SpeechEngine {
     internal var current: SelectedTts? = null
     val onlineUnavailable = MutableStateFlow(false)
-    fun configure(settings: AppSettings) { current?.configure(settings) }
+    fun configure(settings: AppSettings) { RecognitionSettings.engine = settings.speechRecognitionEngine; current?.configure(settings) }
 }
 
 /** A single router is used by every speech caller, including dictionary and shadowing. */

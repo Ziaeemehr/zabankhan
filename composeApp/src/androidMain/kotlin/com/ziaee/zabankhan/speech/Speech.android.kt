@@ -81,49 +81,48 @@ private val sharedTts: Tts by lazy { ActivityTts(AndroidTts()) }
 actual fun createDeviceTts(): Tts = sharedTts
 
 private class AndroidRecognizer : SpeechRecognizer {
-    private var engine: android.speech.SpeechRecognizer? = null
+    private var engine: AndroidSpeechEngine? = null
+    private var released: CompletableDeferred<Unit>? = null
+    private var recording: ShortArray? = null
+    override val hasRecording get() = recording != null
     override suspend fun listenOnce(langCode: String, maxMs: Long): Result<RecognizedSpeech> = withContext(Dispatchers.Main.immediate) {
-        val lang = learningSpeechLanguage(langCode)
-        var partial = ""
-        val started = TimeSource.Monotonic.markNow()
-        var speechStart = started
-        var duration: Long? = null
+        val current = AndroidSpeechEngine(speechContext, learningSpeechLanguage(langCode).sttLocale)
+        val end = CompletableDeferred<Unit>()
+        engine = current; released = end; clearRecording()
         try {
-            withTimeout(maxMs) { suspendCancellableCoroutine { continuation ->
-                val recognizer = android.speech.SpeechRecognizer.createSpeechRecognizer(speechContext).also { engine = it }
-                fun finish(text: String?, error: Int? = null) {
-                    if (!continuation.isActive) return
-                    val value = text?.takeIf { it.isNotBlank() } ?: partial
-                    continuation.resume(if (error != null && error !in listOf(android.speech.SpeechRecognizer.ERROR_NO_MATCH, android.speech.SpeechRecognizer.ERROR_SPEECH_TIMEOUT) && value.isBlank()) Result.failure(IllegalStateException("Recognition error $error"))
-                        else Result.success(RecognizedSpeech(value, duration ?: speechStart.elapsedNow().inWholeMilliseconds)))
-                }
-                recognizer.setRecognitionListener(object : RecognitionListener {
-                    override fun onReadyForSpeech(params: Bundle?) = Unit
-                    override fun onBeginningOfSpeech() { speechStart = TimeSource.Monotonic.markNow() }
-                    override fun onRmsChanged(rmsdB: Float) = Unit
-                    override fun onBufferReceived(buffer: ByteArray?) = Unit
-                    override fun onEndOfSpeech() { duration = speechStart.elapsedNow().inWholeMilliseconds }
-                    override fun onError(error: Int) { finish(null, error) }
-                    override fun onResults(results: Bundle?) { finish(results?.getStringArrayList(android.speech.SpeechRecognizer.RESULTS_RECOGNITION)?.firstOrNull()) }
-                    override fun onPartialResults(partialResults: Bundle?) { partialResults?.getStringArrayList(android.speech.SpeechRecognizer.RESULTS_RECOGNITION)?.firstOrNull()?.takeIf { it.isNotBlank() }?.let { partial = it } }
-                    override fun onEvent(eventType: Int, params: Bundle?) = Unit
-                })
-                continuation.invokeOnCancellation { main.post { recognizer.cancel() } }
-                recognizer.startListening(Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
-                    putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
-                    putExtra(RecognizerIntent.EXTRA_LANGUAGE, lang.sttLocale)
-                    putExtra(RecognizerIntent.EXTRA_PREFER_OFFLINE, true)
-                    putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
-                })
-            } }
-        } catch (e: TimeoutCancellationException) { if (partial.isNotBlank()) Result.success(RecognizedSpeech(partial, duration ?: speechStart.elapsedNow().inWholeMilliseconds)) else Result.failure(e) }
-        catch (e: CancellationException) { throw e }
+            current.start()
+            withTimeoutOrNull(maxMs) { end.await() }
+            val result = withTimeout(15_000) { current.stop() }
+            recording = result.pcm
+            Result.success(RecognizedSpeech(result.transcript, result.durationMs))
+        } catch (e: CancellationException) { throw e }
         catch (e: Exception) { Result.failure(e) }
-        finally { engine?.cancel(); engine?.destroy(); engine = null }
+        finally { current.release(); if (engine === current) { engine = null; released = null } }
     }
-    override fun stop() { val current = engine; if (Looper.myLooper() == Looper.getMainLooper()) current?.stopListening() else main.post { current?.stopListening() } }
+    override fun stop() { released?.complete(Unit) }
+    override fun replay() { recording?.let(PcmPlayer::play) }
+    override fun clearRecording() { PcmPlayer.stop(); recording = null }
 }
-actual fun createSpeechRecognizer(): SpeechRecognizer = AndroidRecognizer()
+private class SelectedRecognizer : SpeechRecognizer {
+    private var current: SpeechRecognizer? = null
+    override val hasRecording get() = current?.hasRecording == true
+    override suspend fun listenOnce(langCode: String, maxMs: Long): Result<RecognizedSpeech> {
+        current?.clearRecording()
+        val language = learningSpeechLanguage(langCode)
+        val next = if (RecognitionSettings.engine == "offline" && language.offlineSpeechModel != null) VoskRecognizer() else AndroidRecognizer()
+        current = next
+        return next.listenOnce(langCode, maxMs)
+    }
+    override fun stop() { current?.stop() }
+    override fun replay() { current?.replay() }
+    override fun clearRecording() { current?.clearRecording() }
+}
+actual fun createSpeechRecognizer(): SpeechRecognizer = SelectedRecognizer()
+actual fun recognitionSupport(language: com.ziaee.zabankhan.lang.LanguageSpec) = RecognitionSupport(
+    downloadableModels = true,
+    systemAvailable = android.speech.SpeechRecognizer.isRecognitionAvailable(speechContext),
+    onDeviceAvailable = language.offlineSpeechModel != null,
+)
 @Composable actual fun rememberMicPermission(): MicPermission {
     val context = LocalContext.current
     var granted by remember { mutableStateOf(context.checkSelfPermission(Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) }

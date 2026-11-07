@@ -17,3 +17,7 @@
 # PDFBox's optional JPEG2000 codec is not bundled; ordinary PDF/OCR works without it.
 -dontwarn com.gemalto.jp2.JP2Decoder
 -dontwarn com.gemalto.jp2.JP2Encoder
+
+# Vosk loads its native entry points through JNA reflection (both Android flavors).
+-keep class org.vosk.** { *; }
+-keep class com.sun.jna.** { *; }

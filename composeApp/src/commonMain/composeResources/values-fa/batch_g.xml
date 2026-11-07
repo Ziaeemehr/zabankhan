@@ -1,0 +1,36 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="settings_section_tts_cache">کش صوتی</string>
+    <string name="tts_cache_current_size">حجم فعلی کش: %1$s مگابایت</string>
+    <string name="tts_cache_max_size">حداکثر حجم کش (مگابایت)</string>
+    <string name="tts_cache_max_age">مدت نگه‌داری فایل‌ها (روز)</string>
+    <string name="tts_cache_clear">پاک کردن کش صوتی</string>
+    <string name="tts_cache_clear_confirm_title">کش صوتی پاک شود؟</string>
+    <string name="tts_cache_clear_confirm_message">فایل‌های صوتی پین‌نشده پاک خواهند شد.</string>
+    <string name="tts_cache_clear_done">کش صوتی پاک شد</string>
+    <string name="tts_cache_pinned_note">فایل‌های پین‌شده از محدودیت حجم و زمان و پاک کردن کش مستثنی هستند.</string>
+    <string name="review_audio_autoplay">پخش خودکار تلفظ</string>
+    <string name="review_autoplay_off">خاموش</string>
+    <string name="review_autoplay_front">رو</string>
+    <string name="review_autoplay_back">پشت</string>
+    <string name="review_autoplay_both">هر دو</string>
+    <string name="shadowing_model_prompt_title">مدل گفتار %1$s دانلود شود؟</string>
+    <string name="shadowing_model_prompt_body">تشخیص آفلاین به یک دانلود یک‌باره حدود %1$d مگابایت نیاز دارد. صدای شما هرگز از گوشی خارج نمی‌شود.</string>
+    <string name="shadowing_model_download">دانلود</string>
+    <string name="shadowing_use_android_engine">استفاده از تشخیص‌دهنده اندروید</string>
+    <string name="shadowing_model_downloading">در حال دانلود مدل گفتار… %1$d%</string>
+    <string name="shadowing_model_failed">دانلود ناموفق بود. اتصال را بررسی کنید.</string>
+    <string name="shadowing_engine_title">تشخیص گفتار</string>
+    <string name="shadowing_engine_vosk">آفلاین (Vosk)</string>
+    <string name="shadowing_engine_android">اندروید</string>
+    <string name="shadowing_model_title">مدل گفتار %1$s</string>
+    <string name="shadowing_model_installed">نصب شده · %1$d مگابایت</string>
+    <string name="shadowing_model_delete">حذف</string>
+    <string name="shadowing_mic_denied">حالت شدوئینگ برای شنیدن تکرار جمله‌ها به میکروفون نیاز دارد.</string>
+    <string name="review_summary_pronunciation">تلفظ</string>
+    <string name="g_on_device">روی دستگاه</string>
+    <string name="g_apple_recognizer">اپل</string>
+    <string name="g_on_device_available">تشخیص گفتار روی دستگاه برای این زبان در دسترس است.</string>
+    <string name="g_on_device_unavailable">تشخیص گفتار روی دستگاه برای این زبان در این دستگاه در دسترس نیست.</string>
+    <string name="g_model_install_zip">نصب از فایل ZIP</string>
+</resources>

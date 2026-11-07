@@ -12,6 +12,8 @@ data class DictionaryLink(
     fun supportsMeaningLanguage(code: String): Boolean = meaningLangs.isEmpty() || code in meaningLangs
 }
 
+data class OfflineSpeechModel(val name: String, val url: String, val downloadMb: Int)
+
 data class LanguageSpec(
     val code: String,
     val englishName: String,
@@ -24,6 +26,7 @@ data class LanguageSpec(
     val dictionaryLinks: List<DictionaryLink>,
     val onlineVoices: List<String> = emptyList(),
     val voicePreview: String = "",
+    val offlineSpeechModel: OfflineSpeechModel? = null,
     val grammarSearchStopWords: Set<String> = emptySet(),
     val grammarAlternativeSeparator: String? = null,
 )
@@ -42,6 +45,7 @@ object Languages {
             DictionaryLink("Wiktionary", "https://fr.wiktionary.org/wiki/{word}"),
         ),
         onlineVoices = listOf("fr-FR-DeniseNeural", "fr-FR-HenriNeural", "fr-FR-VivienneMultilingualNeural", "fr-FR-RemyMultilingualNeural", "fr-CA-SylvieNeural", "fr-CA-AntoineNeural", "fr-BE-CharlineNeural", "fr-CH-ArianeNeural"),
+        offlineSpeechModel = OfflineSpeechModel("vosk-model-small-fr-0.22", "https://alphacephei.com/vosk/models/vosk-model-small-fr-0.22.zip", 41),
         voicePreview = "Bonjour ! Voici un exemple de cette voix naturelle.",
         grammarSearchStopWords = setOf("et", "ou", "vs", "la", "le", "les", "de", "des", "du", "un", "une"),
         grammarAlternativeSeparator = " ou ",
@@ -55,6 +59,7 @@ object Languages {
             DictionaryLink("Merriam-Webster", "https://www.merriam-webster.com/dictionary/{word}"),
         ),
         onlineVoices = listOf("en-US-AriaNeural", "en-US-GuyNeural", "en-US-JennyNeural", "en-US-AvaMultilingualNeural", "en-US-AndrewMultilingualNeural", "en-GB-SoniaNeural", "en-GB-RyanNeural", "en-AU-NatashaNeural"),
+        offlineSpeechModel = OfflineSpeechModel("vosk-model-small-en-us-0.15", "https://alphacephei.com/vosk/models/vosk-model-small-en-us-0.15.zip", 40),
         voicePreview = "Hello! Here is a sample of this natural voice.",
         grammarSearchStopWords = setOf("and", "or", "vs", "the", "a", "an", "of"),
         grammarAlternativeSeparator = " or ",

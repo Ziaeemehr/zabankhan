@@ -47,7 +47,11 @@ data class AppSettings(
     // How many times reader playback speaks each sentence before moving on.
     val speechRepeat: Int = 1,
     val voiceEngine: String = "online",
-    val autoPronounceCards: Boolean = false,
+    val reviewAudioAutoplay: AudioAutoplay = AudioAutoplay.OFF,
+    val speechRecognitionEngine: String = "offline",
+    val cardPronunciationPractice: Boolean = false,
+    val ttsCacheMaxSizeMb: Int = 500,
+    val ttsCacheMaxAgeDays: Int = 30,
     val ttsVoices: Map<String, String> = emptyMap(),
     val lastDictionaryProviders: Map<String, String> = emptyMap(),
     val reminderEnabled: Boolean = false,
@@ -94,6 +98,11 @@ class SettingsRepository(private val store: DataStore<Preferences>, private val 
         val speechRate = androidx.datastore.preferences.core.floatPreferencesKey("speech_rate")
         val speechRepeat = intPreferencesKey("speech_repeat")
         val autoCards = androidx.datastore.preferences.core.booleanPreferencesKey("auto_pronounce_cards")
+        val autoplay = stringPreferencesKey("review_audio_autoplay_sides")
+        val recognitionEngine = stringPreferencesKey("speech_recognition_engine")
+        val cardPractice = androidx.datastore.preferences.core.booleanPreferencesKey("card_practice")
+        val cacheSize = intPreferencesKey("tts_cache_max_size_mb")
+        val cacheAge = intPreferencesKey("tts_cache_max_age_days")
         val engine = stringPreferencesKey("voice_engine")
         val voices = stringPreferencesKey("tts_voices")
         val dictionaryProviders = stringPreferencesKey("last_dictionary_providers")
@@ -131,7 +140,11 @@ class SettingsRepository(private val store: DataStore<Preferences>, private val 
             speechRate = p[K.speechRate] ?: 1f,
             speechRepeat = (p[K.speechRepeat] ?: 1).coerceIn(1, 3),
             voiceEngine = p[K.engine]?.takeIf { it == "device" } ?: "online",
-            autoPronounceCards = p[K.autoCards] ?: false,
+            reviewAudioAutoplay = AudioAutoplay.restored(p[K.autoplay], p[K.autoCards] ?: false),
+            speechRecognitionEngine = p[K.recognitionEngine]?.takeIf { it in listOf("offline", "system") } ?: "offline",
+            cardPronunciationPractice = p[K.cardPractice] ?: false,
+            ttsCacheMaxSizeMb = (p[K.cacheSize] ?: 500).coerceIn(50, 5000),
+            ttsCacheMaxAgeDays = (p[K.cacheAge] ?: 30).coerceIn(1, 365),
             ttsVoices = runCatching { kotlinx.serialization.json.Json.decodeFromString<Map<String, String>>(p[K.voices] ?: "{}") }.getOrDefault(emptyMap()),
             lastDictionaryProviders = runCatching { kotlinx.serialization.json.Json.decodeFromString<Map<String, String>>(p[K.dictionaryProviders] ?: "{}") }.getOrDefault(emptyMap()),
             reminderEnabled = p[K.reminderEnabled] ?: false,
@@ -209,7 +222,14 @@ class SettingsRepository(private val store: DataStore<Preferences>, private val 
     }
     suspend fun setSpeechRate(rate: Float) = store.edit { it[K.speechRate] = rate.coerceIn(.75f, 1.5f) }
     suspend fun setSpeechRepeat(times: Int) = store.edit { it[K.speechRepeat] = times.coerceIn(1, 3) }
-    suspend fun setAutoPronounceCards(enabled: Boolean) = store.edit { it[K.autoCards] = enabled }
+    suspend fun setReviewAudioAutoplay(value: AudioAutoplay) = store.edit { it[K.autoplay] = value.name }
+    suspend fun setSpeechRecognitionEngine(value: String) = store.edit {
+        require(value == "offline" || value == "system")
+        it[K.recognitionEngine] = value
+    }
+    suspend fun setCardPronunciationPractice(enabled: Boolean) = store.edit { it[K.cardPractice] = enabled }
+    suspend fun setTtsCacheMaxSizeMb(value: Int) = store.edit { it[K.cacheSize] = value.coerceIn(50, 5000) }
+    suspend fun setTtsCacheMaxAgeDays(value: Int) = store.edit { it[K.cacheAge] = value.coerceIn(1, 365) }
     suspend fun setVoiceEngine(engine: String) = store.edit {
         require(engine == "online" || engine == "device")
         it[K.engine] = engine

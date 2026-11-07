@@ -52,6 +52,8 @@ kotlin {
             implementation(libs.kotlinx.datetime)
         }
         androidMain.dependencies {
+            // Apache-2.0 Vosk native runtime, shared by Play/Bazaar; language models download separately (~40 MB).
+            implementation("com.alphacephei:vosk-android:0.3.47")
             implementation("androidx.work:work-runtime-ktx:2.10.1")
             implementation(libs.media3.exoplayer)
             implementation(libs.media3.ui)

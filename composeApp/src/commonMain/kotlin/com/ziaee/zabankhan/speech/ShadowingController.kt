@@ -16,6 +16,8 @@ sealed interface ShadowPhase {
     data class Result(val alignment: AlignmentResult, val pace: PaceResult?) : ShadowPhase
     data class Error(val notHeard: Boolean) : ShadowPhase
 }
+data class ShadowingState(val phase: ShadowPhase, val hasRecording: Boolean)
+
 /** One target owns one recognition job; changing/retrying a target invalidates late results. */
 class ShadowingController(
     private val scope: CoroutineScope,
@@ -76,6 +78,11 @@ class ShadowingController(
         }
         return true
     }
-    fun cancel() { generation++; job?.cancel(); recognizer.stop(); mutablePhase.value = ShadowPhase.Idle }
+    fun finishRecording() {
+        if (phase.value == ShadowPhase.Recording) { mutablePhase.value = ShadowPhase.Saving; recognizer.stop() }
+    }
+    val hasRecording get() = recognizer.hasRecording
+    fun replayMine() = recognizer.replay()
+    fun cancel() { generation++; job?.cancel(); recognizer.stop(); recognizer.clearRecording(); mutablePhase.value = ShadowPhase.Idle }
     fun retry() = cancel()
 }

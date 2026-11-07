@@ -36,6 +36,9 @@ data class RecognizedSpeech(val text: String, val durationMs: Long)
 interface SpeechRecognizer {
     suspend fun listenOnce(langCode: String, maxMs: Long = 15000): Result<RecognizedSpeech>
     fun stop()
+    val hasRecording: Boolean get() = false
+    fun replay() {}
+    fun clearRecording() {}
 }
 expect fun createSpeechRecognizer(): SpeechRecognizer
 interface MicPermission {

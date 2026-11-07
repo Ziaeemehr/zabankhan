@@ -1,0 +1,162 @@
+package com.ziaee.zabankhan.speech
+
+import android.content.Context
+import android.content.Intent
+import android.media.AudioFormat
+import android.os.Build
+import android.os.Bundle
+import android.os.ParcelFileDescriptor
+import android.speech.RecognitionListener
+import android.speech.RecognizerIntent
+import android.speech.SpeechRecognizer
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.Deferred
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import org.json.JSONObject
+import org.vosk.Model
+import org.vosk.Recognizer
+import java.io.File
+import java.io.IOException
+import java.nio.ByteBuffer
+import java.nio.ByteOrder
+
+internal suspend fun awaitResultWhileWriting(
+    write: suspend () -> Unit,
+    result: Deferred<String>,
+    onDone: () -> Unit,
+    ioDispatcher: CoroutineDispatcher = Dispatchers.IO
+): String = coroutineScope {
+    val writer = launch(ioDispatcher) {
+        try {
+            write()
+        } catch (_: IOException) {
+            // The recognizer may stop reading before all audio has been written.
+        }
+    }
+    try {
+        result.await()
+    } finally {
+        try {
+            onDone()
+        } finally {
+            writer.cancel()
+        }
+    }
+}
+
+/** Some recognizers (Google on-device, fed via EXTRA_AUDIO_SOURCE) deliver the text only as
+ * partial results and send an empty final bundle, so the last non-empty partial is the fallback. */
+internal class TranscriptCollector {
+    private var lastPartial = ""
+
+    fun onPartial(hypotheses: List<String>?) {
+        hypotheses?.firstOrNull()?.takeIf { it.isNotBlank() }?.let { lastPartial = it }
+    }
+
+    fun final(hypotheses: List<String>?): String =
+        hypotheses?.firstOrNull()?.takeIf { it.isNotBlank() } ?: lastPartial
+
+    fun onError(): String = lastPartial
+}
+
+/** Android's recognizer. API 33+: we record, then feed our PCM through EXTRA_AUDIO_SOURCE, so
+ * replay works. Older: the recognizer owns the mic live, so pcm is null (no replay). Main thread only. */
+class AndroidSpeechEngine(private val context: Context, private val locale: String) {
+    private val feedsAudio = Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU
+    private val recorder = MicRecorder()
+    private var recognizer: SpeechRecognizer? = null
+    private var result: CompletableDeferred<String>? = null
+    private var startedAtMs = 0L
+
+    private fun baseIntent() = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+        putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+        putExtra(RecognizerIntent.EXTRA_LANGUAGE, locale)
+        putExtra(RecognizerIntent.EXTRA_PREFER_OFFLINE, true)
+        putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
+    }
+
+    private fun newRecognizer(): SpeechRecognizer {
+        recognizer?.destroy()
+        val deferred = CompletableDeferred<String>().also { result = it }
+        val collector = TranscriptCollector()
+        return SpeechRecognizer.createSpeechRecognizer(context).apply {
+            setRecognitionListener(object : RecognitionListener {
+                override fun onResults(b: Bundle?) {
+                    deferred.complete(collector.final(b?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)))
+                }
+                override fun onError(error: Int) { deferred.complete(collector.onError()) }
+                override fun onReadyForSpeech(p: Bundle?) = Unit
+                override fun onBeginningOfSpeech() = Unit
+                override fun onRmsChanged(v: Float) = Unit
+                override fun onBufferReceived(b: ByteArray?) = Unit
+                override fun onEndOfSpeech() = Unit
+                override fun onPartialResults(b: Bundle?) {
+                    collector.onPartial(b?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION))
+                }
+                override fun onEvent(t: Int, b: Bundle?) = Unit
+            })
+        }.also { recognizer = it }
+    }
+
+    fun start() {
+        startedAtMs = System.currentTimeMillis()
+        if (feedsAudio) recorder.start() else newRecognizer().startListening(baseIntent())
+    }
+
+    suspend fun stop(): Recording {
+        if (!feedsAudio) {
+            recognizer?.stopListening()
+            val text = result?.await().orEmpty()
+            return Recording(text.trim(), null, System.currentTimeMillis() - startedAtMs)
+        }
+        val pcm = normalizeGain(recorder.stop())
+        val pipe = ParcelFileDescriptor.createPipe()
+        val intent = baseIntent().apply {
+            putExtra(RecognizerIntent.EXTRA_AUDIO_SOURCE, pipe[0])
+            putExtra(RecognizerIntent.EXTRA_AUDIO_SOURCE_CHANNEL_COUNT, 1)
+            putExtra(RecognizerIntent.EXTRA_AUDIO_SOURCE_ENCODING, AudioFormat.ENCODING_PCM_16BIT)
+            putExtra(RecognizerIntent.EXTRA_AUDIO_SOURCE_SAMPLING_RATE, SAMPLE_RATE)
+        }
+        val output = ParcelFileDescriptor.AutoCloseOutputStream(pipe[1])
+        val closePipe = {
+            runCatching { output.close() }
+            runCatching { pipe[0].close() }
+            Unit
+        }
+        val text = try {
+            newRecognizer().startListening(intent)
+            val pendingResult = checkNotNull(result)
+            awaitResultWhileWriting(
+                write = {
+                    val bytes = ByteBuffer.allocate(pcm.size * 2).order(ByteOrder.LITTLE_ENDIAN)
+                    bytes.asShortBuffer().put(pcm)
+                    // Closing signals end-of-audio so the recognizer finalizes instead of waiting for more.
+                    // 100 ms chunks every 25 ms (~4x real time) so the recognizer's buffer keeps up.
+                    try { writePaced(bytes.array(), chunkBytes = 3_200, pauseMs = 25) { output.write(it) } }
+                    finally { runCatching { output.close() } }
+                },
+                result = pendingResult,
+                onDone = closePipe
+            )
+        } finally {
+            closePipe()
+        }
+        return Recording(text.trim(), pcm, durationMsOf(pcm.size))
+    }
+
+    fun cancel() {
+        recorder.cancel()
+        recognizer?.cancel()
+        result?.complete("")
+    }
+
+    fun release() { cancel(); recognizer?.destroy(); recognizer = null }
+
+    companion object {
+        fun isAvailable(context: Context) = SpeechRecognizer.isRecognitionAvailable(context)
+    }
+}

@@ -96,6 +96,32 @@ class ReviewViewModel(private val container: AppContainer, private val settings:
     var sentenceTranslation by mutableStateOf<String?>(null); private set
     var sentenceTranslationLoading by mutableStateOf(false); private set
     var sentenceTranslationError by mutableStateOf(false); private set
+    var pronunciationEnabled by mutableStateOf(settings.cardPronunciationPractice); private set
+    private var pronunciationStats by mutableStateOf(CardPronunciationStats())
+    val pronunciationAccuracy get() = pronunciationStats.accuracy
+    private val shadowingController = ShadowingController(viewModelScope, createSpeechRecognizer(), saveAttempt = {
+        container.database.shadowAttempts().insert(it)
+        pronunciationStats = pronunciationStats.after(it.matched, it.total)
+    })
+    val shadowing = shadowingController.phase
+    val hasRecording get() = shadowingController.hasRecording
+    fun setPronunciation(enabled: Boolean) {
+        pronunciationEnabled = enabled
+        shadowingController.cancel()
+        viewModelScope.launch { container.settings.setCardPronunciationPractice(enabled) }
+        current?.let(::setShadowTarget)
+    }
+    private fun setShadowTarget(entry: VocabEntry) {
+        shadowingController.target(learningSpeechLanguage(entry.lang), entry.textId, flashcardShadowText(entry).orEmpty())
+    }
+    fun startCardRecording(): Boolean {
+        if (current?.let(::flashcardShadowText) == null) return false
+        createTts().stop()
+        return shadowingController.listen()
+    }
+    fun endCardRecording() = shadowingController.finishRecording()
+    fun cancelCardRecording() = shadowingController.cancel()
+    fun replayCardRecording() { createTts().stop(); shadowingController.replayMine() }
     private val timer = ReviewStudyTimer()
     val current get() = session?.current
     val canUndo get() = stage == ReviewStage.REVIEW && session?.answers?.isNotEmpty() == true && !busy
@@ -121,6 +147,7 @@ class ReviewViewModel(private val container: AppContainer, private val settings:
     }
 
     private fun begin(cards: List<VocabEntry>, learned: Boolean) {
+        pronunciationStats = CardPronunciationStats()
         isLearnedReview = learned
         session = ReviewSession(cards)
         show()
@@ -143,7 +170,9 @@ class ReviewViewModel(private val container: AppContainer, private val settings:
 
     private fun show() {
         sentenceTranslation = null; sentenceTranslationError = false; sentenceTranslationLoading = false
+        shadowingController.cancel()
         slot = current?.let(::CardSlot)
+        current?.let(::setShadowTarget)
     }
 
     fun answer(answer: VocabAnswer) = run {
@@ -201,7 +230,7 @@ class ReviewViewModel(private val container: AppContainer, private val settings:
         stage = ReviewStage.SUMMARY
     }
 
-    fun backToOverview() { stage = ReviewStage.OVERVIEW; session = null; slot = null; load() }
+    fun backToOverview() { shadowingController.cancel(); stage = ReviewStage.OVERVIEW; session = null; slot = null; load() }
 
     fun translateSentence() {
         val entry = current ?: return
@@ -218,7 +247,7 @@ class ReviewViewModel(private val container: AppContainer, private val settings:
         }
     }
 
-    override fun onCleared() { timer.pause(nowMs()) }
+    override fun onCleared() { shadowingController.cancel(); timer.pause(nowMs()) }
 }
 
 /** Same rule as the dictionary sheet: meanings in the chosen language unless it is the card's own language. */
@@ -233,7 +262,37 @@ fun ReviewScreen(container: AppContainer, settings: AppSettings, onBack: () -> U
     val tts = remember { createTts() }
     DisposableEffect(Unit) { onDispose { tts.stop() } }
     var revealedSlot by remember { mutableStateOf<CardSlot?>(null) }
-    var shadow by remember { mutableStateOf<VocabEntry?>(null) }
+    val permission = rememberMicPermission()
+    var pendingPractice by remember { mutableStateOf(false) }
+    var showModel by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
+    val language = learningSpeechLanguage(requireNotNull(settings.learningLang))
+    val support = remember(language) { recognitionSupport(language) }
+    val manager = remember(language) { VoskModelManager(language) }
+    var downloadProgress by remember(language) { mutableStateOf<Float?>(null) }
+    val modelFailed = stringResource(Res.string.shadowing_model_failed)
+    val onDeviceUnavailable = stringResource(Res.string.g_on_device_unavailable)
+    fun enablePractice() {
+        if (!permission.granted) { pendingPractice = true; permission.request(); return }
+        if (settings.speechRecognitionEngine == "offline" && support.downloadableModels && language.offlineSpeechModel != null && !manager.isInstalled()) {
+            showModel = true; vm.setPronunciation(false)
+        } else if (settings.speechRecognitionEngine != "offline" || support.onDeviceAvailable || (support.downloadableModels && language.offlineSpeechModel == null)) vm.setPronunciation(true)
+        else scope.launch { snackbar.showSnackbar(onDeviceUnavailable) }
+    }
+    LaunchedEffect(permission.granted) { if (pendingPractice && permission.granted) { pendingPractice = false; enablePractice() } }
+    LaunchedEffect(vm.stage) { if (vm.stage == ReviewStage.REVIEW && vm.pronunciationEnabled) enablePractice() }
+    DisposableEffect(vm) { onDispose { vm.cancelCardRecording() } }
+    if (showModel) ShadowingModelDialog(downloadProgress, support.systemAvailable, { showModel = false }, onDownload = {
+        downloadProgress = 0f
+        scope.launch {
+            try { manager.download(container.http) { downloadProgress = it }; showModel = false; vm.setPronunciation(true) }
+            catch (cancel: CancellationException) { throw cancel }
+            catch (_: Exception) { snackbar.showSnackbar(modelFailed) }
+            finally { downloadProgress = null }
+        }
+    }, onUseAndroid = {
+        scope.launch { container.settings.setSpeechRecognitionEngine("system"); RecognitionSettings.engine = "system"; showModel = false; vm.setPronunciation(true) }
+    }, modelLanguage = languageName(language), modelSizeMb = language.offlineSpeechModel?.downloadMb ?: 0, systemLabel = stringResource(Res.string.shadowing_use_android_engine))
     var editing by remember { mutableStateOf<VocabEntry?>(null) }
     val currentRevealed = vm.slot != null && vm.slot === revealedSlot
     LaunchedEffect(vm.stage) { if (vm.stage == ReviewStage.OVERVIEW) vm.load() }
@@ -250,14 +309,16 @@ fun ReviewScreen(container: AppContainer, settings: AppSettings, onBack: () -> U
         tts.stop()
         val card = vm.current ?: return@LaunchedEffect
         if (currentRevealed) vm.translateSentence()
-        else if (settings.autoPronounceCards) tts.pronounce(card.word, card.lang, settings)
+        val autoplay = settings.reviewAudioAutoplay
+        when {
+            currentRevealed && autoplay.back -> flashcardSentenceAudioText(card)?.let { tts.pronounce(it, card.lang, settings) }
+            !currentRevealed && autoplay.front -> flashcardWordAudioText(card)?.let { tts.pronounce(it, card.lang, settings) }
+        }
     }
     // Held so the card container does not collapse while the slot is briefly null between answers.
     var lastSlot by remember { mutableStateOf<CardSlot?>(null) }
     LaunchedEffect(vm.slot) { vm.slot?.let { lastSlot = it } }
     LaunchedEffect(vm.stage) { if (vm.stage != ReviewStage.REVIEW) lastSlot = null }
-    shadow?.let { card -> ShadowingPanel(container, settings, learningSpeechLanguage(card.lang), card.textId,
-        listOf(card.sentence.ifBlank { card.word }), dismiss = { shadow = null }) }
     editing?.let { e ->
         val decks = listOf(0L to stringResource(Res.string.unfiled)) + vm.listNames.toList()
         EditWordDialog(e, decks, { editing = null }) { vm.edit(it) }
@@ -273,7 +334,7 @@ fun ReviewScreen(container: AppContainer, settings: AppSettings, onBack: () -> U
                     }
                 },
                 actions = {
-                    if (vm.stage == ReviewStage.REVIEW) IconButton(onClick = { tts.stop(); shadow = vm.current }, enabled = vm.current != null) {
+                    if (vm.stage == ReviewStage.REVIEW) IconToggleButton(checked = vm.pronunciationEnabled, onCheckedChange = { if (it) enablePractice() else vm.setPronunciation(false) }) {
                         Icon(Icons.Default.Mic, stringResource(Res.string.review_pronunciation_practice))
                     }
                     if (vm.stage == ReviewStage.REVIEW) IconButton(onClick = vm::undo, enabled = vm.canUndo) {
@@ -301,7 +362,7 @@ fun ReviewScreen(container: AppContainer, settings: AppSettings, onBack: () -> U
                         slot?.let { sl ->
                             ReviewCard(vm, sl.entry, sl === revealedSlot, sl === vm.slot && !vm.busy,
                                 onReveal = { revealedSlot = sl },
-                                onPlay = { text -> tts.stop(); tts.pronounce(text, sl.entry.lang, settings) },
+                                onPlay = { text -> vm.cancelCardRecording(); tts.stop(); tts.pronounce(text, sl.entry.lang, settings) },
                                 onEdit = { editing = sl.entry })
                         }
                     }
@@ -490,6 +551,14 @@ private fun ReviewCard(
                 onEdit = onEdit,
                 modifier = cardModifier
             )
+        },
+        practice = {
+        if (revealed && interactive && vm.pronunciationEnabled && flashcardShadowText(entry) != null) {
+            val phase by vm.shadowing.collectAsState()
+            CardShadowingRow(ShadowingState(phase, vm.hasRecording), vm::startCardRecording, vm::endCardRecording,
+                vm::cancelCardRecording, vm::replayCardRecording,
+                if (learningSpeechLanguage(entry.lang).direction == TextDir.RTL) LayoutDirection.Rtl else LayoutDirection.Ltr)
+        }
         }
     ) {
         if (!revealed) Button(onClick = onReveal, enabled = interactive, modifier = Modifier.fillMaxWidth()) { Text(stringResource(Res.string.vocab_reveal_meaning)) }
@@ -507,11 +576,12 @@ private fun ReviewCard(
 
 /** Required fix over FrenchReader: the card takes the remaining height and scrolls inside; [answers] stay pinned on screen. */
 @Composable
-internal fun ReviewCardLayout(header: @Composable ColumnScope.() -> Unit, card: @Composable (Modifier) -> Unit, answers: @Composable () -> Unit) {
+internal fun ReviewCardLayout(header: @Composable ColumnScope.() -> Unit, card: @Composable (Modifier) -> Unit, practice: @Composable () -> Unit = {}, answers: @Composable () -> Unit) {
     Column(Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally) {
         Spacer(Modifier.height(8.dp))
         header()
         card(Modifier.weight(1f).fillMaxWidth())
+        practice()
         Spacer(Modifier.height(14.dp))
         answers()
         Spacer(Modifier.height(12.dp))
@@ -625,6 +695,7 @@ private fun WordAudioButton(interactive: Boolean, onPlay: () -> Unit) {
         SummaryLine(stringResource(Res.string.review_summary_cards), vm.dayTotals.cards.toString())
         SummaryLine(stringResource(Res.string.review_summary_forward), vm.dayTotals.movedForward.toString())
         SummaryLine(stringResource(Res.string.review_summary_returned), vm.dayTotals.returnedToBoxOne.toString())
+        vm.pronunciationAccuracy?.let { SummaryLine(stringResource(Res.string.review_summary_pronunciation), "$it%") }
         SummaryLine(stringResource(Res.string.review_summary_time), formatDuration(vm.studyTimeMs))
         SummaryLine(stringResource(Res.string.review_summary_next), vm.nextScheduledAtMs?.let { dateLabel(it) } ?: "—")
         Button(onClick = onClose, modifier = Modifier.fillMaxWidth().padding(top = 20.dp)) { Text(stringResource(Res.string.action_close)) }

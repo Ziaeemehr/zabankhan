@@ -1,0 +1,36 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="settings_section_tts_cache">Cache audio</string>
+    <string name="tts_cache_current_size">Taille actuelle du cache : %1$s Mo</string>
+    <string name="tts_cache_max_size">Taille maximale du cache (Mo)</string>
+    <string name="tts_cache_max_age">Conservation des fichiers (jours)</string>
+    <string name="tts_cache_clear">Vider le cache audio</string>
+    <string name="tts_cache_clear_confirm_title">Vider le cache audio ?</string>
+    <string name="tts_cache_clear_confirm_message">Les fichiers audio non épinglés seront supprimés.</string>
+    <string name="tts_cache_clear_done">Cache audio vidé</string>
+    <string name="tts_cache_pinned_note">Les fichiers épinglés sont exclus des limites de taille et de durée ainsi que du vidage du cache.</string>
+    <string name="review_audio_autoplay">Lecture automatique de la prononciation</string>
+    <string name="review_autoplay_off">Désactivée</string>
+    <string name="review_autoplay_front">Recto</string>
+    <string name="review_autoplay_back">Verso</string>
+    <string name="review_autoplay_both">Les deux</string>
+    <string name="shadowing_model_prompt_title">Télécharger le modèle vocal %1$s ?</string>
+    <string name="shadowing_model_prompt_body">La reconnaissance hors ligne nécessite un téléchargement unique d’environ %1$d Mo. Votre voix ne quitte jamais le téléphone.</string>
+    <string name="shadowing_model_download">Télécharger</string>
+    <string name="shadowing_use_android_engine">Utiliser la reconnaissance Android</string>
+    <string name="shadowing_model_downloading">Téléchargement du modèle vocal… %1$d%</string>
+    <string name="shadowing_model_failed">Échec du téléchargement. Vérifiez votre connexion.</string>
+    <string name="shadowing_engine_title">Reconnaissance vocale</string>
+    <string name="shadowing_engine_vosk">Hors ligne (Vosk)</string>
+    <string name="shadowing_engine_android">Android</string>
+    <string name="shadowing_model_title">Modèle vocal %1$s</string>
+    <string name="shadowing_model_installed">Installé · %1$d Mo</string>
+    <string name="shadowing_model_delete">Supprimer</string>
+    <string name="shadowing_mic_denied">La répétition orale nécessite le microphone pour vous entendre répéter chaque phrase.</string>
+    <string name="review_summary_pronunciation">Prononciation</string>
+    <string name="g_on_device">Sur l’appareil</string>
+    <string name="g_apple_recognizer">Apple</string>
+    <string name="g_on_device_available">La reconnaissance sur l’appareil est disponible pour cette langue.</string>
+    <string name="g_on_device_unavailable">La reconnaissance sur l’appareil est indisponible pour cette langue sur cet appareil.</string>
+    <string name="g_model_install_zip">Installer depuis un fichier ZIP</string>
+</resources>

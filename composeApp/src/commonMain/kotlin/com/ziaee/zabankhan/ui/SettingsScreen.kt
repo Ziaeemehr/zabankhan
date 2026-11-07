@@ -75,6 +75,8 @@ import org.jetbrains.compose.resources.stringResource
 @Composable
 fun SettingsScreen(vm: AppViewModel, settings: AppSettings, progress: () -> Unit = {}, grammar: () -> Unit = {}, exams: () -> Unit = {}) {
     val repository = vm.container.settings
+    val speechSettingsScope = rememberCoroutineScope()
+    val speechSettingsSnackbar = remember { SnackbarHostState() }
     val tts = remember { createTts() }
     val speaking by tts.isSpeaking.collectAsState()
     var voices by remember { mutableStateOf(emptyMap<String, List<TtsVoice>>()) }
@@ -103,6 +105,7 @@ fun SettingsScreen(vm: AppViewModel, settings: AppSettings, progress: () -> Unit
     var selectedTab by rememberSaveable { mutableIntStateOf(-1) }
     BackHandler(enabled = selectedTab >= 0) { selectedTab = -1 }
     Scaffold(
+        snackbarHost = { SnackbarHost(speechSettingsSnackbar) },
         topBar = {
             TopAppBar(
                 title = { Text(stringResource(if (selectedTab < 0) Res.string.nav_settings else tabTitles[selectedTab])) },
@@ -180,6 +183,14 @@ fun SettingsScreen(vm: AppViewModel, settings: AppSettings, progress: () -> Unit
                                         listOf("" to stringResource(Res.string.speech_default)) + voices[lang.code].orEmpty().map { it.id to it.name }) { id -> vm.action { repository.setTtsVoice(lang.code, id.ifBlank { null }) } }
                                     TextButton(onClick = { tts.pronounce(lang.voicePreview, lang.code, settings) }) { Text(stringResource(Res.string.edge_preview)) }
                                 }
+                                Languages.learnable.filter { it.code in settings.learningLangs }.forEach { lang ->
+                                    key(lang.code) {
+                                        Text(languageName(lang), style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(top = 12.dp))
+                                        ShadowingSettings(vm.container, settings, lang, speechSettingsScope, speechSettingsSnackbar)
+                                    }
+                                }
+                                Text(stringResource(Res.string.settings_section_tts_cache), style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(top = 12.dp))
+                                TtsCacheSettings(vm.container, settings, speechSettingsScope, speechSettingsSnackbar)
 
                             }
                             4 -> {
@@ -224,9 +235,15 @@ fun SettingsScreen(vm: AppViewModel, settings: AppSettings, progress: () -> Unit
                                 StepperSetting(stringResource(Res.string.daily_new), settings.dailyNewCards, 0, 100) {
                                     vm.action { repository.setDailyNewCards(it) }
                                 }
-                                SettingsSwitchRow(stringResource(Res.string.speech_auto_cards), settings.autoPronounceCards) {
-                                    vm.action { repository.setAutoPronounceCards(it) }
-                                }
+                                Text(stringResource(Res.string.review_audio_autoplay), style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(top = 6.dp, bottom = 3.dp))
+                                CompactChoiceRow(com.ziaee.zabankhan.data.AudioAutoplay.entries, settings.reviewAudioAutoplay, {
+                                    stringResource(when (it) {
+                                        com.ziaee.zabankhan.data.AudioAutoplay.OFF -> Res.string.review_autoplay_off
+                                        com.ziaee.zabankhan.data.AudioAutoplay.FRONT -> Res.string.review_autoplay_front
+                                        com.ziaee.zabankhan.data.AudioAutoplay.BACK -> Res.string.review_autoplay_back
+                                        com.ziaee.zabankhan.data.AudioAutoplay.BOTH -> Res.string.review_autoplay_both
+                                    })
+                                }) { vm.action { repository.setReviewAudioAutoplay(it) } }
                                 com.ziaee.zabankhan.reminder.ReviewReminderSettings(vm, settings)
 
                             }
@@ -302,7 +319,7 @@ private fun SettingsTabRow(tabTitles: List<StringResource>, selectedTab: Int, on
 }
 
 @Composable
-private fun StepperSetting(label: String, value: Int, minimum: Int, maximum: Int, onChange: (Int) -> Unit) {
+internal fun StepperSetting(label: String, value: Int, minimum: Int, maximum: Int, onChange: (Int) -> Unit) {
     Row(Modifier.fillMaxWidth().heightIn(min = 40.dp), verticalAlignment = Alignment.CenterVertically) {
         Text(label, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
         IconButton(onClick = { onChange(settingsStep(value, -1, minimum, maximum)) }, enabled = value > minimum) {
@@ -317,7 +334,7 @@ private fun StepperSetting(label: String, value: Int, minimum: Int, maximum: Int
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun <T> CompactChoiceRow(
+internal fun <T> CompactChoiceRow(
     entries: List<T>, selected: T, label: @Composable (T) -> String, onSelect: (T) -> Unit
 ) {
     FlowRow(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {

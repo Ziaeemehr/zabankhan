@@ -15,10 +15,17 @@ class AppContainer(val database: AppDatabase, val settings: SettingsRepository, 
     private val sourceHttp = http
     val http = http.config { install(WebSockets) }
     private val speechScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
-    private val tts = SelectedTts(EdgeTts(EdgeTtsClient(this.http), TtsCache("${AppFiles.cacheDir}/tts"), createAudioPlayer(), speechScope), createDeviceTts(), speechScope)
+    val ttsCache = TtsCache("${AppFiles.cacheDir}/tts")
+    private val tts = SelectedTts(EdgeTts(EdgeTtsClient(this.http), ttsCache, createAudioPlayer(), speechScope), createDeviceTts(), speechScope)
     init {
         SpeechEngine.current?.stop()
         SpeechEngine.current = tts
+        speechScope.launch {
+            settings.settings.collect { value ->
+                SpeechEngine.configure(value)
+                ttsCache.configure(value.ttsCacheMaxSizeMb, value.ttsCacheMaxAgeDays)
+            }
+        }
     }
     /** Release container-owned background work before replacing it after restore. */
     fun close() {

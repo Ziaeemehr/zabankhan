@@ -1,0 +1,36 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="settings_section_tts_cache">Audio cache</string>
+    <string name="tts_cache_current_size">Current cache size: %1$s MB</string>
+    <string name="tts_cache_max_size">Maximum cache size (MB)</string>
+    <string name="tts_cache_max_age">File retention (days)</string>
+    <string name="tts_cache_clear">Clear audio cache</string>
+    <string name="tts_cache_clear_confirm_title">Clear audio cache?</string>
+    <string name="tts_cache_clear_confirm_message">Unpinned cached audio will be removed.</string>
+    <string name="tts_cache_clear_done">Audio cache cleared</string>
+    <string name="tts_cache_pinned_note">Pinned files are exempt from size and age limits and from clearing the cache.</string>
+    <string name="review_audio_autoplay">Autoplay pronunciation audio</string>
+    <string name="review_autoplay_off">Off</string>
+    <string name="review_autoplay_front">Front</string>
+    <string name="review_autoplay_back">Back</string>
+    <string name="review_autoplay_both">Both</string>
+    <string name="shadowing_model_prompt_title">Download %1$s speech model?</string>
+    <string name="shadowing_model_prompt_body">Offline recognition needs a one-time download of about %1$d MB. Your voice never leaves the phone.</string>
+    <string name="shadowing_model_download">Download</string>
+    <string name="shadowing_use_android_engine">Use Android recognizer</string>
+    <string name="shadowing_model_downloading">Downloading speech model… %1$d%</string>
+    <string name="shadowing_model_failed">Download failed. Check your connection.</string>
+    <string name="shadowing_engine_title">Speech recognition</string>
+    <string name="shadowing_engine_vosk">Offline (Vosk)</string>
+    <string name="shadowing_engine_android">Android</string>
+    <string name="shadowing_model_title">%1$s speech model</string>
+    <string name="shadowing_model_installed">Installed · %1$d MB</string>
+    <string name="shadowing_model_delete">Delete</string>
+    <string name="shadowing_mic_denied">Shadowing needs the microphone to hear you repeat each sentence.</string>
+    <string name="review_summary_pronunciation">Pronunciation</string>
+    <string name="g_on_device">On-device</string>
+    <string name="g_apple_recognizer">Apple</string>
+    <string name="g_on_device_available">On-device recognition is available for this language.</string>
+    <string name="g_on_device_unavailable">On-device recognition is unavailable for this language on this device.</string>
+    <string name="g_model_install_zip">Install from ZIP</string>
+</resources>

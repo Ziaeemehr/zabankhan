@@ -18,10 +18,27 @@ import okio.ByteString.Companion.encodeUtf8
 data class CachedSpeech(val key: String, val path: String, val boundaries: List<Boundary>)
 class TtsCache(
     directory: String,
-    private val maxBytes: Long = 200L * 1024 * 1024,
+    private var maxBytes: Long = 500L * 1024 * 1024,
     private val fs: FileSystem = FileSystem.SYSTEM,
+    private val now: () -> Long = { com.ziaee.zabankhan.data.nowMs() },
 ) {
+    private var maxAgeMs: Long = 30L * 24 * 60 * 60 * 1000
     private val dir = directory.toPath()
+    suspend fun configure(maxSizeMb: Int, maxAgeDays: Int) = mutex.withLock {
+        maxBytes = maxSizeMb.coerceIn(50, 5000) * 1024L * 1024
+        maxAgeMs = maxAgeDays.coerceIn(1, 365) * 24L * 60 * 60 * 1000
+        withContext(Dispatchers.IO) { if (fs.exists(dir)) prune() }
+    }
+    suspend fun cacheSizeBytes(): Long = mutex.withLock {
+        withContext(Dispatchers.IO) { if (fs.exists(dir)) fs.list(dir).sumOf { fs.metadataOrNull(it)?.size ?: 0 } else 0 }
+    }
+    suspend fun clearCache() = mutex.withLock {
+        withContext(Dispatchers.IO) {
+            if (fs.exists(dir)) fs.list(dir).groupBy { it.name.substringBefore('.') }.forEach { (key, paths) ->
+                if (key !in leases && paths.none { it.name.endsWith(".pin") }) paths.forEach { fs.delete(it, mustExist = false) }
+            }
+        }
+    }
     private val mutex = Mutex()
     private val leases = mutableMapOf<String, Int>()
     private fun path(key: String, extension: String) = dir / "$key.$extension"
@@ -99,7 +116,9 @@ class TtsCache(
         for ((key, paths) in groups.entries.sortedBy { (_, paths) ->
             paths.firstOrNull { it.name.endsWith(".json") }?.let { fs.metadataOrNull(it)?.lastModifiedAtMillis } ?: 0
         }) {
-            if (total <= maxBytes) break
+            val touched = paths.firstOrNull { it.name.endsWith(".json") }?.let { fs.metadataOrNull(it)?.lastModifiedAtMillis } ?: 0
+            val expired = now() - touched > maxAgeMs
+            if (total <= maxBytes && !expired) continue
             if (key in leases || paths.any { it.name.endsWith(".pin") }) continue
             for (file in paths) {
                 total -= fs.metadataOrNull(file)?.size ?: 0
