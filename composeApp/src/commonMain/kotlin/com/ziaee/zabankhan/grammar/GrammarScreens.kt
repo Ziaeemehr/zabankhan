@@ -6,6 +6,10 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
+import com.ziaee.zabankhan.ui.contentStyle
+import androidx.compose.material.icons.automirrored.filled.ArrowForward
+import androidx.compose.ui.draw.clip
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
@@ -391,10 +395,18 @@ fun GrammarNoteScreen(
                 if (related.isNotEmpty()) item {
                     Column(verticalArrangement = Arrangement.spacedBy(ZabankhanDesign.spacing.xSmall)) {
                         GrammarSectionHeader(Res.string.grammar_related)
+                        // Body font plus an arrow and underline, so related notes read as links, not stray buttons.
                         related.forEach { relatedNote ->
-                            TextButton(onClick = { onOpenNote(relatedNote.id) }) {
-                                Text(if (showPersian) relatedNote.titleFa else relatedNote.titleLearning,
-                                    color = LocalGrammarColors.current.accent)
+                            val title = if (showPersian) relatedNote.titleFa else relatedNote.titleLearning
+                            Row(Modifier.fillMaxWidth().clip(MaterialTheme.shapes.small).clickable { onOpenNote(relatedNote.id) }
+                                .padding(vertical = ZabankhanDesign.spacing.xSmall),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(ZabankhanDesign.spacing.xSmall)) {
+                                Icon(Icons.AutoMirrored.Filled.ArrowForward, null, tint = LocalGrammarColors.current.accent,
+                                    modifier = Modifier.size(16.dp))
+                                Text(title, style = MaterialTheme.typography.bodyLarge.merge(contentStyle(title)).copy(
+                                    color = LocalGrammarColors.current.accent,
+                                    textDecoration = androidx.compose.ui.text.style.TextDecoration.Underline))
                             }
                         }
                     }
