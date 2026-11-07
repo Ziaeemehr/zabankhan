@@ -2,6 +2,10 @@ package com.ziaee.zabankhan.pdf
 
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.text.selection.SelectionContainer
+import androidx.compose.ui.text.style.TextDirection
+import androidx.compose.ui.text.style.TextAlign
+import com.ziaee.zabankhan.lang.TextDir
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -146,6 +150,15 @@ private data class PdfRange(val page: Int, val first: Int, val last: Int, val wo
     val share = rememberPdfShare()
     var overflow by remember(path) { mutableStateOf(false) }
     var lastSentence by remember(path) { mutableStateOf<String?>(null) }
+    var translationSource by remember(path) { mutableStateOf<ReaderSelection?>(null) }
+    val translationTarget = settings.meaningLang
+    fun translate(source: String, sentence: String) {
+        range = null
+        selection = null
+        if (source.trim().none { it.isWhitespace() }) {
+            selection = ReaderSelection(pdfLookupWord(source, text.lang), sentence, 0..0, false)
+        } else translationSource = ReaderSelection(source, sentence, 0..0, true)
+    }
     var highlightColors by remember(path) { mutableStateOf(false) }
     LaunchedEffect(list.isScrollInProgress) { if (list.isScrollInProgress) range = null }
     fun changeView(factor: Float, centroid: Offset, move: Offset) {
@@ -210,7 +223,7 @@ private data class PdfRange(val page: Int, val first: Int, val last: Int, val wo
                         })
                         DropdownMenuItem(enabled = lastSentence != null,
                             text = { Text(stringResource(Res.string.pdf_translate_sentence)) },
-                            onClick = { overflow = false; lastSentence?.let { selection = ReaderSelection(it, it, 0..0, true) } })
+                            onClick = { overflow = false; lastSentence?.let { translate(it, it) } })
                         DropdownMenuItem(enabled = !recognizing && savedInk != null,
                             text = { Text(stringResource(Res.string.pdf_pen)) }, onClick = {
                                 overflow = false; penMode = !penMode; areaMode = false; range = null
@@ -292,7 +305,11 @@ private data class PdfRange(val page: Int, val first: Int, val last: Int, val wo
                                 lastSentence = sentenceAround(words, words.indexOf(word))
                                 selection = ReaderSelection(pdfLookupWord(word.text, text.lang), lastSentence.orEmpty(), 0..0, false)
                             },
-                            onRange = { first, last, words, anchor -> selecting = true; range = PdfRange(index, first, last, words, anchor) },
+                            onRange = { first, last, words, anchor ->
+                                selecting = true
+                                lastSentence = sentenceAround(words, minOf(first, last))
+                                range = PdfRange(index, first, last, words, anchor)
+                            },
                             onRangeEnd = { selecting = false },
                             onDoubleTap = { point ->
                                 val item = list.layoutInfo.visibleItemsInfo.firstOrNull { it.index == index }
@@ -320,21 +337,28 @@ private data class PdfRange(val page: Int, val first: Int, val last: Int, val wo
         }
     }
     range?.takeUnless { selecting }?.let { selected ->
+        val overlapping = highlights.filter { it.page == selected.page &&
+            it.startWord <= maxOf(selected.first, selected.last) && it.endWord >= minOf(selected.first, selected.last) }
+        val sentence = sentenceAround(selected.words, minOf(selected.first, selected.last))
         Popup(popupPositionProvider = SelectionRectPositionProvider(selected.anchor, with(density) { 8.dp.toPx() }),
             onDismissRequest = { range = null; highlightColors = false }) {
             Box {
                 SelectionToolbarContent(
                     onCopy = { clipboard.setText(AnnotatedString(selected.text)); range = null },
-                    onSave = { selection = ReaderSelection(selected.text, selected.text, 0..0, true); range = null },
+                    onSave = { selection = ReaderSelection(selected.text, sentence, 0..0, selected.first != selected.last); range = null },
                     onListen = { tts.pronounce(selected.text, text.lang, settings); range = null },
                     onHighlight = { vm.action {
                         vm.container.database.pdfHighlights().insert(PdfHighlight(textId = text.id, page = selected.page,
                             startWord = minOf(selected.first, selected.last), endWord = maxOf(selected.first, selected.last), colorKey = "primary"))
                         range = null
                     } },
-                    onChooseHighlightColor = { highlightColors = true }, onDeleteHighlight = null,
+                    onChooseHighlightColor = { highlightColors = true },
+                    onDeleteHighlight = overlapping.takeIf { it.isNotEmpty() }?.let { found -> {
+                        vm.action { found.forEach { vm.container.database.pdfHighlights().delete(it.id) } }
+                        range = null; highlightColors = false
+                    } },
                     onMore = { highlightColors = true },
-                    onTranslate = { selection = ReaderSelection(selected.text, selected.text, 0..0, true); range = null },
+                    onTranslate = { translate(selected.text, sentence) },
                     showReadingActions = true, showListen = true)
                 DropdownMenu(highlightColors, { highlightColors = false }) {
                     listOf("primary" to Res.string.highlight_primary, "secondary" to Res.string.highlight_secondary,
@@ -352,6 +376,13 @@ private data class PdfRange(val page: Int, val first: Int, val last: Int, val wo
             }
         }
     }
+    translationSource?.let { source ->
+        PdfTranslationSheet(vm, settings, text, source, translationTarget,
+            maxHeight = with(density) { viewportHeight.toDp() * .7f }, dictionaryMatches = emptyList(),
+            onListen = { tts.pronounce(source.word, text.lang, settings) },
+            onDictionary = { translationSource = null; selection = source },
+            dismiss = { translationSource = null })
+    }
     selection?.let { DictionarySheet(vm, settings, text, it, vocab, emptyList(), dismiss = { selection = null }) }
     areaText?.let { recognized ->
         ModalBottomSheet(sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true), onDismissRequest = { areaText = null }) {
@@ -360,7 +391,7 @@ private data class PdfRange(val page: Int, val first: Int, val last: Int, val wo
                 OutlinedTextField(recognized, { areaText = it }, modifier = Modifier.fillMaxWidth(), textStyle = contentStyle(recognized))
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     TextButton(onClick = { clipboard.setText(AnnotatedString(recognized)) }) { Text(stringResource(Res.string.pdf_copy)) }
-                    TextButton(enabled = recognized.isNotBlank(), onClick = { areaText = null; selection = ReaderSelection(recognized, recognized, 0..0, true) }) { Text(stringResource(Res.string.pdf_translate)) }
+                    TextButton(enabled = recognized.isNotBlank(), onClick = { areaText = null; translate(recognized, recognized) }) { Text(stringResource(Res.string.pdf_translate)) }
                     TextButton(enabled = recognized.isNotBlank(), onClick = { vm.action {
                         vm.container.texts.insert(TextDocument(lang = text.lang, title = text.title + " · " + (page + 1), body = recognized))
                         areaText = null
@@ -474,13 +505,19 @@ private data class PdfRange(val page: Int, val first: Int, val last: Int, val wo
                 }
             }
         }
-        .pointerInput(areaMode, penMode, words, image, viewport) {
+        .pointerInput(areaMode, penMode, words, image, viewport, highlights) {
             detectTapGestures(
                 onDoubleTap = { doubleTap(it) },
                 onTap = { point ->
                     if (!areaMode) {
                         val n = normalized(point)
-                        hitTestWord(words, n.x, n.y, .008f)?.let { onTap(words, it) }
+                        hitTestWord(words, n.x, n.y, .008f)?.let { word ->
+                            val wordIndex = words.indexOf(word)
+                            if (highlights.any { wordIndex in it.startWord..it.endWord }) {
+                                select(wordIndex, wordIndex)
+                                onRangeEnd()
+                            } else onTap(words, word)
+                        }
                     }
                 })
         }
@@ -545,6 +582,102 @@ private data class PdfRange(val page: Int, val first: Int, val last: Int, val wo
             }
             selection?.selected?.forEach { rectangle(it.rect, primary.copy(alpha = .3f)) }
             box?.let { rectangle(it, primary.copy(alpha = .25f)) }
+        }
+    }
+}
+
+/** Slot for future offline dictionary idiom matches. */
+internal data class PdfDictionaryMatch(val phrase: String, val meaning: String)
+
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
+@Composable
+private fun PdfTranslationSheet(
+    vm: AppViewModel, settings: AppSettings, text: TextDocument, source: ReaderSelection,
+    target: String, maxHeight: androidx.compose.ui.unit.Dp,
+    dictionaryMatches: List<PdfDictionaryMatch>, onListen: () -> Unit,
+    onDictionary: () -> Unit, dismiss: () -> Unit,
+) {
+    val repository = vm.container.translations(settings)
+    var translation by remember(source, target) { mutableStateOf<String?>(null) }
+    var loading by remember(source, target) { mutableStateOf(true) }
+    var attempt by remember(source, target) { mutableIntStateOf(0) }
+    var saving by remember(source, target) { mutableStateOf(false) }
+    var saved by remember(source, target) { mutableStateOf(false) }
+    var saveFailed by remember(source, target) { mutableStateOf(false) }
+    var showSaveConfirmation by remember(source, target) { mutableStateOf(false) }
+    LaunchedEffect(saved) {
+        if (saved) {
+            showSaveConfirmation = true
+            delay(2500)
+            showSaveConfirmation = false
+        }
+    }
+    LaunchedEffect(source, target, repository, attempt) {
+        loading = true
+        translation = null
+        try {
+            translation = repository.translateText(source.word, text.lang, target, source.sentence).getOrThrow()
+        } catch (cancelled: CancellationException) { throw cancelled }
+        catch (_: Exception) { translation = null }
+        finally { loading = false }
+    }
+    ModalBottomSheet(sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true), onDismissRequest = dismiss) {
+        Column(Modifier.fillMaxWidth().heightIn(max = maxHeight).verticalScroll(rememberScrollState())
+            .padding(20.dp).navigationBarsPadding(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(source.word, Modifier.weight(1f), style = contentStyle(source.word))
+                IconButton(onClick = onListen) { Icon(Icons.Default.VolumeUp, stringResource(Res.string.selection_action_listen)) }
+            }
+            when {
+                loading -> { CircularProgressIndicator(); Text(stringResource(Res.string.translation_loading)) }
+                translation == null -> {
+                    Text(stringResource(Res.string.error_translation_unavailable), color = MaterialTheme.colorScheme.error)
+                    TextButton(onClick = { attempt++ }) { Text(stringResource(Res.string.retry)) }
+                }
+                else -> {
+                    val rtl = Languages.byCode(target)?.direction == TextDir.RTL
+                    SelectionContainer {
+                        Text(translation.orEmpty(), Modifier.fillMaxWidth(), style = MaterialTheme.typography.bodyLarge.copy(
+                            textDirection = if (rtl) TextDirection.Rtl else TextDirection.Ltr),
+                            textAlign = if (rtl) TextAlign.Right else TextAlign.Left)
+                    }
+                    Icon(Icons.Default.Translate, stringResource(Res.string.pdf_translation_engine), Modifier.size(16.dp),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            }
+            dictionaryMatches.forEach { match ->
+                OutlinedCard(Modifier.fillMaxWidth()) {
+                    Column(Modifier.padding(12.dp)) {
+                        Text(match.phrase, style = contentStyle(match.phrase))
+                        Text(match.meaning, style = contentStyle(match.meaning))
+                    }
+                }
+            }
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Button(enabled = !loading && !translation.isNullOrBlank() && !saving && !saved, onClick = {
+                    val meaning = translation ?: return@Button
+                    saving = true
+                    saveFailed = false
+                    vm.action {
+                        try {
+                            val lang = requireNotNull(Languages.byCode(text.lang))
+                            val existing = dictionarySavedState(vm.container.vocab.getAll(text.lang), lang,
+                                text.id, source.word, source.sentence).exactEntry
+                            val listId = existing?.listId ?: vm.container.cache.get("dictionary:last-list:${text.lang}")?.toLongOrNull()
+                            val entry = existing?.copy(meaning = meaning, meaningLang = target)
+                                ?: VocabEntry(lang = text.lang, textId = text.id, word = source.word,
+                                    sentence = source.sentence, meaning = meaning, meaningLang = target, listId = listId)
+                            if (entry.id == 0L) vm.container.vocab.insert(entry) else vm.container.vocab.update(entry)
+                            saved = true
+                        } catch (cancelled: CancellationException) { throw cancelled }
+                        catch (_: Exception) { saveFailed = true }
+                        finally { saving = false }
+                    }
+                }) { Text(stringResource(Res.string.pdf_add_to_leitner)) }
+                TextButton(onClick = onDictionary) { Text(stringResource(Res.string.pdf_full_dictionary)) }
+            }
+            if (showSaveConfirmation) Text(stringResource(Res.string.saved))
+            if (saveFailed) Text(stringResource(Res.string.pdf_vocab_save_failed), color = MaterialTheme.colorScheme.error)
         }
     }
 }
