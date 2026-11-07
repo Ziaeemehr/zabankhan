@@ -22,6 +22,7 @@ import org.jetbrains.compose.resources.Font
 @Immutable data class AppSizes(
     val iconSmall: Dp = 18.dp, val icon: Dp = 24.dp,
     val touchTarget: Dp = 48.dp, val readerMeasure: Dp = 640.dp,
+    val thumbnailSmall: Dp = 48.dp, val thumbnailMedium: Dp = 72.dp,
 )
 @Immutable data class AppElevations(
     val flat: Dp = 0.dp, val card: Dp = 1.dp, val raised: Dp = 3.dp, val overlay: Dp = 6.dp,

@@ -26,17 +26,20 @@ import org.jetbrains.compose.resources.stringResource
 @Composable fun EditorialTopAppBar(
     title: String, back: (() -> Unit)? = null, modifier: Modifier = Modifier,
     subtitle: String? = null,
+    titleStyle: androidx.compose.ui.text.TextStyle? = null,
+    backIcon: ImageVector = Icons.AutoMirrored.Filled.ArrowBack,
+    backLabel: String? = null,
     actions: @Composable RowScope.() -> Unit = {},
 ) {
     TopAppBar(
         title = {
             Column {
-                Text(title, style = editorialStyle(title).copy(fontSize = 18.sp, lineHeight = 24.sp), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(title, style = titleStyle ?: editorialStyle(title).copy(fontSize = 18.sp, lineHeight = 24.sp), maxLines = 1, overflow = TextOverflow.Ellipsis)
                 subtitle?.let { Text(it, style = MaterialTheme.typography.labelMedium.merge(contentStyle(it)), color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis) }
             }
         },
         modifier = modifier, windowInsets = WindowInsets(0, 0, 0, 0),
-        navigationIcon = { back?.let { EditorialIconButton(it, Icons.AutoMirrored.Filled.ArrowBack, stringResource(Res.string.back)) } },
+        navigationIcon = { back?.let { EditorialIconButton(it, backIcon, backLabel ?: stringResource(Res.string.back)) } },
         actions = actions,
         colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.background),
     )
@@ -119,28 +122,6 @@ import org.jetbrains.compose.resources.stringResource
     val border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = .6f))
     if (onClick == null) Card(modifier.fillMaxWidth(), shape = MaterialTheme.shapes.large, colors = colors, border = border, content = content)
     else Card(onClick, modifier.fillMaxWidth(), shape = MaterialTheme.shapes.large, colors = colors, border = border, content = content)
-}
-
-@OptIn(ExperimentalLayoutApi::class)
-@Composable fun LearningSummaryStrip(streak: Int, learned: Int, saved: Int, minutes: Int, goal: Int, onClick: () -> Unit) {
-    EditorialCard(onClick = onClick) {
-        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-            Row(Modifier.fillMaxWidth().height(IntrinsicSize.Min)) {
-                SummaryMetric(streak, stringResource(Res.string.ed_streak_days), Modifier.weight(1f))
-                VerticalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-                SummaryMetric(learned, stringResource(Res.string.ed_words_learned), Modifier.weight(1f))
-                VerticalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-                SummaryMetric(saved, stringResource(Res.string.ed_words_saved), Modifier.weight(1f))
-            }
-            EditorialProgressIndicator(minutes.toFloat() / goal.coerceAtLeast(1), stringResource(Res.string.h2_goal_progress, minutes, goal))
-        }
-    }
-}
-@Composable private fun SummaryMetric(value: Int, label: String, modifier: Modifier) {
-    Column(modifier, horizontalAlignment = Alignment.CenterHorizontally) {
-        Text(value.toString(), style = MaterialTheme.typography.headlineSmall, color = MaterialTheme.colorScheme.primary)
-        Text(label, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = TextAlign.Center)
-    }
 }
 
 /** One line at any navigation width; reduce only when the translated label overflows. */

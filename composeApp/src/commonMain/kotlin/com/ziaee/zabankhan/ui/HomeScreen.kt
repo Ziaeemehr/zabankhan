@@ -32,16 +32,22 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
 import org.jetbrains.compose.resources.stringResource
 import kotlin.math.roundToInt
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.ui.unit.sp
+import com.ziaee.zabankhan.watch.RecentVideo
+import com.ziaee.zabankhan.watch.WatchHistory
 
-@OptIn(ExperimentalLayoutApi::class)
+/** Home dashboard ported from French Reader's ui/home/HomeScreen.kt: progress, resume cards, review, then resource cards. */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable fun HomeScreen(
     vm: AppViewModel, settings: AppSettings, open: (Long) -> Unit, add: () -> Unit,
     review: () -> Unit, watch: () -> Unit, progress: () -> Unit = {}, discover: () -> Unit = {},
     grammar: () -> Unit = {}, exams: () -> Unit = {}, openSettings: () -> Unit = {},
+    words: () -> Unit = {}, news: () -> Unit = {}, watchVideo: (String, String, String) -> Unit = { _, _, _ -> },
 ) {
     val lang = requireNotNull(settings.learningLang)
+    val spec = requireNotNull(Languages.byCode(lang))
     val recentState by remember(lang) { vm.container.texts.observeRecent(lang) }.collectAsState(initial = null)
-    val textsState by remember(lang) { vm.container.texts.observeAll(lang) }.collectAsState(initial = null)
     val wordsState by remember(lang) { vm.container.vocab.observeAll(lang) }.collectAsState(initial = null)
     val activityState by remember(lang) { vm.container.database.activity().observe(lang) }.collectAsState(initial = null)
     val attemptsState by remember(lang) { vm.container.database.shadowAttempts().observe(lang) }.collectAsState(initial = null)
@@ -50,118 +56,72 @@ import kotlin.math.roundToInt
     LaunchedEffect(lang) { while (true) {
         now = nowMs(); reviewState = vm.container.vocab.reviewLogSince(lang, 0); delay(30_000)
     } }
+    val continueWatching by produceState<RecentVideo?>(null, lang) { value = WatchHistory(vm.container.cache).read(spec).firstOrNull() }
+    val headlineCount by produceState(0, lang) {
+        val sources = ContentSources.forLanguage(spec).filterIsInstance<NewsSource>()
+        value = loadNews(sources) { NewsFetcher(vm.container.http).fetchItems(it.feedUrl, 25) }.headlines.size
+    }
     val reviews = reviewState.orEmpty()
-    val recent = recentState.orEmpty()
-    val texts = textsState.orEmpty()
-    val words = wordsState.orEmpty()
+    val allWords = wordsState.orEmpty()
     val activity = activityState.orEmpty()
-    val attempts = attemptsState.orEmpty()
+    val today = localToday()
     val statsReady = wordsState != null && activityState != null && attemptsState != null && reviewState != null
     val remaining = remainingNewCards(reviews, settings.dailyNewCards, VocabSrs.startOfDayMs(now))
-    val due = reviewableCount(words.map { it.reviewCard() }, now, remaining)
-    val today = localToday()
-    var deleteText by remember { mutableStateOf<TextDocument?>(null) }
-    Page {
-        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            val title = stringResource(Res.string.app_name)
-            Text(title, Modifier.weight(1f), style = editorialStyle(title, EditorialRole.ScreenTitle))
-            EditorialIconButton(openSettings, Icons.Default.Settings, stringResource(Res.string.nav_settings))
-        }
-        Choice(stringResource(Res.string.learning_languages), lang, settings.learningLangs.mapNotNull { Languages.byCode(it) }.map { it.code to languageName(it) }) { code ->
-            vm.action {
-                vm.container.settings.setLearningLang(code)
-                if (settings.meaningLang == code) vm.container.settings.setMeaningLang(if (code == Languages.PERSIAN.code) Languages.ENGLISH.code else Languages.PERSIAN.code)
-            }
-        }
-        if (statsReady) LearningSummaryStrip(activityStreak(activity, today, reviews, attempts), words.count { it.srsState().status() == VocabStatus.LEARNED }, words.size,
-            activityMinutes(activity, today, 1).total.roundToInt(), settings.dailyGoalMinutes, progress)
-        HomeNews(vm, lang, discover)
-        if (statsReady) ReviewSummaryCard(due, words.isEmpty(), review, reviews.any { it.timestampMs >= VocabSrs.startOfDayMs(now) })
-        recent.firstOrNull()?.let { text ->
-            EditorialSectionHeader(stringResource(Res.string.continue_reading))
-            EditorialCard {
-                Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                        MetadataBadge(documentTypeLabel(text))
-                        val metadata = listOfNotNull(text.sourceName?.takeIf { it.isNotBlank() }, editorialDate(text.createdAtMs)).joinToString(" · ")
-                        Text(metadata, Modifier.weight(1f), style = MaterialTheme.typography.labelMedium.merge(contentStyle(metadata)), color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
+    val due = reviewableCount(allWords.map { it.reviewCard() }, now, remaining)
+    val languageLabel = languageName(spec)
+    val itemModifier = Modifier.fillMaxWidth().padding(horizontal = ZabankhanDesign.spacing.small, vertical = ZabankhanDesign.spacing.half)
+    Column(Modifier.fillMaxSize()) {
+        val title = stringResource(Res.string.app_name)
+        EditorialTopAppBar(title, titleStyle = editorialStyle(title, EditorialRole.SectionTitle).copy(fontSize = 20.sp, lineHeight = 24.sp), actions = {
+            // zabankhan keeps several learning languages; a compact dropdown switches between them.
+            var languageMenu by remember { mutableStateOf(false) }
+            Box {
+                TextButton(onClick = { languageMenu = true }) {
+                    Text(languageLabel, maxLines = 1)
+                    Icon(Icons.Default.KeyboardArrowDown, stringResource(Res.string.learning_languages))
+                }
+                DropdownMenu(languageMenu, { languageMenu = false }) {
+                    settings.learningLangs.mapNotNull { Languages.byCode(it) }.forEach { option ->
+                        DropdownMenuItem(text = { Text(languageName(option)) }, onClick = {
+                            languageMenu = false
+                            vm.action {
+                                vm.container.settings.setLearningLang(option.code)
+                                if (settings.meaningLang == option.code) vm.container.settings.setMeaningLang(if (option.code == Languages.PERSIAN.code) Languages.ENGLISH.code else Languages.PERSIAN.code)
+                            }
+                        })
                     }
-                    Text(text.title, Modifier.fillMaxWidth(), style = editorialStyle(text.title))
-                    // Character offsets are meaningful for extracted text, not PDF page positions.
-                    if (text.pdfPath == null && text.body.isNotEmpty() && text.lastAccessedAtMs > 0) {
-                        val fraction = text.lastOffset.toFloat() / text.body.length
-                        EditorialProgressIndicator(fraction, stringResource(Res.string.ed_reading_progress, (fraction * 100).roundToInt().coerceIn(0, 100)))
-                    }
-                    EditorialPrimaryButton(stringResource(Res.string.ed_resume), { open(text.id) })
                 }
             }
-        }
-        EditorialSectionHeader(stringResource(Res.string.ed_resources))
-        EditorialCard {
-            EditorialListRow(stringResource(Res.string.h2_discover), Icons.Default.Explore, discover)
-            HorizontalDivider(Modifier.padding(horizontal = 20.dp), color = MaterialTheme.colorScheme.outlineVariant)
-            EditorialListRow(stringResource(Res.string.pack_grammar), Icons.Default.MenuBook, grammar)
-            if (com.ziaee.zabankhan.datapack.LanguageDataPacks.available(lang)) {
-                HorizontalDivider(Modifier.padding(horizontal = 20.dp), color = MaterialTheme.colorScheme.outlineVariant)
-                EditorialListRow(stringResource(Res.string.pack_tcf), Icons.Default.School, exams)
-            }
-            HorizontalDivider(Modifier.padding(horizontal = 20.dp), color = MaterialTheme.colorScheme.outlineVariant)
-            EditorialListRow(stringResource(Res.string.watch_video), Icons.Default.PlayCircleOutline, watch)
-            HorizontalDivider(Modifier.padding(horizontal = 20.dp), color = MaterialTheme.colorScheme.outlineVariant)
+            IconButton(onClick = discover) { Icon(Icons.Default.Search, stringResource(Res.string.h2_find_content)) }
+            // French Reader adds texts from its bottom bar; zabankhan's bottom bar has no add slot.
             ImportAddMenu(vm, settings, add, open, watch, discover, trigger = { onImport, busy ->
-                EditorialListRow(stringResource(Res.string.add_text), Icons.Default.Add, onImport, enabled = !busy)
+                IconButton(onClick = onImport, enabled = !busy) { Icon(Icons.Default.Add, stringResource(Res.string.add_text)) }
             })
-        }
-        EditorialSectionHeader(stringResource(Res.string.recent_texts))
-        if (textsState != null && texts.isEmpty()) EditorialEmptyState(Icons.Default.MenuBook, stringResource(Res.string.empty_library),
-            stringResource(Res.string.ed_library_empty_body), actionLabel = stringResource(Res.string.add_text), onAction = add)
-        (recent.ifEmpty { texts }.take(5)).forEach { text ->
-            TextCard(text, { open(text.id) }, trailing = {
-                var menu by remember { mutableStateOf(false) }
-                Box {
-                    EditorialIconButton({ menu = true }, Icons.Default.MoreVert, stringResource(Res.string.more_actions))
-                    DropdownMenu(menu, { menu = false }) {
-                        DropdownMenuItem(text = { Text(stringResource(if (text.pinned) Res.string.unpin else Res.string.pin)) },
-                            onClick = { menu = false; vm.action { vm.container.texts.setPinned(text.id, !text.pinned) } })
-                        DropdownMenuItem(text = { Text(stringResource(Res.string.delete)) }, onClick = { menu = false; deleteText = text })
-                    }
-                }
-            })
-        }
-    }
-    deleteText?.let { text -> ConfirmDelete(onDismiss = { deleteText = null }) { vm.action { vm.container.texts.delete(text) } } }
-}
-
-private data class HomeHeadline(val item: NewsItem, val source: String)
-@Composable private fun HomeNews(vm: AppViewModel, lang: String, discover: () -> Unit) {
-    var headlines by remember(lang) { mutableStateOf<List<HomeHeadline>?>(null) }
-    LaunchedEffect(lang) {
-        val spec = Languages.byCode(lang) ?: run { headlines = emptyList(); return@LaunchedEffect }
-        val source = ContentSources.forLanguage(spec).filterIsInstance<NewsSource>().firstOrNull() ?: run { headlines = emptyList(); return@LaunchedEffect }
-        try {
-            headlines = mergeHeadlines(NewsFetcher(vm.container.http).fetchItems(source.feedUrl, 12), limit = 8).map { HomeHeadline(it, source.name) }
-        } catch (e: CancellationException) { throw e } catch (_: Exception) { headlines = emptyList() }
-    }
-    if (headlines?.isEmpty() == true) return
-    EditorialSectionHeader(stringResource(Res.string.ed_today_news))
-    val state = rememberLazyListState()
-    BoxWithConstraints(Modifier.fillMaxWidth()) {
-        val cardWidth = (maxWidth * .86f).coerceAtMost(420.dp)
-        LazyRow(state = state, flingBehavior = rememberSnapFlingBehavior(state, SnapPosition.Start), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            if (headlines == null) items(2) {
-                EditorialCard(Modifier.width(cardWidth)) {
-                    Spacer(Modifier.fillMaxWidth().height(232.dp))
+            IconButton(onClick = openSettings) { Icon(Icons.Default.Settings, stringResource(Res.string.nav_settings)) }
+        })
+        LazyColumn(Modifier.fillMaxSize()) {
+            if (statsReady) item {
+                ProgressCard(
+                    HomeProgress(activityStreak(activity, today, reviews, attemptsState.orEmpty()), activityMinutes(activity, today, 7).total.roundToInt(),
+                        allWords.count { it.srsState().status() == VocabStatus.LEARNED }, activityMinutes(activity, today, 1).total.roundToInt(), settings.dailyGoalMinutes),
+                    onOpen = progress, onSavedWords = words,
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+                )
+            }
+            recentState?.firstOrNull()?.let { doc ->
+                item { ContinueReadingCard(doc, onClick = { open(doc.id) }, modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)) }
+            }
+            continueWatching?.let { video ->
+                item {
+                    ContinueWatchingCard(video, onClick = { watchVideo(video.videoId, video.path.orEmpty(), video.subs.orEmpty()) },
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp))
                 }
             }
-            items(headlines.orEmpty(), key = { it.item.guid }) { headline ->
-                EditorialCard(Modifier.width(cardWidth), onClick = discover) {
-                    Column(Modifier.padding(20.dp).heightIn(min = 192.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                        MetadataBadge(headline.source)
-                        Text(headline.item.title, Modifier.fillMaxWidth(), style = editorialStyle(headline.item.title, EditorialRole.ArticleHeadline), maxLines = 3, overflow = TextOverflow.Ellipsis)
-                        headline.item.publishedAtMs?.let { Text(editorialDate(it), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
-                    }
-                }
-            }
+            if (statsReady) item { DailyReviewCard(due, review, itemModifier) }
+            item { WatchVideosCard(languageLabel, watch, itemModifier) }
+            item { TodayNewsCard(headlineCount, languageLabel, news, Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) }
+            item { GrammarCard(languageLabel, grammar, itemModifier) }
+            if (com.ziaee.zabankhan.datapack.LanguageDataPacks.available(lang)) item { ExamsCard(exams, itemModifier) }
         }
     }
 }
@@ -182,45 +142,8 @@ private data class HomeHeadline(val item: NewsItem, val source: String)
     }
 }
 
-@OptIn(ExperimentalLayoutApi::class)
-@Composable fun TextCard(
-    text: TextDocument, open: () -> Unit, trailing: @Composable (() -> Unit)? = null,
-) {
-    val container = com.ziaee.zabankhan.app.LocalAppContainer.current
-    val words by remember(text.lang) { container.vocab.observeAll(text.lang) }.collectAsState(emptyList())
-    val pack by produceState<com.ziaee.zabankhan.datapack.LanguageDataPack?>(null, text.lang) {
-        value = com.ziaee.zabankhan.datapack.LanguageDataPacks.load(text.lang)
-    }
-    val comprehension by produceState<Int?>(null, text.body, words, pack) {
-        val data = pack
-        val spec = Languages.byCode(text.lang)
-        value = if (data == null || spec == null) null else kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) {
-            ComprehensionAnalyzer(spec, data.lemmas).analyze(text.body, words.filter { it.learned || it.leitnerBox >= 3 }.map { it.word }.toSet()).knownWordPercent.toInt()
-        }
-    }
-    EditorialCard(onClick = open) {
-        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                Surface(shape = MaterialTheme.shapes.small, color = MaterialTheme.colorScheme.surfaceVariant) {
-                    Icon(documentIcon(text), documentTypeLabel(text), Modifier.padding(12.dp).size(24.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
-                }
-                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Text(text.title, Modifier.fillMaxWidth(), style = editorialStyle(text.title), maxLines = 2, overflow = TextOverflow.Ellipsis)
-                    text.sourceName?.let { Text(it, Modifier.fillMaxWidth(), style = MaterialTheme.typography.labelMedium.merge(contentStyle(it)), color = MaterialTheme.colorScheme.onSurfaceVariant) }
-                }
-                trailing?.invoke()
-            }
-            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                MetadataBadge(documentTypeLabel(text), containerColor = MaterialTheme.colorScheme.surfaceVariant, contentColor = MaterialTheme.colorScheme.onSurfaceVariant)
-                MetadataBadge(editorialDate(text.createdAtMs), containerColor = MaterialTheme.colorScheme.surfaceVariant, contentColor = MaterialTheme.colorScheme.onSurfaceVariant)
-                comprehension?.let { MetadataBadge(stringResource(Res.string.pack_comprehension, it)) }
-            }
-        }
-    }
-}
-
 // Imported EPUBs are stored as extracted text. Use source metadata only when retained.
-private fun documentIcon(text: TextDocument): ImageVector = when {
+internal fun documentIcon(text: TextDocument): ImageVector = when {
     text.pdfPath != null -> Icons.Default.PictureAsPdf
     text.sourceUrl?.substringBefore('?')?.endsWith(".epub", ignoreCase = true) == true -> Icons.Default.MenuBook
     text.externalKey?.startsWith("video:") == true -> Icons.Default.PlayCircleOutline

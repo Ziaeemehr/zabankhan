@@ -1,17 +1,49 @@
 package com.ziaee.zabankhan.ui
 
+// Port of FrenchReader ui/VocabReviewScreen.kt + ui/VocabFlashcard.kt (overview, box ladder, flip card, answers, summary).
+// Scheduling stays zabankhan's (srs package, VocabDao); French assumptions go through LanguageSpec / the entry's lang.
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.SizeTransform
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.TrendingUp
+import androidx.compose.material.icons.automirrored.filled.Undo
+import androidx.compose.material.icons.automirrored.filled.VolumeUp
+import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
-import androidx.compose.ui.Modifier
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalLayoutDirection
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.CheckCircleOutline
-import com.ziaee.zabankhan.ui.theme.*
-import androidx.compose.ui.text.SpanStyle
-import androidx.compose.ui.text.buildAnnotatedString
-import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextDirection
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -20,121 +52,590 @@ import com.ziaee.zabankhan.app.AppContainer
 import com.ziaee.zabankhan.data.*
 import com.ziaee.zabankhan.lang.*
 import com.ziaee.zabankhan.resources.*
-import com.ziaee.zabankhan.srs.*
 import com.ziaee.zabankhan.speech.*
+import com.ziaee.zabankhan.srs.*
+import com.ziaee.zabankhan.statistics.activityStreak
+import com.ziaee.zabankhan.statistics.localToday
+import com.ziaee.zabankhan.ui.reader.boxColor
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import kotlinx.datetime.TimeZone
+import kotlinx.datetime.daysUntil
+import kotlinx.datetime.toLocalDateTime
+import org.jetbrains.compose.resources.getString
 import org.jetbrains.compose.resources.stringResource
+import kotlin.time.Instant
+
+enum class ReviewStage { OVERVIEW, REVIEW, SUMMARY }
+
+/** FrenchReader's VocabPrefs default daily goal; zabankhan has no per-card goal setting. */
+private const val REVIEW_DAILY_GOAL = 20
+
+/** Identity holder per card presentation (FrenchReader CardSlot), so AnimatedContent never merges equal entries. */
+class CardSlot(val entry: VocabEntry)
 
 class ReviewViewModel(private val container: AppContainer, private val settings: AppSettings) : ViewModel() {
-    var session by mutableStateOf<ReviewSession?>(null); private set
-    var busy by mutableStateOf(false); private set
+    private val lang = requireNotNull(settings.learningLang)
+    var loading by mutableStateOf(true); private set
     var failed by mutableStateOf(false); private set
-    var flipped by mutableStateOf(false)
+    var stage by mutableStateOf(ReviewStage.OVERVIEW); private set
+    var overview by mutableStateOf<ReviewOverview?>(null); private set
+    var streak by mutableIntStateOf(0); private set
+    var session by mutableStateOf<ReviewSession?>(null); private set
+    var slot by mutableStateOf<CardSlot?>(null); private set
+    var isLearnedReview by mutableStateOf(false); private set
+    var learnedReviewed by mutableIntStateOf(0); private set
+    var busy by mutableStateOf(false); private set
+    /** (boxBefore, boxAfter) of the last answer, shown once as a snackbar. */
+    var move by mutableStateOf<Pair<Int, Int>?>(null); private set
+    var dayTotals by mutableStateOf(ReviewDayTotals(0, 0, 0)); private set
+    var studyTimeMs by mutableLongStateOf(0L); private set
+    var nextScheduledAtMs by mutableStateOf<Long?>(null); private set
+    var listNames by mutableStateOf<Map<Long, String>>(emptyMap()); private set
+    var sentenceTranslation by mutableStateOf<String?>(null); private set
+    var sentenceTranslationLoading by mutableStateOf(false); private set
+    var sentenceTranslationError by mutableStateOf(false); private set
+    private val timer = ReviewStudyTimer()
+    val current get() = session?.current
+    val canUndo get() = stage == ReviewStage.REVIEW && session?.answers?.isNotEmpty() == true && !busy
+
     init { load() }
+
+    private fun run(block: suspend () -> Unit) {
+        if (busy) return
+        busy = true; failed = false
+        viewModelScope.launch {
+            try { block() } catch (e: CancellationException) { throw e } catch (_: Exception) { failed = true } finally { busy = false; loading = false }
+        }
+    }
+
     fun load() = run {
-        val lang = requireNotNull(settings.learningLang)
         val now = nowMs()
         val entries = container.vocab.getAll(lang)
-        val remaining = remainingNewCards(container.vocab.reviewLogSince(lang, 0), settings.dailyNewCards, VocabSrs.startOfDayMs(now))
-        val ids = buildReviewQueue(entries.map { it.reviewCard() }, now, VocabSrs.startOfDayMs(now), remaining).map { it.id }
-        session = ReviewSession(ids.mapNotNull { id -> entries.firstOrNull { it.id == id } })
+        val logs = container.vocab.reviewLogSince(lang, 0)
+        overview = reviewOverview(entries, logs, settings.dailyNewCards, now)
+        listNames = container.vocab.observeLists(lang).first().associate { it.id to it.name }
+        streak = activityStreak(container.database.activity().observe(lang).first(), localToday(), logs,
+            container.database.shadowAttempts().observe(lang).first())
     }
-    private fun run(block: suspend () -> Unit) { if (busy) return; busy = true; failed = false
-        viewModelScope.launch { try { block() } catch (e: CancellationException) { throw e } catch (_: Exception) { failed = true } finally { busy = false } }
+
+    private fun begin(cards: List<VocabEntry>, learned: Boolean) {
+        isLearnedReview = learned
+        session = ReviewSession(cards)
+        show()
+        if (current == null) finish() else { stage = ReviewStage.REVIEW; timer.resume(nowMs()) }
     }
+
+    fun startReview(box: Int? = null) = run {
+        val now = nowMs()
+        val dayStart = VocabSrs.startOfDayMs(now)
+        val entries = container.vocab.getAll(lang)
+        val remaining = remainingNewCards(container.vocab.reviewLogSince(lang, 0), settings.dailyNewCards, dayStart)
+        val ids = buildReviewQueue(entries.map { it.reviewCard() }, now, dayStart, remaining, box).map { it.id }
+        begin(ids.mapNotNull { id -> entries.firstOrNull { it.id == id } }, learned = false)
+    }
+
+    fun startLearnedReview() = run {
+        learnedReviewed = 0
+        begin(container.vocab.getAll(lang).filter { it.learned }.sortedBy { it.id }, learned = true)
+    }
+
+    private fun show() {
+        sentenceTranslation = null; sentenceTranslationError = false; sentenceTranslationLoading = false
+        slot = current?.let(::CardSlot)
+    }
+
     fun answer(answer: VocabAnswer) = run {
         val state = session ?: return@run
         val before = state.current ?: return@run
         val now = nowMs()
-        // FrenchReader repeats forgotten cards within the session and keeps them due on exit.
-        val schedule = VocabSrs.apply(before.srsState(), answer, now)
-        val after = before.withState(if (answer == VocabAnswer.FORGOT) schedule.copy(nextReviewAtMs = now) else schedule)
-        val log = container.vocab.recordReview(after, ReviewLogEntry(entryId = before.id, lang = before.lang, timestampMs = now, knew = answer != VocabAnswer.FORGOT, boxBefore = before.leitnerBox, boxAfter = after.leitnerBox))
-        session = state.answered(SessionAnswer(before, answer, after, log)); flipped = false
+        val learnedKeep = isLearnedReview && answer != VocabAnswer.FORGOT
+        val boxBefore = if (isLearnedReview) 5 else before.leitnerBox
+        val after = if (learnedKeep) before.copy(lastReviewedAtMs = now) else {
+            val schedule = VocabSrs.apply(before.srsState(), answer, now)
+            // "Again" keeps the card due today so leaving early does not push it to tomorrow.
+            before.withState(if (answer == VocabAnswer.FORGOT) schedule.copy(nextReviewAtMs = now) else schedule)
+        }
+        val boxAfter = if (learnedKeep) 5 else after.leitnerBox
+        val log = container.vocab.recordReview(after, ReviewLogEntry(entryId = before.id, lang = before.lang, timestampMs = now,
+            knew = answer != VocabAnswer.FORGOT, boxBefore = boxBefore, boxAfter = boxAfter))
+        session = state.answered(SessionAnswer(before, answer, after, log, requeued = !isLearnedReview && answer == VocabAnswer.FORGOT))
+        if (isLearnedReview) learnedReviewed++
+        move = boxBefore to boxAfter
+        show()
+        if (current == null) finish()
     }
+
     fun undo() = run {
         val state = session ?: return@run
         val last = state.answers.lastOrNull() ?: return@run
         container.vocab.undoReview(last.before, last.logId)
-        session = state.undo(); flipped = false
+        if (isLearnedReview) learnedReviewed = (learnedReviewed - 1).coerceAtLeast(0)
+        session = state.undo(); move = null
+        show()
+    }
+
+    /** Text-only edit of the card on screen; its schedule and the session order stay as they are. */
+    fun edit(updated: VocabEntry) = run {
+        fun VocabEntry.patched() = if (id == updated.id) copy(word = updated.word, meaning = updated.meaning, sentence = updated.sentence, listId = updated.listId) else this
+        val now = current?.patched() ?: return@run
+        container.vocab.update(now)
+        session = session?.let { s -> s.copy(cards = s.cards.map { it.patched() },
+            answers = s.answers.map { it.copy(before = it.before.patched(), after = it.after.patched()) }) }
+        show()
+    }
+
+    fun consumeMove() { move = null }
+
+    private fun finish() {
+        val now = nowMs()
+        studyTimeMs = timer.pause(now).values.sum()
+        viewModelScope.launch {
+            try {
+                val entries = container.vocab.getAll(lang)
+                nextScheduledAtMs = entries.filter { !it.learned && it.nextReviewAtMs > now }.minOfOrNull { it.nextReviewAtMs }
+                dayTotals = reviewDayTotals(container.vocab.reviewLogSince(lang, VocabSrs.startOfDayMs(now)), VocabSrs.startOfDayMs(now))
+            } catch (e: CancellationException) { throw e } catch (_: Exception) { failed = true }
+        }
+        stage = ReviewStage.SUMMARY
+    }
+
+    fun backToOverview() { stage = ReviewStage.OVERVIEW; session = null; slot = null; load() }
+
+    fun translateSentence() {
+        val entry = current ?: return
+        if (entry.sentence.isBlank()) return
+        val requested = slot
+        sentenceTranslationLoading = true; sentenceTranslationError = false
+        viewModelScope.launch {
+            val result = try {
+                container.translations(settings).translateText(entry.sentence, entry.lang, meaningTarget(entry.lang, settings))
+            } catch (e: CancellationException) { throw e } catch (e: Exception) { Result.failure(e) }
+            if (slot !== requested) return@launch
+            result.fold({ sentenceTranslation = it }, { sentenceTranslationError = true })
+            sentenceTranslationLoading = false
+        }
+    }
+
+    override fun onCleared() { timer.pause(nowMs()) }
+}
+
+/** Same rule as the dictionary sheet: meanings in the chosen language unless it is the card's own language. */
+internal fun meaningTarget(cardLang: String, settings: AppSettings): String =
+    settings.meaningLang.takeIf { it != cardLang } ?: if (cardLang == Languages.PERSIAN.code) Languages.ENGLISH.code else Languages.PERSIAN.code
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun ReviewScreen(container: AppContainer, settings: AppSettings, onBack: () -> Unit = {}, onOpenSettings: () -> Unit = {}) {
+    val vm = viewModel(key = "review:${container.hashCode()}:${settings.learningLang}:${settings.dailyNewCards}") { ReviewViewModel(container, settings) }
+    val snackbar = remember { SnackbarHostState() }
+    val tts = remember { createTts() }
+    DisposableEffect(Unit) { onDispose { tts.stop() } }
+    var revealedSlot by remember { mutableStateOf<CardSlot?>(null) }
+    var shadow by remember { mutableStateOf<VocabEntry?>(null) }
+    var editing by remember { mutableStateOf<VocabEntry?>(null) }
+    val currentRevealed = vm.slot != null && vm.slot === revealedSlot
+    LaunchedEffect(vm.stage) { if (vm.stage == ReviewStage.OVERVIEW) vm.load() }
+    LaunchedEffect(vm.move) {
+        val (before, after) = vm.move ?: return@LaunchedEffect
+        snackbar.showSnackbar(when {
+            after > before -> getString(Res.string.review_moved_forward, after)
+            after < before -> getString(Res.string.review_returned_box_one)
+            else -> getString(Res.string.review_stayed_box, after)
+        })
+        vm.consumeMove()
+    }
+    LaunchedEffect(vm.slot, currentRevealed) {
+        tts.stop()
+        val card = vm.current ?: return@LaunchedEffect
+        if (currentRevealed) vm.translateSentence()
+        else if (settings.autoPronounceCards) tts.pronounce(card.word, card.lang, settings)
+    }
+    // Held so the card container does not collapse while the slot is briefly null between answers.
+    var lastSlot by remember { mutableStateOf<CardSlot?>(null) }
+    LaunchedEffect(vm.slot) { vm.slot?.let { lastSlot = it } }
+    LaunchedEffect(vm.stage) { if (vm.stage != ReviewStage.REVIEW) lastSlot = null }
+    shadow?.let { card -> ShadowingPanel(container, settings, learningSpeechLanguage(card.lang), card.textId,
+        listOf(card.sentence.ifBlank { card.word }), dismiss = { shadow = null }) }
+    editing?.let { e ->
+        val decks = listOf(0L to stringResource(Res.string.unfiled)) + vm.listNames.toList()
+        EditWordDialog(e, decks, { editing = null }) { vm.edit(it) }
+    }
+    Scaffold(
+        snackbarHost = { SnackbarHost(snackbar) },
+        topBar = {
+            TopAppBar(
+                title = { Text(stringResource(Res.string.vocab_review_title)) },
+                navigationIcon = {
+                    IconButton(onClick = { if (vm.stage == ReviewStage.OVERVIEW) onBack() else vm.backToOverview() }) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, stringResource(Res.string.accessibility_back))
+                    }
+                },
+                actions = {
+                    if (vm.stage == ReviewStage.REVIEW) IconButton(onClick = { tts.stop(); shadow = vm.current }, enabled = vm.current != null) {
+                        Icon(Icons.Default.Mic, stringResource(Res.string.review_pronunciation_practice))
+                    }
+                    if (vm.stage == ReviewStage.REVIEW) IconButton(onClick = vm::undo, enabled = vm.canUndo) {
+                        Icon(Icons.AutoMirrored.Filled.Undo, contentDescription = stringResource(Res.string.review_undo))
+                    }
+                    IconButton(onClick = onOpenSettings) { Icon(Icons.Default.Settings, stringResource(Res.string.review_open_settings)) }
+                }
+            )
+        }
+    ) { padding ->
+        Box(Modifier.fillMaxSize().padding(padding).padding(horizontal = 20.dp)) {
+            when {
+                vm.loading -> CircularProgressIndicator(Modifier.align(Alignment.Center))
+                vm.stage == ReviewStage.OVERVIEW -> vm.overview?.let { ReviewOverviewPane(vm, it) }
+                    ?: if (vm.failed) TextButton(onClick = vm::load, modifier = Modifier.align(Alignment.Center)) { Text(stringResource(Res.string.retry)) } else Unit
+                vm.stage == ReviewStage.SUMMARY -> ReviewSummary(vm) { vm.backToOverview() }
+                else -> {
+                    val dir = if (LocalLayoutDirection.current == LayoutDirection.Rtl) -1 else 1
+                    AnimatedContent(
+                        targetState = vm.slot ?: lastSlot,
+                        transitionSpec = { (slideInHorizontally { dir * it / 4 } + fadeIn(tween(220))) togetherWith (slideOutHorizontally { -dir * it / 4 } + fadeOut(tween(160))) using SizeTransform(clip = false) },
+                        modifier = Modifier.fillMaxSize(),
+                        label = "card"
+                    ) { slot ->
+                        slot?.let { sl ->
+                            ReviewCard(vm, sl.entry, sl === revealedSlot, sl === vm.slot && !vm.busy,
+                                onReveal = { revealedSlot = sl },
+                                onPlay = { text -> tts.stop(); tts.pronounce(text, sl.entry.lang, settings) },
+                                onEdit = { editing = sl.entry })
+                        }
+                    }
+                }
+            }
+        }
     }
 }
 
-@OptIn(ExperimentalLayoutApi::class)
-@Composable fun ReviewScreen(container: AppContainer, settings: AppSettings) {
-    val vm = viewModel(key = "review:${container.hashCode()}:${settings.learningLang}:${settings.dailyNewCards}") { ReviewViewModel(container, settings) }
-    LaunchedEffect(vm) { if (vm.session?.cards?.isEmpty() == true) vm.load() }
-    val tts = remember { createTts() }
-    var shadow by remember { mutableStateOf<VocabEntry?>(null) }
-    DisposableEffect(Unit) { onDispose { tts.stop() } }
-    LaunchedEffect(vm.session?.current?.id, settings.autoPronounceCards) {
-        tts.stop()
-        val card = vm.session?.current
-        if (settings.autoPronounceCards && card != null) tts.pronounce(card.word, card.lang, settings)
-    }
-    shadow?.let { card -> ShadowingPanel(container, settings, learningSpeechLanguage(card.lang), card.textId,
-        listOf(card.sentence.ifBlank { card.word }), dismiss = { shadow = null }) }
-    val session = vm.session
-    Page {
-        val title = stringResource(Res.string.nav_review)
-        Text(title, style = editorialStyle(title, EditorialRole.ScreenTitle))
-        if (vm.failed) {
-            Text(stringResource(Res.string.error_save), color = MaterialTheme.colorScheme.error)
-            if (session == null) TextButton(onClick = vm::load) { Text(stringResource(Res.string.retry)) }
-        }
-        if (session == null) { if (vm.busy) CircularProgressIndicator(); return@Page }
-        val card = session.current
-        if (card == null) {
-            if (session.answers.isEmpty()) EditorialEmptyState(Icons.Default.CheckCircleOutline,
-                stringResource(Res.string.nothing_due), stringResource(Res.string.ed_review_done_hint), Modifier.heightIn(min = 300.dp))
-            else {
-                EditorialEmptyState(Icons.Default.CheckCircleOutline, stringResource(Res.string.review_summary),
-                    stringResource(Res.string.review_counts, session.completedCount, session.accuracy))
-                EditorialCard {
-                    Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                        listOf(VocabAnswer.FORGOT to Res.string.forgot, VocabAnswer.HARD to Res.string.hard, VocabAnswer.KNEW to Res.string.knew).forEach { (answer, label) ->
-                            Row(Modifier.fillMaxWidth()) {
-                                Text(stringResource(label), Modifier.weight(1f))
-                                Text(session.answers.count { it.answer == answer }.toString())
-                            }
-                        }
-                        EditorialPrimaryButton(stringResource(Res.string.start_review), vm::load, enabled = !vm.busy)
-                    }
-                }
-            }
-        } else {
-            EditorialProgressIndicator(session.answers.size.toFloat() / session.cards.size.coerceAtLeast(1),
-                stringResource(Res.string.ed_review_progress, session.answers.size + 1, session.cards.size))
-            EditorialCard(onClick = { vm.flipped = !vm.flipped }, containerColor = MaterialTheme.colorScheme.secondaryContainer) {
-                Column(Modifier.fillMaxWidth().padding(24.dp).heightIn(min = 260.dp),
-                    verticalArrangement = Arrangement.spacedBy(20.dp, Alignment.CenterVertically), horizontalAlignment = Alignment.CenterHorizontally) {
-                    MetadataBadge(stringResource(Res.string.box_label, card.leitnerBox), containerColor = MaterialTheme.colorScheme.surface, contentColor = MaterialTheme.colorScheme.onSurface)
-                    Text(card.word, Modifier.fillMaxWidth(), style = editorialStyle(card.word, EditorialRole.ReviewWord).copy(textAlign = TextAlign.Center))
-                    val spec = Languages.byCode(card.lang)!!
-                    val matches = VocabHighlighter(listOf(SavedVocab(card.word, card.srsState().status())), spec).findMatches(card.sentence)
-                    Text(buildAnnotatedString { append(card.sentence); matches.forEach { addStyle(SpanStyle(fontWeight = FontWeight.Bold), it.range.first, it.range.last + 1) } }, Modifier.fillMaxWidth(), style = contentStyle(card.sentence))
-                    if (vm.flipped) Text(card.meaning.orEmpty(), Modifier.fillMaxWidth(), style = MaterialTheme.typography.titleLarge.merge(contentStyle(card.meaning.orEmpty())))
-                    else Text(stringResource(Res.string.flip_hint), style = MaterialTheme.typography.labelLarge, textAlign = TextAlign.Center)
-                }
-            }
-            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                SpeakerButton(card.word, card.lang, settings)
-                TextButton(onClick = { tts.stop(); shadow = card }) { Text(stringResource(Res.string.speech_shadow)) }
-            }
-            if (!vm.flipped) EditorialPrimaryButton(stringResource(Res.string.ed_reveal_meaning), { vm.flipped = true }, Modifier.fillMaxWidth())
-            if (vm.flipped) FlowRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                listOf(VocabAnswer.FORGOT to Res.string.forgot, VocabAnswer.HARD to Res.string.hard, VocabAnswer.KNEW to Res.string.knew).forEach { (answer, label) ->
-                    Column(Modifier.widthIn(min = 96.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                        OutlinedButton(enabled = !vm.busy, onClick = { vm.answer(answer) }) { Text(stringResource(label)) }
-                        val days = VocabSrs.previewIntervalDays(card.srsState(), answer).toInt()
-                        val interval = if (answer == VocabAnswer.FORGOT) stringResource(Res.string.ed_interval_session)
-                            else stringResource(if (days == 1) Res.string.ed_interval_day else Res.string.ed_interval_days, days)
-                        Text(interval, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+@Composable
+private fun ReviewOverviewPane(vm: ReviewViewModel, o: ReviewOverview) {
+    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(vertical = 12.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+        Text(stringResource(Res.string.review_today_title), style = MaterialTheme.typography.headlineSmall)
+        Spacer(Modifier.height(12.dp))
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            GoalRing(o.reviewedToday.coerceAtMost(REVIEW_DAILY_GOAL), REVIEW_DAILY_GOAL, Modifier.size(72.dp))
+            Spacer(Modifier.width(16.dp))
+            Column {
+                Text(stringResource(Res.string.review_goal_progress, o.reviewedToday.coerceAtMost(REVIEW_DAILY_GOAL), REVIEW_DAILY_GOAL))
+                Surface(shape = RoundedCornerShape(50), color = MaterialTheme.colorScheme.secondaryContainer) {
+                    Row(Modifier.padding(horizontal = 10.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Default.LocalFireDepartment, null, Modifier.size(18.dp)); Spacer(Modifier.width(6.dp))
+                        Text(stringResource(Res.string.review_streak, vm.streak), style = MaterialTheme.typography.labelLarge)
                     }
                 }
             }
         }
-        if (session.answers.isNotEmpty()) OutlinedButton(enabled = !vm.busy, onClick = vm::undo) { Text(stringResource(Res.string.undo)) }
+        Spacer(Modifier.height(12.dp))
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
+            Metric(o.dueCount.toString(), stringResource(Res.string.review_due_count))
+            Metric(o.newCount.toString(), stringResource(Res.string.review_new_count))
+            Metric(stringResource(Res.string.review_minutes_short, o.estimatedMinutes), stringResource(Res.string.review_estimated_time))
+        }
+        if (o.dueCount + o.newCount == 0) {
+            Text(
+                stringResource(if (o.newCapReached) Res.string.review_new_cap_reached else Res.string.review_no_cards_due),
+                style = MaterialTheme.typography.bodyMedium
+            )
+        }
+        Button(onClick = { vm.startReview() }, enabled = o.dueCount + o.newCount > 0 && !vm.busy, modifier = Modifier.fillMaxWidth().padding(vertical = 16.dp).heightIn(min = 52.dp)) {
+            Icon(Icons.Default.PlayArrow, null); Spacer(Modifier.width(8.dp)); Text(stringResource(Res.string.review_start))
+        }
+        Text(stringResource(Res.string.review_box_tap_hint), style = MaterialTheme.typography.labelSmall)
+        Spacer(Modifier.height(4.dp))
+        BoxLadder(o.boxes, onBoxClick = { vm.startReview(it) })
+        LearnedWordsCard(vm, o.learnedCount)
     }
 }
+
+@Composable
+private fun LearnedWordsCard(vm: ReviewViewModel, learnedCount: Int) {
+    Card(Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
+        Column(Modifier.padding(12.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Default.EmojiEvents, null, tint = boxColor(5))
+                Spacer(Modifier.width(10.dp))
+                Column(Modifier.weight(1f)) {
+                    Text(stringResource(Res.string.review_learned_words), style = MaterialTheme.typography.titleSmall)
+                    Text(stringResource(Res.string.review_learned_progress, vm.learnedReviewed, learnedCount), style = MaterialTheme.typography.bodySmall)
+                }
+            }
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                Button(onClick = { vm.startLearnedReview() }, enabled = learnedCount > 0 && !vm.busy) {
+                    Text(stringResource(Res.string.review_learned_start))
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun GoalRing(done: Int, goal: Int, modifier: Modifier = Modifier) {
+    val track = MaterialTheme.colorScheme.outlineVariant
+    val fill = MaterialTheme.colorScheme.primary
+    Box(modifier, contentAlignment = Alignment.Center) {
+        Canvas(Modifier.fillMaxSize().padding(4.dp)) {
+            val stroke = Stroke(width = 8.dp.toPx(), cap = StrokeCap.Round)
+            drawArc(track, 0f, 360f, false, style = stroke)
+            drawArc(fill, -90f, (done.toFloat() / goal.coerceAtLeast(1)).coerceIn(0f, 1f) * 360f, false, style = stroke)
+        }
+        Text("$done/$goal", style = MaterialTheme.typography.labelLarge, maxLines = 1)
+    }
+}
+
+@Composable private fun Metric(value: String, label: String) = Column(horizontalAlignment = Alignment.CenterHorizontally) {
+    Text(value, style = MaterialTheme.typography.titleLarge); Text(label, style = MaterialTheme.typography.labelSmall)
+}
+
+@Composable
+private fun BoxLadder(boxes: List<ReviewBoxSummary>, onBoxClick: (Int) -> Unit) {
+    val icons = listOf(Icons.Default.School, Icons.Default.AutoStories, Icons.Default.Psychology, Icons.AutoMirrored.Filled.TrendingUp, Icons.Default.EmojiEvents)
+    val fractions = boxBarFractions(boxes.map { it.count })
+    boxes.forEachIndexed { i, box ->
+        val enabled = box.dueCount > 0
+        val color = boxColor(box.box)
+        Card(onClick = { onBoxClick(box.box) }, enabled = enabled, modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
+            Column(Modifier.padding(12.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(icons[(box.box - 1).coerceIn(0, icons.lastIndex)], null, tint = color); Spacer(Modifier.width(10.dp))
+                    Column(Modifier.weight(1f)) {
+                        Text(stringResource(Res.string.review_box_label, box.box), style = MaterialTheme.typography.titleSmall)
+                        Text(stringResource(Res.string.review_box_details, box.count, box.intervalDays.toInt(), box.dueCount), style = MaterialTheme.typography.bodySmall)
+                    }
+                    Text(box.nextReviewAtMs?.let { dateLabel(it) } ?: "—", style = MaterialTheme.typography.labelSmall)
+                }
+                Spacer(Modifier.height(8.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(Modifier.weight(1f).height(8.dp).clip(RoundedCornerShape(4.dp)).background(MaterialTheme.colorScheme.surfaceVariant)) {
+                        Box(Modifier.fillMaxWidth(fractions[i]).fillMaxHeight().background(color))
+                    }
+                    if (enabled) {
+                        Spacer(Modifier.width(8.dp))
+                        Surface(shape = RoundedCornerShape(50), color = MaterialTheme.colorScheme.primary) {
+                            Text(box.dueCount.toString(), Modifier.padding(horizontal = 8.dp, vertical = 2.dp), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onPrimary)
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun BoxDots(box: Int) {
+    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+        for (i in 1..5) {
+            val target = if (i <= box) boxColor(i) else MaterialTheme.colorScheme.outlineVariant
+            val color by animateColorAsState(target, label = "dot")
+            Box(Modifier.size(10.dp).clip(CircleShape).background(color))
+        }
+    }
+}
+
+@Composable
+private fun AccuracyRing(percent: Int) {
+    val track = MaterialTheme.colorScheme.outlineVariant
+    val fill = MaterialTheme.colorScheme.primary
+    Box(Modifier.size(96.dp), contentAlignment = Alignment.Center) {
+        Canvas(Modifier.fillMaxSize().padding(6.dp)) {
+            val stroke = Stroke(width = 10.dp.toPx(), cap = StrokeCap.Round)
+            drawArc(track, 0f, 360f, false, style = stroke)
+            drawArc(fill, -90f, percent.coerceIn(0, 100) / 100f * 360f, false, style = stroke)
+        }
+        Text("$percent%", style = MaterialTheme.typography.titleMedium, maxLines = 1)
+    }
+}
+
+/** Centered, direction-from-content text: Persian meanings RTL, learning-language text LTR, without flipping the screen. */
+private fun centeredContent(base: TextStyle) = base.copy(textDirection = TextDirection.Content, textAlign = TextAlign.Center)
+
+@Composable
+private fun ReviewCard(
+    vm: ReviewViewModel,
+    entry: VocabEntry,
+    revealed: Boolean,
+    interactive: Boolean,
+    onReveal: () -> Unit,
+    onPlay: (String) -> Unit,
+    onEdit: () -> Unit,
+) {
+    val session = vm.session
+    ReviewCardLayout(
+        header = {
+            entry.listId?.let { vm.listNames[it] }?.let { cornerLabel ->
+                Text(cornerLabel, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Spacer(Modifier.height(4.dp))
+            }
+            BoxDots(if (vm.isLearnedReview) 5 else entry.leitnerBox)
+            Spacer(Modifier.height(8.dp))
+            val position = session?.progressPosition ?: 0
+            val total = session?.totalCards ?: 0
+            Text(stringResource(Res.string.review_progress, position, total), style = MaterialTheme.typography.labelLarge)
+            LinearProgressIndicator(progress = { if (total == 0) 0f else position.toFloat() / total }, modifier = Modifier.fillMaxWidth().padding(vertical = 10.dp))
+        },
+        card = { cardModifier ->
+            EntryFlashcard(
+                entry = entry,
+                revealed = revealed,
+                interactive = interactive,
+                onFlip = onReveal,
+                onPlayWord = { onPlay(entry.word) },
+                onPlaySentence = { onPlay(entry.sentence) },
+                sentenceTranslation = if (entry.id == vm.current?.id) vm.sentenceTranslation else null,
+                sentenceTranslationLoading = vm.sentenceTranslationLoading,
+                sentenceTranslationError = vm.sentenceTranslationError,
+                onEdit = onEdit,
+                modifier = cardModifier
+            )
+        }
+    ) {
+        if (!revealed) Button(onClick = onReveal, enabled = interactive, modifier = Modifier.fillMaxWidth()) { Text(stringResource(Res.string.vocab_reveal_meaning)) }
+        else Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            val thisSession = stringResource(Res.string.interval_this_session)
+            val state = entry.srsState()
+            val learningStep = !vm.isLearnedReview && VocabSrs.isLearningStep(state, nowMs())
+            ReviewAnswerButton(stringResource(Res.string.vocab_answer_again), if (vm.isLearnedReview) intervalLabel(VocabSrs.DEFAULT_INTERVAL_DAYS[0]) else thisSession, Modifier.weight(1f), MaterialTheme.colorScheme.error, interactive) { vm.answer(VocabAnswer.FORGOT) }
+            // A card still being learned has no "hard": plain Leitner, right or wrong.
+            if (!learningStep) ReviewAnswerButton(stringResource(Res.string.vocab_answer_hard), if (vm.isLearnedReview) null else intervalLabel(VocabSrs.previewIntervalDays(state, VocabAnswer.HARD)), Modifier.weight(1f), enabled = interactive) { vm.answer(VocabAnswer.HARD) }
+            ReviewAnswerButton(stringResource(Res.string.vocab_answer_good), if (vm.isLearnedReview) null else intervalLabel(VocabSrs.previewIntervalDays(state, VocabAnswer.KNEW)), Modifier.weight(1f), MaterialTheme.colorScheme.primary, interactive) { vm.answer(VocabAnswer.KNEW) }
+        }
+    }
+}
+
+/** Required fix over FrenchReader: the card takes the remaining height and scrolls inside; [answers] stay pinned on screen. */
+@Composable
+internal fun ReviewCardLayout(header: @Composable ColumnScope.() -> Unit, card: @Composable (Modifier) -> Unit, answers: @Composable () -> Unit) {
+    Column(Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally) {
+        Spacer(Modifier.height(8.dp))
+        header()
+        card(Modifier.weight(1f).fillMaxWidth())
+        Spacer(Modifier.height(14.dp))
+        answers()
+        Spacer(Modifier.height(12.dp))
+    }
+}
+
+/** FrenchReader FlipCard, filling the height it is given; each face scrolls on its own. */
+@Composable
+private fun FlipCard(revealed: Boolean, onFlip: () -> Unit, interactive: Boolean, modifier: Modifier,
+    front: @Composable ColumnScope.() -> Unit, back: @Composable ColumnScope.() -> Unit) {
+    val rotation by animateFloatAsState(if (revealed) 180f else 0f, tween(350), label = "flip")
+    val density = LocalDensity.current.density
+    Card(
+        modifier.graphicsLayer { rotationY = rotation; cameraDistance = 12f * density }
+            .clickable(enabled = interactive && !revealed, role = Role.Button, onClick = onFlip)
+    ) {
+        if (rotation <= 90f) CardFace(Modifier, front)
+        else CardFace(Modifier.graphicsLayer { rotationY = 180f }, back)
+    }
+}
+
+@Composable
+private fun CardFace(modifier: Modifier, content: @Composable ColumnScope.() -> Unit) = BoxWithConstraints(modifier.fillMaxSize()) {
+    // heightIn(min = viewport) keeps short cards centred; long ones scroll inside the card.
+    Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).heightIn(min = maxHeight).padding(26.dp),
+        verticalArrangement = Arrangement.Center, horizontalAlignment = Alignment.CenterHorizontally, content = content)
+}
+
+@Composable
+internal fun EntryFlashcard(
+    entry: VocabEntry,
+    revealed: Boolean,
+    interactive: Boolean,
+    onFlip: () -> Unit,
+    onPlayWord: () -> Unit,
+    onPlaySentence: () -> Unit,
+    sentenceTranslation: String?,
+    sentenceTranslationLoading: Boolean,
+    sentenceTranslationError: Boolean,
+    onEdit: () -> Unit,
+    modifier: Modifier
+) {
+    val wordStyle = centeredContent(MaterialTheme.typography.headlineMedium)
+    FlipCard(
+        revealed = revealed,
+        onFlip = onFlip,
+        interactive = interactive,
+        modifier = modifier,
+        front = {
+            Text(entry.word, style = wordStyle)
+            WordAudioButton(interactive, onPlayWord)
+            Spacer(Modifier.height(12.dp))
+            Text(stringResource(Res.string.review_tap_to_reveal), style = MaterialTheme.typography.labelSmall)
+        },
+        back = {
+            Text(entry.word, style = wordStyle)
+            WordAudioButton(interactive, onPlayWord)
+            Spacer(Modifier.height(14.dp)); HorizontalDivider(); Spacer(Modifier.height(12.dp))
+            IconButton(onClick = onEdit, enabled = interactive) {
+                Icon(Icons.Default.Edit, stringResource(Res.string.action_edit))
+            }
+            val (meaning, alternatives) = splitMeaning(entry.meaning)
+            meaning?.let {
+                Text(it, style = centeredContent(MaterialTheme.typography.titleMedium))
+                Spacer(Modifier.height(8.dp))
+            }
+            alternatives.forEach {
+                Text(it, style = centeredContent(MaterialTheme.typography.bodyMedium), color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            if (alternatives.isNotEmpty()) Spacer(Modifier.height(8.dp))
+            if (entry.sentence.isNotBlank()) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(entry.sentence, style = centeredContent(LocalTextStyle.current), fontStyle = FontStyle.Italic, modifier = Modifier.weight(1f))
+                    IconButton(onClick = onPlaySentence, enabled = interactive) {
+                        Icon(Icons.AutoMirrored.Filled.VolumeUp, stringResource(Res.string.accessibility_play_sentence))
+                    }
+                }
+                when {
+                    sentenceTranslationLoading && sentenceTranslation == null -> Text(stringResource(Res.string.translation_loading), color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.labelSmall)
+                    sentenceTranslationError -> Text(stringResource(Res.string.error_translation_unavailable), color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.labelSmall)
+                    sentenceTranslation != null -> Text(sentenceTranslation, color = MaterialTheme.colorScheme.onSurfaceVariant, fontStyle = FontStyle.Italic, style = centeredContent(MaterialTheme.typography.bodySmall))
+                }
+            }
+        }
+    )
+}
+
+@Composable
+private fun WordAudioButton(interactive: Boolean, onPlay: () -> Unit) {
+    IconButton(onClick = onPlay, enabled = interactive) {
+        Icon(Icons.AutoMirrored.Filled.VolumeUp, stringResource(Res.string.accessibility_play_word))
+    }
+}
+
+@Composable private fun intervalLabel(days: Long): String =
+    stringResource(if (days == 1L) Res.string.interval_day else Res.string.interval_days, days.toInt())
+
+@Composable internal fun ReviewAnswerButton(label: String, hint: String?, modifier: Modifier, color: Color = MaterialTheme.colorScheme.onSurface, enabled: Boolean = true, onClick: () -> Unit) {
+    Column(modifier, horizontalAlignment = Alignment.CenterHorizontally) {
+        OutlinedButton(onClick = onClick, enabled = enabled, modifier = Modifier.fillMaxWidth(), border = BorderStroke(1.dp, color), colors = ButtonDefaults.outlinedButtonColors(contentColor = color)) { Text(label, maxLines = 1) }
+        if (hint != null) Text(hint, style = MaterialTheme.typography.labelSmall, maxLines = 1)
+    }
+}
+
+@Composable private fun ReviewSummary(vm: ReviewViewModel, onClose: () -> Unit) {
+    val session = vm.session
+    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(vertical = 24.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+        Icon(Icons.Default.CheckCircle, null, Modifier.size(58.dp), tint = MaterialTheme.colorScheme.primary)
+        Text(stringResource(Res.string.review_summary_title), style = MaterialTheme.typography.headlineSmall); Spacer(Modifier.height(12.dp))
+        AccuracyRing(session?.accuracy ?: 0); Spacer(Modifier.height(12.dp))
+        SummaryLine(stringResource(Res.string.review_summary_cards), vm.dayTotals.cards.toString())
+        SummaryLine(stringResource(Res.string.review_summary_forward), vm.dayTotals.movedForward.toString())
+        SummaryLine(stringResource(Res.string.review_summary_returned), vm.dayTotals.returnedToBoxOne.toString())
+        SummaryLine(stringResource(Res.string.review_summary_time), formatDuration(vm.studyTimeMs))
+        SummaryLine(stringResource(Res.string.review_summary_next), vm.nextScheduledAtMs?.let { dateLabel(it) } ?: "—")
+        Button(onClick = onClose, modifier = Modifier.fillMaxWidth().padding(top = 20.dp)) { Text(stringResource(Res.string.action_close)) }
+    }
+}
+@Composable private fun SummaryLine(label: String, value: String) = Row(Modifier.fillMaxWidth().padding(vertical = 5.dp)) { Text(label, Modifier.weight(1f)); Text(value, style = MaterialTheme.typography.titleSmall) }
+
+/** shortcut: FrenchReader prints "d MMM"; KMP has no localized month names, so show days from today instead. */
+@Composable private fun dateLabel(ms: Long): String {
+    val zone = TimeZone.currentSystemDefault()
+    val days = localToday(zone).daysUntil(Instant.fromEpochMilliseconds(ms).toLocalDateTime(zone).date).coerceAtLeast(0)
+    return intervalLabel(days.toLong())
+}
+internal fun formatDuration(ms: Long): String { val seconds = ms / 1000; return if (seconds < 60) "${seconds}s" else "${seconds / 60}m ${seconds % 60}s" }
