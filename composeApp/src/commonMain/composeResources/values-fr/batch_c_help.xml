@@ -1,0 +1,34 @@
+<resources>
+  <string name="about_content_credits">Dictionnaires %1$s : %2$s. Tout contenu appartient à ses propriétaires respectifs.</string>
+  <string name="about_credits_section">Crédits</string>
+  <string name="about_description">Apprenez %1$s en lisant et en écoutant. zabankhan est gratuit et open source, sans publicité ni suivi.</string>
+  <string name="about_developer_section">Développeur</string>
+  <string name="about_edge_tts_credit">Voix en ligne de Microsoft Edge</string>
+  <string name="about_email">E-mail</string>
+  <string name="about_footer">© 2026 Abolfazl Ziaeemehr</string>
+  <string name="about_github">GitHub</string>
+  <string name="about_lexique_credit">Données de lemmes et de fréquence du français : Lexique 3.83 (CC BY-SA 4.0).</string>
+  <string name="about_license">Licence</string>
+  <string name="about_linkedin">LinkedIn</string>
+  <string name="about_open_link_failed">Aucune application ne permet d’ouvrir ce lien.</string>
+  <string name="about_privacy_policy">Politique de confidentialité</string>
+  <string name="about_project_section">Projet</string>
+  <string name="about_report_bug">Signaler un bug</string>
+  <string name="about_software_credits">Jetpack Compose, Room, Media3, Coil, jsoup (Apache-2.0/MIT)</string>
+  <string name="about_source_code">Code source</string>
+  <string name="about_star">Mettre une étoile sur GitHub</string>
+  <string name="about_star_detail">Si l\'app vous aide, une étoile aide d\'autres à la trouver</string>
+  <string name="about_title">À propos</string>
+  <string name="about_vazirmatn_credit">Police de caractères persane et arabe</string>
+  <string name="about_version">Version %1$s</string>
+  <string name="about_wiktionary_credit">Expressions : contributeurs du Wiktionnaire, via kaikki.org — CC BY-SA 4.0 (https://creativecommons.org/licenses/by-sa/4.0/).</string>
+  <string name="guide_ai_explanation">Donnez ce fichier à ChatGPT ou à un autre assistant IA pour une aide pas à pas.</string>
+  <string name="guide_file_error">Impossible d’ouvrir, d’enregistrer ou de partager le guide. Réessayez.</string>
+  <string name="guide_github">Ouvrir sur GitHub</string>
+  <string name="guide_read">Lire le guide</string>
+  <string name="guide_save">Enregistrer le fichier</string>
+  <string name="guide_share">Partager avec une application d’IA</string>
+  <string name="guide_share_prompt">Aidez-moi à suivre ce guide, étape par étape.</string>
+  <string name="help_gestures_description">Découvrez les gestes pour lire, regarder des vidéos et plus encore.</string>
+  <string name="help_guides_title">Aide et guides</string>
+</resources>

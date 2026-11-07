@@ -144,11 +144,16 @@ fun ReadingScreen(vm: AppViewModel, settings: AppSettings, textId: Long, onBack:
     val synthesisProgress by playback.synthesisProgress.collectAsState()
     val activity = com.ziaee.zabankhan.statistics.TrackActivity(vm.container, textId, lang.code,
         com.ziaee.zabankhan.statistics.ActivityKind.READING, !speaking)
-    val listState = rememberLazyListState(initialFirstVisibleItemIndex = paragraphIndexAt(parts, text.lastOffset))
+    val listState = key(textId, text.body) { rememberLazyListState(initialFirstVisibleItemIndex = paragraphIndexAt(parts, text.lastOffset)) }
     val readingViewport = remember { ReadingViewport() }
     val scope = rememberCoroutineScope()
     val clipboard = LocalClipboardManager.current
     val density = LocalDensity.current
+    val pageNavigation = PageNavigation.entries.firstOrNull { it.name == settings.pageNavigation } ?: PageNavigation.SCROLL
+    var requestedPageAnchor by remember(textId, text.body) { mutableStateOf<ReadingAnchor?>(null) }
+    var visiblePage by remember(textId, text.body) { mutableStateOf<ReadingPage?>(null) }
+    var visiblePageAnchor by remember(textId, text.body) { mutableStateOf(ReadingAnchor(paragraphIndexAt(parts, text.lastOffset))) }
+    var pageNavigationMenuOpen by remember { mutableStateOf(false) }
     var rate by remember { mutableFloatStateOf(settings.speechRate) }
     var dictionaryTarget by remember(textId) { mutableStateOf<ReaderSelection?>(null) }
     var selection by remember(textId) { mutableStateOf<ReaderSelection?>(null) }
@@ -170,7 +175,7 @@ fun ReadingScreen(vm: AppViewModel, settings: AppSettings, textId: Long, onBack:
     var findIndex by remember(findQuery) { mutableIntStateOf(0) }
     var findRevision by remember { mutableIntStateOf(0) }
     var shadowRange by remember(textId) { mutableStateOf<IntRange?>(null) }
-    val translations = remember(textId, settings.meaningLang) { mutableStateMapOf<Int, Pair<ChunkStatus, String?>>() }
+    val translations = remember(textId, text.body, settings.meaningLang) { mutableStateMapOf<Int, Pair<ChunkStatus, String?>>() }
     val shadowSentences = remember(parts, lang) { parts.flatMap { part ->
         splitSentences(part.block.plainText, lang).map { range ->
             part.block.plainText.substring(range) to
@@ -207,13 +212,14 @@ fun ReadingScreen(vm: AppViewModel, settings: AppSettings, textId: Long, onBack:
     val headings = chunks.mapIndexedNotNull { index, chunk ->
         if (chunk.block.type == BlockType.HEADER) index to chunk else null
     }
-    var readingSection by remember(textId) { mutableIntStateOf(paragraphIndexAt(parts, text.lastOffset)) }
+    var readingSection by remember(textId, text.body) { mutableIntStateOf(paragraphIndexAt(parts, text.lastOffset)) }
     LaunchedEffect(currentParagraph) { currentParagraph?.let { readingSection = it } }
     val spokenProgress = if (parts.isEmpty()) 0 to 0 else readingSection + 1 to parts.size
     LaunchedEffect(playback) { tts.speakingRange.collect { playback.rangeChanged(it) } }
     LaunchedEffect(playback) { playback.audioStatus.collect { playback.audioStatusChanged(it) } }
     LaunchedEffect(playback, rate, settings.ttsVoices[lang.code]) { playback.configureAudio(rate, settings.ttsVoices[lang.code]) }
-    LaunchedEffect(textId) {
+    LaunchedEffect(textId, parts, pageNavigation) {
+        if (pageNavigation != PageNavigation.SCROLL) return@LaunchedEffect
         snapshotFlow { listState.firstVisibleItemIndex }.distinctUntilChanged().collect { index ->
             parts.getOrNull(index)?.let { vm.container.texts.savePosition(textId, it.offset) }
         }
@@ -221,21 +227,57 @@ fun ReadingScreen(vm: AppViewModel, settings: AppSettings, textId: Long, onBack:
     LaunchedEffect(listState, activity) {
         snapshotFlow { listState.firstVisibleItemIndex to listState.firstVisibleItemScrollOffset }.collect { activity.interact() }
     }
-    LaunchedEffect(text.pinned) { playback.setAudioPinned(text.pinned) }
+    LaunchedEffect(text.pinned, playback) { playback.setAudioPinned(text.pinned) }
     DisposableEffect(playback) {
-        onDispose { playback.close(); parts.getOrNull(listState.firstVisibleItemIndex)?.let { part ->
-            vm.action { vm.container.texts.savePosition(textId, part.offset) }
-        } }
+        // Both scroll and paged readers persist anchors as they change; an old playback
+        // instance must not overwrite the reset anchor after a document body edit.
+        onDispose { playback.close() }
     }
     LaunchedEffect(activeFind, findRevision) {
-        activeFind?.let { listState.scrollToItem(it.first) }
+        activeFind?.let {
+            if (pageNavigation == PageNavigation.SCROLL) listState.scrollToItem(it.first)
+            else requestedPageAnchor = ReadingAnchor(it.first, it.second.first)
+        }
+    }
+    LaunchedEffect(pageNavigation, parts) {
+        if (pageNavigation == PageNavigation.SCROLL) {
+            val anchor = requestedPageAnchor ?: visiblePageAnchor
+            if (chunks.isNotEmpty()) listState.scrollToItem(anchor.chunkIndex.coerceIn(chunks.indices))
+            requestedPageAnchor = null
+        } else if (requestedPageAnchor == null) {
+            requestedPageAnchor = ReadingAnchor(listState.firstVisibleItemIndex, 0)
+        }
+    }
+    // The editor is the same editor used by import and library editing.
+    var editTarget by remember { mutableStateOf<Triple<String, String, Boolean>?>(null) }
+    editTarget?.let { (title, body, bodyEditable) ->
+        com.ziaee.zabankhan.ui.AddTextEditor(
+            learningLanguageName = lang.nativeName,
+            initialTitle = title,
+            initialBody = body,
+            bodyEditable = bodyEditable,
+            dialogTitle = stringResource(Res.string.edit_text_title),
+            confirmLabel = stringResource(Res.string.action_save),
+            onDismiss = { editTarget = null },
+            onSave = { newTitle, newBody ->
+                editTarget = null
+                playback.stop()
+                vm.action { vm.updateText(text, newTitle, newBody) }
+            }
+        )
     }
     var lastFollowedChunk by remember { mutableIntStateOf(-1) }
-    LaunchedEffect(settings.readerAutoFollow, speaking) { lastFollowedChunk = -1 }
-    LaunchedEffect(currentParagraph, spokenSentence, speaking, settings.readerAutoFollow) {
+    LaunchedEffect(settings.readerAutoFollow, speaking, pageNavigation) { lastFollowedChunk = -1 }
+    LaunchedEffect(currentParagraph, spokenSentence, speaking, settings.readerAutoFollow, pageNavigation) {
         val index = currentParagraph ?: return@LaunchedEffect
         val findHoldsScroll = findOpen && findQuery.isNotBlank() && !speaking
         if (!settings.readerAutoFollow || findHoldsScroll) return@LaunchedEffect
+        if (pageNavigation != PageNavigation.SCROLL) {
+            val part = parts.getOrNull(index)
+            val local = spokenSentence?.first?.let { offset -> part?.sourceOffsets?.indexOfFirst { it >= offset }?.coerceAtLeast(0) } ?: 0
+            requestedPageAnchor = ReadingAnchor(index, local)
+            return@LaunchedEffect
+        }
         val info = listState.layoutInfo
         val item = info.visibleItemsInfo.find { it.index == index }
         if (index != lastFollowedChunk) {
@@ -252,9 +294,9 @@ fun ReadingScreen(vm: AppViewModel, settings: AppSettings, textId: Long, onBack:
             listState.animateScrollBy(it)
         }
     }
-    LaunchedEffect(showTranslations, repository, targetLang) {
+    LaunchedEffect(showTranslations, repository, targetLang, pageNavigation, parts, translations) {
         if (!showTranslations) return@LaunchedEffect
-        snapshotFlow { listState.layoutInfo.visibleItemsInfo.map { it.index } }.distinctUntilChanged().debounce(300).collect { visible ->
+        snapshotFlow { if (pageNavigation == PageNavigation.SCROLL) listState.layoutInfo.visibleItemsInfo.map { it.index } else visiblePage?.chunkIndices().orEmpty() }.distinctUntilChanged().debounce(300).collect { visible ->
             visible.forEach { index ->
                 val part = parts.getOrNull(index) ?: return@forEach
                 if (part.block.type != BlockType.IMAGE && translations[index] == null) {
@@ -316,7 +358,7 @@ fun ReadingScreen(vm: AppViewModel, settings: AppSettings, textId: Long, onBack:
                     }
                     Box {
                         IconButton(onClick = { moreMenuExpanded = true }) { Icon(Icons.Default.MoreVert, stringResource(Res.string.reading_more_actions)) }
-                        DropdownMenu(moreMenuExpanded, onDismissRequest = { moreMenuExpanded = false }) {
+                        DropdownMenu(moreMenuExpanded, onDismissRequest = { moreMenuExpanded = false; pageNavigationMenuOpen = false }) {
                             DropdownMenuItem(text = { Text(stringResource(Res.string.reading_find)) }, leadingIcon = { Icon(Icons.Default.Search, null) },
                                 onClick = { moreMenuExpanded = false; findOpen = true; findFocusRequest = true })
                             Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -338,6 +380,55 @@ fun ReadingScreen(vm: AppViewModel, settings: AppSettings, textId: Long, onBack:
                                 Icon(if (settings.readerAutoFollow) Icons.Default.Check else Icons.Default.SwapVert, null,
                                     tint = if (settings.readerAutoFollow) palette.accent else LocalContentColor.current)
                             }, onClick = { moreMenuExpanded = false; vm.action { vm.container.settings.setReaderAutoFollow(!settings.readerAutoFollow) } })
+                                    fun pageNavigationLabel(navigation: PageNavigation) = when (navigation) {
+                                        PageNavigation.SCROLL -> Res.string.page_navigation_scroll
+                                        PageNavigation.HORIZONTAL -> Res.string.page_navigation_horizontal
+                                        PageNavigation.VERTICAL -> Res.string.page_navigation_vertical
+                                    }
+                                    DropdownMenuItem(
+                                        text = {
+                                            Column {
+                                                Text(stringResource(Res.string.page_navigation_title))
+                                                Text(
+                                                    stringResource(pageNavigationLabel(pageNavigation)),
+                                                    style = MaterialTheme.typography.bodySmall,
+                                                    color = palette.inkFaded
+                                                )
+                                            }
+                                        },
+                                        leadingIcon = { Icon(Icons.Default.SwapVert, contentDescription = null) },
+                                        trailingIcon = {
+                                            Icon(
+                                                if (pageNavigationMenuOpen) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
+                                                contentDescription = null
+                                            )
+                                        },
+                                        onClick = { pageNavigationMenuOpen = !pageNavigationMenuOpen }
+                                    )
+                                    if (pageNavigationMenuOpen) PageNavigation.entries.forEach { navigation ->
+                                        DropdownMenuItem(
+                                            text = { Text(stringResource(pageNavigationLabel(navigation))) },
+                                            modifier = Modifier.padding(start = 24.dp),
+                                            leadingIcon = {
+                                                if (pageNavigation == navigation) {
+                                                    Icon(Icons.Default.Check, contentDescription = null)
+                                                }
+                                            },
+                                            onClick = {
+                                                moreMenuExpanded = false
+                                                pageNavigationMenuOpen = false
+                                                requestedPageAnchor = if (pageNavigation == PageNavigation.SCROLL) {
+                                                    ReadingAnchor(listState.firstVisibleItemIndex, 0)
+                                                } else visiblePageAnchor
+                                                vm.action { vm.container.settings.setPageNavigation(navigation.name) }
+                                            }
+                                        )
+                                    }
+                            DropdownMenuItem(
+                                text = { Text(stringResource(Res.string.action_edit)) },
+                                leadingIcon = { Icon(Icons.Default.Edit, contentDescription = null) },
+                                onClick = { moreMenuExpanded = false; editTarget = Triple(text.title, text.body, true) }
+                            )
                             DropdownMenuItem(text = { Text(stringResource(if (text.pinned) Res.string.settings_unpin_audio else Res.string.settings_pin_audio)) }, leadingIcon = {
                                 Box(Modifier.size(24.dp)) {
                                     Icon(Icons.Default.PushPin, null)
@@ -383,10 +474,10 @@ fun ReadingScreen(vm: AppViewModel, settings: AppSettings, textId: Long, onBack:
                 }
                 CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
                     PlaybackControls(palette, speaking, audioStatus == SpeechAudioStatus.PREPARING || synthesisProgress != null, rate,
-                        previous = { playback.previousSentence(listState.firstVisibleItemIndex, rate, settings.ttsVoices[lang.code], settings.speechRepeat) },
-                        next = { playback.nextSentence(listState.firstVisibleItemIndex, rate, settings.ttsVoices[lang.code], settings.speechRepeat) },
+                        previous = { playback.previousSentence(if (pageNavigation == PageNavigation.SCROLL) listState.firstVisibleItemIndex else visiblePageAnchor.chunkIndex, rate, settings.ttsVoices[lang.code], settings.speechRepeat) },
+                        next = { playback.nextSentence(if (pageNavigation == PageNavigation.SCROLL) listState.firstVisibleItemIndex else visiblePageAnchor.chunkIndex, rate, settings.ttsVoices[lang.code], settings.speechRepeat) },
                         seek = { playback.seekBy(it) }, canSeek = settings.voiceEngine == "online",
-                        toggle = { if (speaking) playback.pause() else { lastFollowedChunk = -1; playback.resume(listState.firstVisibleItemIndex, rate, settings.ttsVoices[lang.code], settings.speechRepeat) } },
+                        toggle = { if (speaking) playback.pause() else { lastFollowedChunk = -1; playback.resume(if (pageNavigation == PageNavigation.SCROLL) listState.firstVisibleItemIndex else visiblePageAnchor.chunkIndex, rate, settings.ttsVoices[lang.code], settings.speechRepeat) } },
                         changeRate = { rate = it; vm.action { vm.container.settings.setSpeechRate(it) }
                             if (speaking) playback.startAt(spokenSentence?.first ?: parts.getOrNull(listState.firstVisibleItemIndex)?.offset ?: 0,
                                 rate, settings.ttsVoices[lang.code], settings.speechRepeat) },
@@ -397,8 +488,8 @@ fun ReadingScreen(vm: AppViewModel, settings: AppSettings, textId: Long, onBack:
                 }
             }
         }) { padding ->
-            Box(Modifier.fillMaxSize().padding(padding)) {
-                LazyColumn(state = listState,
+            Box(Modifier.fillMaxSize().padding(padding).onGloballyPositioned { readingViewport.bounds = it.boundsInWindow() }) {
+                if (pageNavigation == PageNavigation.SCROLL) LazyColumn(state = listState,
                     modifier = Modifier.widthIn(max = 640.dp).fillMaxWidth().align(Alignment.TopCenter)
                         .onGloballyPositioned { readingViewport.bounds = it.boundsInWindow() },
                     contentPadding = PaddingValues(horizontal = 24.dp, vertical = 20.dp)) {
@@ -423,14 +514,127 @@ fun ReadingScreen(vm: AppViewModel, settings: AppSettings, textId: Long, onBack:
                         }))
                     }
                 }
-                val visibleIndex = listState.firstVisibleItemIndex
-                if (currentParagraph != null && currentParagraph != visibleIndex) FilledTonalButton(
-                    onClick = { playback.startAt(readingViewport.offsets.values.minOrNull() ?: parts.getOrNull(visibleIndex)?.offset ?: 0,
+                else BoxWithConstraints(Modifier.fillMaxSize()) {
+                    val pageDensity = LocalDensity.current
+                    val readerWidthPx = minOf(
+                        constraints.maxWidth,
+                        with(pageDensity) { ZabankhanDesign.sizes.readerMeasure.roundToPx() }
+                    )
+                    val reservedVerticalPx = with(pageDensity) { 56.dp.roundToPx() }
+                    val pageHeightPx = (constraints.maxHeight - reservedVerticalPx).coerceAtLeast(1)
+                    val pages by rememberReadingPages(
+                        chunks = chunks,
+                        widthPx = readerWidthPx,
+                        pageHeightPx = pageHeightPx,
+                        fontScale = fontScale.multiplier,
+                        showTranslations = showTranslations,
+                        density = pageDensity,
+                        geometryThemeKey = settings.readingBackground
+                    )
+                    val bookDirection = if (dominantReadingDirectionIsRtl(chunks)) {
+                        LayoutDirection.Rtl
+                    } else LayoutDirection.Ltr
+                    PagedReadingContent(
+                        pages = pages,
+                        navigation = pageNavigation,
+                        bookDirection = bookDirection,
+                        background = palette.background,
+                        inkFaded = palette.inkFaded,
+                        requestedAnchor = requestedPageAnchor,
+                        onAnchorConsumed = { requestedPageAnchor = null },
+                        userScrollEnabled = !textSelectionActive,
+                        onVisiblePage = { page ->
+                            visiblePage = page
+                            page.fragments.firstOrNull()?.let {
+                                visiblePageAnchor = ReadingAnchor(it.chunkIndex, it.startOffset)
+                            }
+                            activity.interact()
+                            parts.getOrNull(visiblePageAnchor.chunkIndex)?.let { part ->
+                                val offset = part.sourceOffsets.getOrElse(visiblePageAnchor.characterOffset) { part.offset }
+                                vm.action { vm.container.texts.savePosition(textId, offset) }
+                            }
+                        }
+                    ) { page ->
+                        val scrolling = page.fragments.any { it.atomic || it.internallyScrollable }
+                        Column(
+                            Modifier
+                                .fillMaxSize()
+                                .then(if (scrolling) Modifier.verticalScroll(rememberScrollState()) else Modifier)
+                                .padding(top = 20.dp, bottom = 36.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            Column(
+                                Modifier
+                                    .widthIn(max = ZabankhanDesign.sizes.readerMeasure)
+                                    .fillMaxWidth()
+                                    .padding(horizontal = ZabankhanDesign.spacing.medium)
+                            ) {
+                                page.fragments.forEach { fragment ->
+                                    val chunk = chunks.getOrNull(fragment.chunkIndex) ?: return@forEach
+                                    val start = fragment.startOffset
+                                    val end = fragment.endOffset
+                                    fun shifted(range: IntRange): IntRange? {
+                                        val clippedStart = maxOf(range.first, start)
+                                        val clippedEnd = minOf(range.last + 1, end)
+                                        return if (clippedStart < clippedEnd) {
+                                            (clippedStart - start)..(clippedEnd - start - 1)
+                                        } else null
+                                    }
+                                    val pageFindRanges = if (findOpen) {
+                                        findMatches.filter { it.first == fragment.chunkIndex }.map { it.second }.mapNotNull(::shifted)
+                                    } else emptyList()
+                                    val pageActiveFind = activeFind?.takeIf { findOpen && it.first == fragment.chunkIndex }?.second?.let(::shifted)
+                                    ChunkParagraph(
+                                        chunk = chunk,
+                                        isCurrentChunk = fragment.chunkIndex == currentParagraph,
+                                        currentPositionMs = if (fragment.chunkIndex == currentParagraph) spokenSentence?.first?.let { offset ->
+                                            chunk.sourceOffsets.indexOfFirst { it >= offset }.coerceAtLeast(0).toLong()
+                                        } ?: -1L else -1L,
+                                        showTranslation = showTranslations && fragment.showTranslation,
+                                        savedVocabStatuses = savedVocabStatuses,
+                                        highlights = highlights,
+                                        documentStartOffset = chunk.sourceOffsets.getOrElse(start) { parts[fragment.chunkIndex].offset + start },
+                                        palette = palette,
+                                        fontScale = fontScale.multiplier,
+                                        findRanges = pageFindRanges,
+                                        activeFindRange = pageActiveFind,
+                                        onRetry = { playback.start(fragment.chunkIndex, rate, settings.ttsVoices[lang.code], settings.speechRepeat) },
+                                        onWordLookup = { word, sentence, range -> select(word, sentence, range, true) },
+                                        onPhraseSelected = { phrase, sentence, range -> select(phrase, sentence, range, false) },
+                                        clearSelectionSignal = clearSelectionTick,
+                                        onSelectionActiveChange = { textSelectionActive = it },
+                                        textStartOffset = start,
+                                        textEndOffset = end
+                                    )
+                                    if (!fragment.atomic && end == chunk.readingDisplayText().length) {
+                                        val spacing = when {
+                                            chunk.block.type == BlockType.LIST_ITEM &&
+                                                chunks.getOrNull(fragment.chunkIndex + 1)?.block?.type == BlockType.LIST_ITEM -> 6.dp
+                                            chunk.block.type == BlockType.HEADER -> ZabankhanDesign.spacing.large
+                                            else -> ZabankhanDesign.spacing.medium
+                                        }
+                                        Spacer(Modifier.height(spacing))
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                val visibleIndex = if (pageNavigation == PageNavigation.SCROLL) listState.firstVisibleItemIndex else visiblePageAnchor.chunkIndex
+                val pageContainsActive = if (pageNavigation == PageNavigation.SCROLL) currentParagraph == visibleIndex else visiblePage?.fragments?.any { fragment ->
+                    fragment.chunkIndex == currentParagraph && spokenSentence?.first?.let { offset ->
+                        val local = parts[fragment.chunkIndex].sourceOffsets.indexOfFirst { it >= offset }
+                        local >= fragment.startOffset && local < fragment.endOffset
+                    } != false
+                } == true
+                if (parts.isNotEmpty() && !pageContainsActive) FilledTonalButton(
+                    onClick = { playback.startAt(if (pageNavigation == PageNavigation.SCROLL) readingViewport.offsets.values.minOrNull() ?: parts.getOrNull(visibleIndex)?.offset ?: 0
+                        else parts.getOrNull(visibleIndex)?.let { part -> part.sourceOffsets.getOrElse(visiblePageAnchor.characterOffset) { part.offset } } ?: 0,
                         rate, settings.ttsVoices[lang.code], settings.speechRepeat) },
                     modifier = Modifier.align(Alignment.BottomEnd).padding(bottom = 4.dp, end = 16.dp).height(32.dp),
                     contentPadding = PaddingValues(horizontal = 12.dp, vertical = 0.dp)) {
                     Icon(Icons.Default.PlayArrow, null, Modifier.size(16.dp)); Spacer(Modifier.width(4.dp))
-                    Text(stringResource(Res.string.reading_play_from_here), style = MaterialTheme.typography.labelMedium)
+                    Text(stringResource(if (pageNavigation == PageNavigation.SCROLL) Res.string.reading_play_from_here else Res.string.reading_play_from_page), style = MaterialTheme.typography.labelMedium)
                 }
             }
         }
@@ -465,8 +669,8 @@ fun ReadingScreen(vm: AppViewModel, settings: AppSettings, textId: Long, onBack:
     }
     dictionaryTarget?.let { target -> DictionarySheet(vm, settings, text, target, words, highlights, { dictionaryTarget = null }) }
     if (showContentsSheet) ContentsSheet(headings, currentParagraph ?: listState.firstVisibleItemIndex, chunks.size, palette,
-        { index -> scope.launch { listState.scrollToItem(index) }; showContentsSheet = false }, { showContentsSheet = false })
-    if (showSourceInfoSheet) SourceInfoSheet(text, chunks, currentParagraph ?: listState.firstVisibleItemIndex, palette) { showSourceInfoSheet = false }
+        { index -> if (pageNavigation == PageNavigation.SCROLL) scope.launch { listState.scrollToItem(index) } else requestedPageAnchor = ReadingAnchor(index); showContentsSheet = false }, { showContentsSheet = false })
+    if (showSourceInfoSheet) SourceInfoSheet(text, chunks, currentParagraph ?: if (pageNavigation == PageNavigation.SCROLL) listState.firstVisibleItemIndex else visiblePageAnchor.chunkIndex, palette) { showSourceInfoSheet = false }
 
 }
 
@@ -1515,16 +1719,16 @@ private fun SourceInfoSheet(
     }
 
     ModalBottomSheet(onDismissRequest = onDismiss, containerColor = palette.background, contentColor = palette.ink) {
-        Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp).padding(bottom = 24.dp)) {
+        Column(modifier = Modifier.fillMaxWidth().padding(horizontal = ZabankhanDesign.spacing.medium).padding(bottom = ZabankhanDesign.spacing.large)) {
             Text(doc.title, style = TextStyle(fontFamily = readerHeadlineFamily(doc.title), fontSize = 28.sp, lineHeight = 34.sp, fontWeight = FontWeight.SemiBold))
-            HorizontalDivider(Modifier.padding(vertical = 12.dp), color = palette.divider)
+            HorizontalDivider(Modifier.padding(vertical = ZabankhanDesign.spacing.small), color = palette.divider)
             InfoRow(stringResource(Res.string.text_info_words), formatReaderNumber(words))
             InfoRow(stringResource(Res.string.text_info_reading_time), stringResource(Res.string.text_info_minutes, formatReaderNumber(minutes)))
             InfoRow(stringResource(Res.string.text_info_paragraphs), formatReaderNumber(paragraphs))
             InfoRow(stringResource(Res.string.text_info_progress), formatReaderNumber(progress) + "%")
             InfoRow(stringResource(Res.string.text_info_added), formatReaderDate(doc.createdAtMs))
-            if (doc.sourceUrl != null || doc.sourceName != null) {
-                HorizontalDivider(Modifier.padding(vertical = 12.dp), color = palette.divider)
+            if (doc.sourceUrl != null || doc.sourceName != null || doc.author != null || doc.license != null || doc.publishedAt != null) {
+                HorizontalDivider(Modifier.padding(vertical = ZabankhanDesign.spacing.small), color = palette.divider)
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(
                         doc.sourceName ?: stringResource(Res.string.source_default_label),
@@ -1536,6 +1740,11 @@ private fun SourceInfoSheet(
                             Icon(Icons.Default.OpenInBrowser, contentDescription = stringResource(Res.string.accessibility_open_in_browser))
                         }
                     }
+                }
+                doc.author?.let { Text(stringResource(Res.string.source_author_label, it), style = MaterialTheme.typography.bodyLarge) }
+                doc.license?.let { Text(stringResource(Res.string.source_license_label, it), style = MaterialTheme.typography.bodyLarge) }
+                doc.publishedAt?.let {
+                    Text(stringResource(Res.string.source_published_label, formatReaderDate(it)), style = MaterialTheme.typography.bodyLarge)
                 }
                 doc.sourceUrl?.let {
                     Text(

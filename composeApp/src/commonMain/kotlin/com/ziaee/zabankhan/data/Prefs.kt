@@ -38,6 +38,7 @@ data class AppSettings(
     val readerFontSize: Int = 20,
     val readerFontScale: String = "MEDIUM",
     val readingBackground: String = "SEPIA",
+    val pageNavigation: String = "SCROLL",
     val readingHighlightColor: String = "YELLOW",
     val readerAutoFollow: Boolean = true,
     val lastHighlightColor: String = "yellow",
@@ -91,6 +92,7 @@ class SettingsRepository(private val store: DataStore<Preferences>, private val 
         val font = intPreferencesKey("reader_font_size")
         val fontScale = stringPreferencesKey("reader_font_scale")
         val readingBackground = stringPreferencesKey("reading_background")
+        val pageNavigation = stringPreferencesKey("page_navigation")
         val readingHighlight = stringPreferencesKey("reading_highlight_color")
         val autoFollow = androidx.datastore.preferences.core.booleanPreferencesKey("reader_auto_follow")
         val lastHighlight = stringPreferencesKey("last_highlight_color")
@@ -134,6 +136,7 @@ class SettingsRepository(private val store: DataStore<Preferences>, private val 
             readerFontSize = p[K.font] ?: 20,
             readerFontScale = p[K.fontScale]?.takeIf { value -> com.ziaee.zabankhan.ui.theme.FontScale.entries.any { it.name == value } } ?: "MEDIUM",
             readingBackground = p[K.readingBackground]?.takeIf { value -> com.ziaee.zabankhan.ui.theme.ReadingBackground.entries.any { it.name == value } } ?: "SEPIA",
+            pageNavigation = p[K.pageNavigation]?.takeIf { value -> com.ziaee.zabankhan.ui.theme.PageNavigation.entries.any { it.name == value } } ?: "SCROLL",
             readingHighlightColor = p[K.readingHighlight]?.takeIf { value -> com.ziaee.zabankhan.ui.theme.HighlightColor.entries.any { it.name == value } } ?: "YELLOW",
             readerAutoFollow = p[K.autoFollow] ?: true,
             lastHighlightColor = p[K.lastHighlight] ?: "yellow",
@@ -208,6 +211,10 @@ class SettingsRepository(private val store: DataStore<Preferences>, private val 
     suspend fun setReaderFontScale(value: String) = store.edit {
         require(com.ziaee.zabankhan.ui.theme.FontScale.entries.any { scale -> scale.name == value })
         it[K.fontScale] = value
+    }
+    suspend fun setPageNavigation(value: String) = store.edit {
+        require(com.ziaee.zabankhan.ui.theme.PageNavigation.entries.any { it.name == value })
+        it[K.pageNavigation] = value
     }
     suspend fun setReadingBackground(value: String) = store.edit {
         require(com.ziaee.zabankhan.ui.theme.ReadingBackground.entries.any { background -> background.name == value })

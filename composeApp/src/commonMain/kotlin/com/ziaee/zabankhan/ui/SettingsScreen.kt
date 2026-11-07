@@ -88,6 +88,13 @@ fun SettingsScreen(vm: AppViewModel, settings: AppSettings, progress: () -> Unit
         }
     }
     val uri = LocalUriHandler.current
+    var guideScreen by remember { mutableStateOf<String?>(null) }
+    val learningLanguage = Languages.byCode(settings.learningLang.orEmpty()) ?: Languages.learnable.first()
+    when (guideScreen) {
+        "about" -> { AboutScreen(learningLanguage) { guideScreen = null }; return }
+        "help" -> { HelpGuidesScreen(onOpenGestures = { guideScreen = "gestures" }, onBack = { guideScreen = null }); return }
+        "gestures" -> { com.ziaee.zabankhan.ui.reader.GestureGuideScreen(learningLanguage) { guideScreen = "help" }; return }
+    }
     var provider by remember(settings.llmProvider) { mutableStateOf(settings.llmProvider) }
     var apiKey by remember(settings.llmApiKey) { mutableStateOf("") }
     var model by remember(settings.llmModel) { mutableStateOf(settings.llmModel) }
@@ -168,6 +175,14 @@ fun SettingsScreen(vm: AppViewModel, settings: AppSettings, progress: () -> Unit
                                     { stringResource(it.labelResource()) }) { vm.action { repository.setReadingHighlightColor(it.name) } }
                                 SettingsChoice(stringResource(Res.string.reading_font_scale_title), settings.readerFontScale,
                                     FontScale.entries.map { it.name to stringResource(it.labelResource()) }) { vm.action { repository.setReaderFontScale(it) } }
+
+                                Text(stringResource(Res.string.page_navigation_title), style = MaterialTheme.typography.bodySmall,
+                                    modifier = Modifier.padding(top = 6.dp, bottom = 3.dp))
+                                CompactChoiceColumn(PageNavigation.entries,
+                                    PageNavigation.entries.firstOrNull { it.name == settings.pageNavigation } ?: PageNavigation.SCROLL,
+                                    { stringResource(it.labelResource()) }) { navigation ->
+                                    vm.action { repository.setPageNavigation(navigation.name) }
+                                }
 
                             }
                             3 -> {
@@ -268,6 +283,8 @@ fun SettingsScreen(vm: AppViewModel, settings: AppSettings, progress: () -> Unit
                             }
                             7 -> {
 
+                                TextButton(onClick = { guideScreen = "about" }) { Text(stringResource(Res.string.about_title)) }
+                                TextButton(onClick = { guideScreen = "help" }) { Text(stringResource(Res.string.help_guides_title)) }
                                 Text(stringResource(Res.string.version))
                                 Text(stringResource(Res.string.edge_privacy))
                                 com.ziaee.zabankhan.datapack.DataPackCredits()
@@ -422,4 +439,29 @@ private fun SettingsSwitchRow(label: String, checked: Boolean, onCheckedChange: 
         Text(label, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
         Switch(checked = checked, onCheckedChange = onCheckedChange)
     }
+}
+
+@Composable
+internal fun <T> CompactChoiceColumn(
+    entries: List<T>, selected: T, label: @Composable (T) -> String,
+    trailing: @Composable (T) -> Unit = {}, onSelect: (T) -> Unit
+) {
+    Column(Modifier.fillMaxWidth()) {
+        entries.forEach { entry ->
+            Row(
+                Modifier.fillMaxWidth().clickable { onSelect(entry) }.padding(vertical = 2.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                RadioButton(selected = entry == selected, onClick = { onSelect(entry) })
+                Text(label(entry), style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
+                trailing(entry)
+            }
+        }
+    }
+}
+
+private fun PageNavigation.labelResource(): StringResource = when (this) {
+    PageNavigation.SCROLL -> Res.string.page_navigation_scroll
+    PageNavigation.HORIZONTAL -> Res.string.page_navigation_horizontal
+    PageNavigation.VERTICAL -> Res.string.page_navigation_vertical
 }

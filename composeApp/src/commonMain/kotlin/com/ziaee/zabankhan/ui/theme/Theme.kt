@@ -113,6 +113,8 @@ enum class ReadingBackground {
     WHITE, SEPIA, PAPER, SAND, GRAY, MINT, SAGE, BLUE_TINT, ROSE, DARK, BLACK
 }
 
+enum class PageNavigation { SCROLL, HORIZONTAL, VERTICAL }
+
 enum class HighlightColor { YELLOW, GREEN, BLUE, PINK, ORANGE, PURPLE, TEAL, RED }
 
 data class ReadingPalette(

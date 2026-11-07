@@ -1,0 +1,34 @@
+<resources>
+  <string name="about_content_credits">%1$s dictionaries: %2$s. All content belongs to its respective owners.</string>
+  <string name="about_credits_section">Credits</string>
+  <string name="about_description">Learn %1$s by reading and listening. zabankhan is free and open source, with no ads and no tracking.</string>
+  <string name="about_developer_section">Developer</string>
+  <string name="about_edge_tts_credit">Microsoft Edge online voices</string>
+  <string name="about_email">Email</string>
+  <string name="about_footer">© 2026 Abolfazl Ziaeemehr</string>
+  <string name="about_github">GitHub</string>
+  <string name="about_lexique_credit">French lemma and frequency data: Lexique 3.83 (CC BY-SA 4.0).</string>
+  <string name="about_license">License</string>
+  <string name="about_linkedin">LinkedIn</string>
+  <string name="about_open_link_failed">No app is available to open this link.</string>
+  <string name="about_privacy_policy">Privacy policy</string>
+  <string name="about_project_section">Project</string>
+  <string name="about_report_bug">Report a bug</string>
+  <string name="about_software_credits">Jetpack Compose, Room, Media3, Coil, jsoup (Apache-2.0/MIT)</string>
+  <string name="about_source_code">Source code</string>
+  <string name="about_star">Star on GitHub</string>
+  <string name="about_star_detail">If the app helps you, a star helps others find it</string>
+  <string name="about_title">About</string>
+  <string name="about_vazirmatn_credit">Persian and Arabic typeface</string>
+  <string name="about_version">Version %1$s</string>
+  <string name="about_wiktionary_credit">Idiom data: Wiktionary contributors, via kaikki.org — CC BY-SA 4.0 (https://creativecommons.org/licenses/by-sa/4.0/).</string>
+  <string name="guide_ai_explanation">Give this file to ChatGPT or another AI assistant for step-by-step help.</string>
+  <string name="guide_file_error">Could not open, save, or share the guide. Please try again.</string>
+  <string name="guide_github">Open on GitHub</string>
+  <string name="guide_read">Read guide</string>
+  <string name="guide_save">Save file</string>
+  <string name="guide_share">Share with an AI app</string>
+  <string name="guide_share_prompt">Please help me use this guide, step by step.</string>
+  <string name="help_gestures_description">Learn the gestures for reading, watching and more.</string>
+  <string name="help_guides_title">Help &amp; guides</string>
+</resources>

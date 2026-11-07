@@ -1,0 +1,7 @@
+<resources>
+    <string name="reading_page_indicator">%1$s / %2$s</string>
+    <string name="reading_play_from_page">پخش از این صفحه</string>
+    <string name="source_author_label">نویسنده: %1$s</string>
+    <string name="source_license_label">مجوز: %1$s</string>
+    <string name="source_published_label">تاریخ انتشار: %1$s</string>
+</resources>

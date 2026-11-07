@@ -78,7 +78,7 @@ internal fun GestureGuideScreen(lang: LanguageSpec, section: String = "reading",
                     }
                 }
             }
-
+            item { com.ziaee.zabankhan.ui.GuideFileActions("gestures.md") }
         }
     }
 }

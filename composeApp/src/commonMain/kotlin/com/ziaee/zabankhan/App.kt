@@ -16,6 +16,7 @@ import com.ziaee.zabankhan.app.*
 import com.ziaee.zabankhan.resources.*
 import com.ziaee.zabankhan.ui.*
 import com.ziaee.zabankhan.ui.reader.ReaderScreen
+import com.ziaee.zabankhan.ui.reader.readerRoute
 import com.ziaee.zabankhan.watch.*
 import com.ziaee.zabankhan.ui.theme.*
 import org.jetbrains.compose.resources.stringResource
@@ -48,7 +49,6 @@ data class AppOpenRequest(val text: String? = null, val review: Boolean = false,
                 }
             }
             var sharedText by remember { mutableStateOf("") }
-            val libraryOpenQueries = remember { mutableStateMapOf<Long, String>() }
             LaunchedEffect(request) {
                 if (request != null) {
                     when {
@@ -94,8 +94,7 @@ data class AppOpenRequest(val text: String? = null, val review: Boolean = false,
                 NavHost(nav, "home", Modifier.padding(padding).consumeWindowInsets(padding)) {
                     composable("home") { HomeScreen(vm, prefs, { id -> vm.action { val doc = container.texts.getById(id); nav.navigate(if (doc?.pdfPath != null) "pdf/$id" else "reader/$id") } }, { nav.navigate("add") }, { nav.navigate("review") }, { nav.navigate("videos") }, { nav.navigate("statistics") }, { nav.navigate("discover") }, { nav.navigate("grammar") }, { nav.navigate("exams") }, { nav.navigate("settings") }, { nav.navigate("words") { popUpTo("home") { saveState = true }; launchSingleTop = true; restoreState = true } }, { nav.navigate("news") }) { video, path, subs -> nav.navigate(watchRoute(video, path, subs)) } }
                     composable("library") { LibraryScreen(vm, prefs, { id -> vm.action { val doc = container.texts.getById(id); nav.navigate(if (doc?.pdfPath != null) "pdf/$id" else "reader/$id") } }, { nav.navigate("add") }, { nav.navigate("videos") }, { nav.navigate("discover") }, openAt = { id, query ->
-                        libraryOpenQueries[id] = query
-                        nav.navigate("reader/$id")
+                        nav.navigate(readerRoute(id, query))
                     }) }
                     composable("videos") { VideoPickerScreen(vm, prefs, { nav.popBackStack() }) { video, path, subs -> nav.navigate(watchRoute(video, path, subs)) } }
                     composable("watch?videoId={videoId}&path={path}&subs={subs}", arguments = listOf("videoId", "path", "subs").map { name -> navArgument(name) { type = NavType.StringType; defaultValue = "" } }) { entry ->
@@ -117,10 +116,10 @@ data class AppOpenRequest(val text: String? = null, val review: Boolean = false,
                     composable("settings") { SettingsScreen(vm, prefs, { nav.navigate("statistics") }, { nav.navigate("grammar") }, { nav.navigate("exams") }) }
                     composable("add") { AddTextScreen(vm, prefs, { sharedText = ""; nav.popBackStack() }, { id -> sharedText = ""; nav.navigate("reader/$id") { popUpTo("add") { inclusive = true } } }, initialText = sharedText) }
                     composable("pdf/{id}", arguments = listOf(navArgument("id") { type = NavType.LongType })) {
-                        ReaderScreen(vm, prefs, requireNotNull(it.arguments?.read { getLong("id") }), onOpenVocab = { nav.navigate("words") }, initialQuery = libraryOpenQueries[requireNotNull(it.arguments?.read { getLong("id") })].orEmpty()) { nav.popBackStack() }
+                        ReaderScreen(vm, prefs, requireNotNull(it.arguments?.read { getLong("id") }), onOpenVocab = { nav.navigate("words") }) { nav.popBackStack() }
                     }
-                    composable("reader/{id}", arguments = listOf(navArgument("id") { type = NavType.LongType })) {
-                        ReaderScreen(vm, prefs, requireNotNull(it.arguments?.read { getLong("id") }), onOpenVocab = { nav.navigate("words") }, initialQuery = libraryOpenQueries[requireNotNull(it.arguments?.read { getLong("id") })].orEmpty()) { nav.popBackStack() }
+                    composable("reader/{id}?find={find}", arguments = listOf(navArgument("id") { type = NavType.LongType }, navArgument("find") { type = NavType.StringType; defaultValue = "" })) {
+                        ReaderScreen(vm, prefs, requireNotNull(it.arguments?.read { getLong("id") }), onOpenVocab = { nav.navigate("words") }, initialQuery = it.arguments?.read { getString("find") }.orEmpty()) { nav.popBackStack() }
                     }
                 }
             }
