@@ -64,7 +64,7 @@ data class AppOpenRequest(val text: String? = null, val review: Boolean = false,
                 val language = com.ziaee.zabankhan.lang.Languages.byCode(requireNotNull(prefs.learningLang)) ?: return@LaunchedEffect
                 try {
                     com.ziaee.zabankhan.content.DatasetSeeder.seedIfNeeded(
-                        com.ziaee.zabankhan.content.DatasetRepository(container.database, language, prefs.meaningLang),
+                        com.ziaee.zabankhan.content.DatasetRepository(container.database, language, prefs.meaningLang, container.http),
                         container.database, container.cache)
                 } catch (cancelled: kotlinx.coroutines.CancellationException) { throw cancelled }
                 catch (_: Exception) { /* The catalog remains available for a retry from Words. */ }
@@ -108,7 +108,7 @@ data class AppOpenRequest(val text: String? = null, val review: Boolean = false,
                 }
             }) { padding ->
                 NavHost(nav, "home", Modifier.padding(padding).consumeWindowInsets(padding)) {
-                    composable("home") { HomeScreen(vm, prefs, { id -> vm.action { val doc = container.texts.getById(id); nav.navigate(if (doc?.pdfPath != null) "pdf/$id" else "reader/$id") } }, { nav.navigate("add") }, { nav.navigate("review") }, { nav.navigate("videos") }, { nav.navigate("statistics") }, { nav.navigate("discover") }, { nav.navigate("grammar") }, { nav.navigate("exams") }, { nav.navigate("settings") }, { nav.navigate("words") { popUpTo("home") { saveState = true }; launchSingleTop = true; restoreState = true } }, { nav.navigate("news") }, achievements = { nav.navigate("achievements") }) { video, path, subs -> nav.navigate(watchRoute(video, path, subs)) } }
+                    composable("home") { HomeScreen(vm, prefs, { id -> vm.action { val doc = container.texts.getById(id); nav.navigate(if (doc?.pdfPath != null) "pdf/$id" else "reader/$id") } }, { nav.navigate("add") }, { nav.navigate("review") }, { nav.navigate("videos") }, { nav.navigate("statistics") }, { nav.navigate("discover") }, { nav.navigate("grammar") }, { nav.navigate("exams") }, { nav.navigate("settings") }, { nav.navigate("words") { popUpTo("home") { saveState = true }; launchSingleTop = true; restoreState = true } }, { nav.navigate("news") }, datasets = { nav.navigate("datasets") }, achievements = { nav.navigate("achievements") }, watchVideo = { video, path, subs -> nav.navigate(watchRoute(video, path, subs)) }) }
                     composable("library") { LibraryScreen(vm, prefs, { id -> vm.action { val doc = container.texts.getById(id); nav.navigate(if (doc?.pdfPath != null) "pdf/$id" else "reader/$id") } }, { nav.navigate("add") }, { nav.navigate("videos") }, { nav.navigate("discover") }, openAt = { id, query ->
                         nav.navigate(readerRoute(id, query))
                     }) }
@@ -129,7 +129,7 @@ data class AppOpenRequest(val text: String? = null, val review: Boolean = false,
                             listScope = requireNotNull(it.arguments?.read { getLong("listId") }))
                     }
                     composable("datasets") { DatasetScreen(vm, prefs) { nav.popBackStack() } }
-                    composable("review") { ReviewScreen(container, prefs, { nav.popBackStack() }, { nav.navigate("settings") }) }
+                    composable("review") { ReviewScreen(container, prefs, { nav.popBackStack() }, { nav.navigate("settings") }, onOpenDatasets = { nav.navigate("datasets") }) }
                     composable("settings") { SettingsScreen(vm, prefs, { nav.navigate("statistics") }, { nav.navigate("grammar") }, { nav.navigate("exams") }) }
                     composable("add") { AddTextScreen(vm, prefs, { sharedText = ""; nav.popBackStack() }, { id -> sharedText = ""; nav.navigate("reader/$id") { popUpTo("add") { inclusive = true } } }, initialText = sharedText) }
                     composable("pdf/{id}", arguments = listOf(navArgument("id") { type = NavType.LongType })) {

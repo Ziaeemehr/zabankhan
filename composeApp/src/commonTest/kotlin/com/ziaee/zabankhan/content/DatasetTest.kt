@@ -5,6 +5,8 @@ import com.ziaee.zabankhan.lang.Languages
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
+import kotlin.test.assertFalse
+import kotlin.test.assertTrue
 import okio.ByteString.Companion.encodeUtf8
 
 class DatasetTest {
@@ -48,5 +50,27 @@ class DatasetTest {
         assertEquals("en", manifest.meaningLanguage)
         assertEquals(setOf("english-a1"), manifest.starterDeckIds)
         assertEquals("meaning — Unit 3", datasetMeaning("meaning", "3", manifest.lessonLabel))
+    }
+
+    @Test fun manifestParsesOptionalStarterFlagsAndMergesSources() {
+        val sourceBundled = DatasetSource.Bundled("fr")
+        val sourceRemote = DatasetSource.Remote("fr")
+        val bundled = parseDatasetManifest(
+            """{"version":1,"decks":[{"id":"local","name":"Local","level":"A1","kind":"words","file":"decks/local.json","count":2,"starter":true},{"id":"old","name":"Old","level":"A2","kind":"words","file":"decks/old.json","count":1}],"stories":[{"id":"story-local","name":"Story","level":"A1","source":"Open","file":"stories/a.json","count":1,"starter":true}]}""",
+            sourceBundled
+        )
+        val remote = parseDatasetManifest(
+            """{"version":2,"decks":[{"id":"remote","name":"Remote","level":"A1","kind":"words","file":"decks/remote.json","count":3}],"stories":[]}""",
+            sourceRemote
+        )
+        assertTrue(bundled.decks[0].starter)
+        assertFalse(bundled.decks[1].starter)
+        assertTrue(bundled.stories.single().starter)
+        assertFalse(remote.decks.single().starter)
+
+        val merged = mergeDatasetManifests(bundled, remote)
+        assertEquals(listOf("local", "old", "remote"), merged.decks.map { it.id })
+        assertEquals(listOf(sourceBundled, sourceBundled, sourceRemote), merged.decks.map { it.source })
+        assertEquals(2, merged.version)
     }
 }

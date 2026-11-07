@@ -44,6 +44,7 @@ import com.ziaee.zabankhan.watch.WatchHistory
     review: () -> Unit, watch: () -> Unit, progress: () -> Unit = {}, discover: () -> Unit = {},
     grammar: () -> Unit = {}, exams: () -> Unit = {}, openSettings: () -> Unit = {},
     words: () -> Unit = {}, news: () -> Unit = {}, achievements: () -> Unit = {}, watchVideo: (String, String, String) -> Unit = { _, _, _ -> },
+    datasets: () -> Unit = {},
 ) {
     val motivation by vm.progress.collectAsState()
     val lang = requireNotNull(settings.learningLang)
@@ -95,7 +96,7 @@ import com.ziaee.zabankhan.watch.WatchHistory
             }
             IconButton(onClick = discover) { Icon(Icons.Default.Search, stringResource(Res.string.h2_find_content)) }
             // French Reader adds texts from its bottom bar; zabankhan's bottom bar has no add slot.
-            ImportAddMenu(vm, settings, add, open, watch, discover, trigger = { onImport, busy ->
+            ImportAddMenu(vm, settings, add, open, watch, discover, openDatasets = datasets, trigger = { onImport, busy ->
                 IconButton(onClick = onImport, enabled = !busy) { Icon(Icons.Default.Add, stringResource(Res.string.add_text)) }
             })
             IconButton(onClick = openSettings) { Icon(Icons.Default.Settings, stringResource(Res.string.nav_settings)) }
@@ -122,6 +123,7 @@ import com.ziaee.zabankhan.watch.WatchHistory
             item { WatchVideosCard(languageLabel, watch, itemModifier) }
             item { TodayNewsCard(headlineCount, languageLabel, news, Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) }
             item { GrammarCard(languageLabel, grammar, itemModifier) }
+            item { DatasetEntryCard(lang, datasets, itemModifier) }
             if (com.ziaee.zabankhan.datapack.LanguageDataPacks.available(lang)) item { ExamsCard(exams, itemModifier) }
         }
     }

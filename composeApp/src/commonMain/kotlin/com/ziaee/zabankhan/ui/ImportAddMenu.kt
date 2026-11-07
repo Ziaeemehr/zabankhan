@@ -28,6 +28,7 @@ expect fun loadImportImage(path: String): ImageBitmap
 fun ImportAddMenu(
     vm: AppViewModel, settings: AppSettings, addText: () -> Unit, open: (Long) -> Unit,
     watch: () -> Unit, discover: () -> Unit = {},
+    openDatasets: () -> Unit = {},
     trigger: (@Composable (onClick: () -> Unit, busy: Boolean) -> Unit)? = null,
 ) {
     var expanded by remember { mutableStateOf(false) }
@@ -76,6 +77,7 @@ fun ImportAddMenu(
             val options = listOf(
                 Res.string.add_text to addText,
                 Res.string.h2_find_content to discover,
+                Res.string.dataset_menu_title to openDatasets,
                 Res.string.pdf_import to pdf,
                 Res.string.h1_import_text to text,
                 Res.string.h1_import_epub to epub,

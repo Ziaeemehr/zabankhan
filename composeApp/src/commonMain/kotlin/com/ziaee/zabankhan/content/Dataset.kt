@@ -3,6 +3,8 @@ package com.ziaee.zabankhan.content
 import com.ziaee.zabankhan.data.VocabEntry
 import kotlinx.serialization.json.*
 import okio.ByteString.Companion.encodeUtf8
+import com.ziaee.zabankhan.lang.LanguageSpec
+import com.ziaee.zabankhan.resources.Res
 
 data class DatasetDeckPack(
     val id: String,
@@ -10,8 +12,11 @@ data class DatasetDeckPack(
     val level: String,
     val kind: String,
     val file: String,
-    val count: Int
-)
+    val count: Int,
+    val starter: Boolean = false,
+    val source: DatasetSource = DatasetSource.Bundled(""),
+    val sizeBytes: Long? = null
+) { val key: String get() = "${source.key}:$id" }
 
 data class DatasetStoryPack(
     val id: String,
@@ -19,8 +24,18 @@ data class DatasetStoryPack(
     val level: String,
     val source: String,
     val file: String,
-    val count: Int
-)
+    val count: Int,
+    val starter: Boolean = false,
+    val sourceRef: DatasetSource = DatasetSource.Bundled(""),
+    val sizeBytes: Long? = null
+) { val key: String get() = "${sourceRef.key}:$id" }
+
+sealed interface DatasetSource {
+    val language: String
+    val key: String
+    data class Bundled(override val language: String) : DatasetSource { override val key = "bundled:$language" }
+    data class Remote(override val language: String) : DatasetSource { override val key = "remote:$language" }
+}
 
 data class DatasetManifest(
     val version: Int,
@@ -33,6 +48,12 @@ data class DatasetManifest(
     val starterDeckIds: Set<String> = emptySet(),
     val starterStoryIds: Set<String> = emptySet()
 )
+
+suspend fun bundledDatasetPackCount(language: LanguageSpec): Int = try {
+    val source = DatasetSource.Bundled(language.code)
+    parseDatasetManifest(Res.readBytes("files/${language.code}/dataset/manifest.json").decodeToString(), source)
+        .let { it.decks.size + it.stories.size }
+} catch (_: Exception) { 0 }
 
 data class DatasetSentenceTranslationMetadata(val model: String, val promptRevision: String)
 
@@ -53,14 +74,22 @@ data class DatasetStoryRow(
 )
 
 internal fun parseDatasetManifest(json: String): DatasetManifest {
+    return parseDatasetManifest(json, DatasetSource.Bundled(""))
+}
+
+internal fun parseDatasetManifest(json: String, source: DatasetSource): DatasetManifest {
     val root = Json.parseToJsonElement(json).jsonObject
     val decks = root.getValue("decks").jsonArray.map { value ->
         val deck = value.jsonObject
-        DatasetDeckPack(deck.string("id"), deck.string("name"), deck.string("level"), deck.string("kind"), deck.string("file"), deck.getValue("count").jsonPrimitive.int)
+        DatasetDeckPack(deck.string("id"), deck.string("name"), deck.string("level"), deck.string("kind"), deck.string("file"), deck.getValue("count").jsonPrimitive.int,
+            (deck["starter"] as? JsonPrimitive)?.booleanOrNull ?: false, source,
+            (deck["sizeBytes"] as? JsonPrimitive)?.longOrNull)
     }
     val stories = root.getValue("stories").jsonArray.map { value ->
         val story = value.jsonObject
-        DatasetStoryPack(story.string("id"), story.string("name"), story.string("level"), story.string("source"), story.string("file"), story.getValue("count").jsonPrimitive.int)
+        DatasetStoryPack(story.string("id"), story.string("name"), story.string("level"), story.string("source"), story.string("file"), story.getValue("count").jsonPrimitive.int,
+            (story["starter"] as? JsonPrimitive)?.booleanOrNull ?: false, source,
+            (story["sizeBytes"] as? JsonPrimitive)?.longOrNull)
     }
     val metadata = (root["sentenceTranslations"] as? JsonObject)?.let {
         DatasetSentenceTranslationMetadata(it.string("model"), it.string("promptRevision"))
@@ -68,6 +97,19 @@ internal fun parseDatasetManifest(json: String): DatasetManifest {
     fun ids(key: String) = (root[key] as? JsonArray)?.map { it.jsonPrimitive.content }?.toSet().orEmpty()
     return DatasetManifest(root.getValue("version").jsonPrimitive.int, decks, stories, metadata,
         root.string("meaningLanguage"), root.string("gradedStoriesFolder"), root.string("lessonLabel"), ids("starterDeckIds"), ids("starterStoryIds"))
+}
+
+internal fun mergeDatasetManifests(bundled: DatasetManifest?, remote: DatasetManifest?): DatasetManifest {
+    val base = bundled ?: remote ?: return DatasetManifest(0, emptyList(), emptyList())
+    if (bundled == null) return base
+    if (remote == null) return bundled
+    return bundled.copy(
+        version = maxOf(bundled.version, remote.version),
+        decks = bundled.decks + remote.decks,
+        stories = bundled.stories + remote.stories,
+        starterDeckIds = bundled.starterDeckIds + remote.starterDeckIds,
+        starterStoryIds = bundled.starterStoryIds + remote.starterStoryIds
+    )
 }
 
 internal fun parseDatasetDeck(json: String): List<DatasetDeckRow> =

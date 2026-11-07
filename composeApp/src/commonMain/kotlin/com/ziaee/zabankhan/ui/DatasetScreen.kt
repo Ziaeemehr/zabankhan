@@ -54,10 +54,17 @@ import com.ziaee.zabankhan.content.DatasetPackStatus
 import com.ziaee.zabankhan.content.DatasetRepository
 import com.ziaee.zabankhan.content.DatasetStatus
 import com.ziaee.zabankhan.content.DatasetStoryPack
+import com.ziaee.zabankhan.content.DatasetSource
 import com.ziaee.zabankhan.data.AppDatabase
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
 
-class DatasetViewModel(private val repository: DatasetRepository) : ViewModel() {
+class DatasetViewModel(
+    private val repository: DatasetRepository,
+    private val database: AppDatabase,
+    private val cache: com.ziaee.zabankhan.translate.KeyValueCache
+) : ViewModel() {
 
     var manifest by mutableStateOf<DatasetManifest?>(null)
         private set
@@ -71,6 +78,10 @@ class DatasetViewModel(private val repository: DatasetRepository) : ViewModel() 
         private set
     var failed by mutableStateOf(false)
         private set
+    var progress by mutableStateOf<Pair<Long, Long?>?>(null)
+        private set
+    var sizes by mutableStateOf<Map<String, Long>>(emptyMap())
+        private set
 
     init {
         refresh()
@@ -79,17 +90,27 @@ class DatasetViewModel(private val repository: DatasetRepository) : ViewModel() 
     private fun refresh() = viewModelScope.launch {
         try {
             manifest = repository.loadManifest()
+            // Retry first-use starter seeding when this screen is opened after an offline startup.
+            try { com.ziaee.zabankhan.content.DatasetSeeder.seedIfNeeded(repository, database, cache) }
+            catch (error: CancellationException) { throw error }
+            catch (_: Exception) { /* Keep cached/offline catalogs usable; pending seeding retries later. */ }
             status = repository.status(manifest)
+            val current = requireNotNull(manifest)
+            sizes = coroutineScope {
+                val deckSizes = current.decks.map { pack -> async { pack.key to (repository.downloadSize(pack) ?: 0L) } }.map { it.await() }
+                val storySizes = current.stories.map { pack -> async { pack.key to (repository.downloadSize(pack) ?: 0L) } }.map { it.await() }
+                (deckSizes + storySizes).filter { it.second > 0L }.toMap()
+            }
         } catch (error: CancellationException) { throw error }
         catch (_: Exception) { failed = true; manifest = DatasetManifest(0, emptyList(), emptyList()) }
     }
 
-    fun addDeck(pack: DatasetDeckPack) = run(pack.id) {
-        repository.installDeck(pack)
+    fun addDeck(pack: DatasetDeckPack) = run(pack.key) {
+        repository.installDeck(pack) { done, total -> progress = done to total }
     }
 
-    fun addStories(pack: DatasetStoryPack) = run(pack.id) {
-        repository.installStories(pack)
+    fun addStories(pack: DatasetStoryPack) = run(pack.key) {
+        repository.installStories(pack) { done, total -> progress = done to total }
     }
 
     fun addAll() = run(ALL_PACKS_ID) {
@@ -108,6 +129,7 @@ class DatasetViewModel(private val repository: DatasetRepository) : ViewModel() 
             } catch (error: Exception) {
                 failed = true
             } finally {
+                progress = null
                 busy = null
             }
         }
@@ -125,6 +147,7 @@ class DatasetViewModel(private val repository: DatasetRepository) : ViewModel() 
             } catch (error: Exception) {
                 failed = true
             } finally {
+                progress = null
                 busy = null
             }
         }
@@ -146,7 +169,7 @@ class DatasetViewModel(private val repository: DatasetRepository) : ViewModel() 
 @Composable
 fun DatasetScreen(vm: AppViewModel, settings: AppSettings, onBack: () -> Unit) {
     val language = requireNotNull(Languages.byCode(requireNotNull(settings.learningLang)))
-    val viewModel = remember(vm.container, language.code, settings.meaningLang) { DatasetViewModel(DatasetRepository(vm.container.database, language, settings.meaningLang)) }
+    val viewModel = remember(vm.container, language.code, settings.meaningLang) { DatasetViewModel(DatasetRepository(vm.container.database, language, settings.meaningLang, vm.container.http), vm.container.database, vm.container.cache) }
     val snackbarHostState = remember { SnackbarHostState() }
     val errorMessage = stringResource(Res.string.error_generic)
     var confirmCleanup by remember { mutableStateOf(false) }
@@ -228,15 +251,18 @@ fun DatasetScreen(vm: AppViewModel, settings: AppSettings, onBack: () -> Unit) {
                         style = MaterialTheme.typography.titleLarge
                     )
                 }
-                if (manifest.decks.isEmpty() && manifest.stories.isEmpty()) item { Text(stringResource(Res.string.dataset_empty_language, language.nativeName), style = MaterialTheme.typography.bodyMedium) }
-                items(manifest.decks, key = { it.id }) { pack ->
+                if (manifest.decks.isEmpty() && manifest.stories.isEmpty()) item { Text(stringResource(Res.string.dataset_empty_language), style = MaterialTheme.typography.bodyMedium) }
+                items(manifest.decks, key = { it.key }) { pack ->
                     DatasetItem(
                         name = pack.name,
                         level = pack.level,
                         count = stringResource(Res.string.dataset_cards_count, pack.count),
-                        status = viewModel.status?.decks?.get(pack.id),
-                        busy = viewModel.busy == pack.id,
+                        status = viewModel.status?.decks?.get(pack.key),
+                        busy = viewModel.busy == pack.key,
                         enabled = viewModel.busy == null,
+                        remote = pack.source is DatasetSource.Remote,
+                        downloadSize = viewModel.sizes[pack.key] ?: pack.sizeBytes,
+                        progress = if (viewModel.busy == pack.key) viewModel.progress else null,
                         onAdd = { viewModel.addDeck(pack) }
                     )
                 }
@@ -247,14 +273,17 @@ fun DatasetScreen(vm: AppViewModel, settings: AppSettings, onBack: () -> Unit) {
                         style = MaterialTheme.typography.titleLarge
                     )
                 }
-                items(manifest.stories, key = { it.id }) { pack ->
+                items(manifest.stories, key = { it.key }) { pack ->
                     DatasetItem(
                         name = pack.name,
                         level = pack.level,
                         count = stringResource(Res.string.dataset_stories_count, pack.count),
-                        status = viewModel.status?.stories?.get(pack.id),
-                        busy = viewModel.busy == pack.id,
+                        status = viewModel.status?.stories?.get(pack.key),
+                        busy = viewModel.busy == pack.key,
                         enabled = viewModel.busy == null,
+                        remote = pack.sourceRef is DatasetSource.Remote,
+                        downloadSize = viewModel.sizes[pack.key] ?: pack.sizeBytes,
+                        progress = if (viewModel.busy == pack.key) viewModel.progress else null,
                         onAdd = { viewModel.addStories(pack) }
                     )
                 }
@@ -290,6 +319,9 @@ private fun DatasetItem(
     status: DatasetPackStatus?,
     busy: Boolean,
     enabled: Boolean,
+    remote: Boolean,
+    downloadSize: Long?,
+    progress: Pair<Long, Long?>?,
     onAdd: () -> Unit
 ) {
     Card {
@@ -300,14 +332,24 @@ private fun DatasetItem(
             Column(Modifier.weight(1f)) {
                 Text(name, style = MaterialTheme.typography.titleMedium)
                 Text("$level · $count", style = MaterialTheme.typography.bodySmall)
+                val size = downloadSize?.let(::formatDatasetBytes) ?: stringResource(Res.string.dataset_size_unknown)
+                Text(stringResource(Res.string.dataset_pack_size, size), style = MaterialTheme.typography.bodySmall)
+                Text(stringResource(Res.string.dataset_installed_count, status?.installed ?: 0, status?.total ?: 0), style = MaterialTheme.typography.bodySmall)
             }
             if (busy) {
-                CircularProgressIndicator(Modifier.size(24.dp), strokeWidth = 2.dp)
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    CircularProgressIndicator(Modifier.size(24.dp), strokeWidth = 2.dp)
+                    progress?.let { (done, total) ->
+                        val pct = total?.takeIf { it > 0 }?.let { "${(done * 100 / it).coerceIn(0, 100)}%" }
+                        if (pct != null) Text(pct, style = MaterialTheme.typography.labelSmall)
+                    }
+                }
             } else {
                 Button(onClick = onAdd, enabled = enabled && status?.complete != true) {
                     val label = when {
                         status?.complete == true -> Res.string.dataset_added
                         (status?.installed ?: 0) > 0 -> Res.string.dataset_add_missing
+                        remote -> Res.string.dataset_download_install
                         else -> Res.string.dataset_add
                     }
                     Text(stringResource(label))
@@ -315,4 +357,10 @@ private fun DatasetItem(
             }
         }
     }
+}
+
+private fun formatDatasetBytes(bytes: Long): String = when {
+    bytes < 1024 -> "$bytes B"
+    bytes < 1024 * 1024 -> "${bytes / 1024} KB"
+    else -> "${bytes / (1024 * 1024)} MB"
 }

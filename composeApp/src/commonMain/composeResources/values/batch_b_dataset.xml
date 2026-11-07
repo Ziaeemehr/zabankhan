@@ -1,7 +1,10 @@
 <resources>
   <string name="dataset_title">Dataset</string>
+  <string name="dataset_home_title">Ready-made decks &amp; stories</string>
+  <string name="dataset_menu_title">Decks &amp; stories</string>
+  <string name="dataset_home_count">%1$d installed / available</string>
   <string name="dataset_settings_entry">Built-in dataset</string>
-  <string name="dataset_subtitle">Bundled vocabulary and graded stories. You can safely add them again; duplicates are skipped.</string>
+  <string name="dataset_subtitle">Download licensed content packs by language. Adding them again skips duplicates.</string>
   <string name="dataset_decks">Decks</string>
   <string name="dataset_stories">Stories</string>
   <string name="dataset_cards_count">%1$d cards</string>
@@ -14,5 +17,9 @@
   <string name="dataset_remove_deleted_deck_cards">Remove cards of deleted decks</string>
   <string name="dataset_remove_deleted_deck_cards_confirm">Clean up uncategorized cards from built-in decks? Copies from deleted decks are removed. Copies of decks you added again are merged back into the deck, keeping whichever copy has review progress. Your own words are not touched.</string>
   <string name="dataset_removed_result">Removed %1$d cards</string>
-  <string name="dataset_empty_language">No bundled content for %1$s.</string>
+  <string name="dataset_empty_language">No content packs for this language yet</string>
+  <string name="dataset_download_install">Download (install)</string>
+  <string name="dataset_pack_size">Download size: %1$s</string>
+  <string name="dataset_size_unknown">Size unavailable</string>
+  <string name="dataset_installed_count">Installed %1$d / %2$d</string>
 </resources>

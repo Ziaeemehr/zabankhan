@@ -6,7 +6,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 
-/** French Reader's crash-resumable starter seeding, scoped to the active language pack. */
+/** Crash-resumable first-use seeding for bundled legacy starters and starter-flagged remote packs. */
 object DatasetSeeder {
     private val mutex = Mutex()
 
