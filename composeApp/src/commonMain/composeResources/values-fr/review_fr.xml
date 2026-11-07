@@ -16,7 +16,6 @@
     <string name="review_no_cards_due">Aucune carte à réviser pour l’instant — revenez plus tard</string>
     <string name="review_start">Commencer la révision</string>
     <string name="review_box_tap_hint">Touchez une boîte pour ne réviser que ses cartes</string>
-    <string name="review_learned_words">Mots appris</string>
     <string name="review_learned_progress">%1$d sur %2$d révisés</string>
     <string name="review_learned_start">Réviser les mots appris</string>
     <string name="review_box_label">Boîte %1$d</string>
@@ -38,8 +37,4 @@
     <string name="review_moved_forward">Avancée en boîte %1$d</string>
     <string name="review_returned_box_one">Revenue en boîte 1</string>
     <string name="review_stayed_box">Reste en boîte %1$d</string>
-    <string name="accessibility_play_word">Écouter la prononciation du mot</string>
-    <string name="accessibility_play_sentence">Écouter la phrase</string>
-    <string name="review_tap_to_reveal">Touchez la carte pour voir le sens</string>
-    <string name="action_edit">Modifier</string>
 </resources>

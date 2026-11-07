@@ -16,7 +16,6 @@
     <string name="review_no_cards_due">No cards due right now — check back later</string>
     <string name="review_start">Start Review</string>
     <string name="review_box_tap_hint">Tap a box to review only its cards</string>
-    <string name="review_learned_words">Learned words</string>
     <string name="review_learned_progress">%1$d of %2$d reviewed</string>
     <string name="review_learned_start">Review learned</string>
     <string name="review_box_label">Box %1$d</string>
@@ -38,8 +37,4 @@
     <string name="review_moved_forward">Moved forward to Box %1$d</string>
     <string name="review_returned_box_one">Returned to Box 1</string>
     <string name="review_stayed_box">Stays in Box %1$d</string>
-    <string name="accessibility_play_word">Play word pronunciation</string>
-    <string name="accessibility_play_sentence">Play sentence audio</string>
-    <string name="review_tap_to_reveal">Tap the card to reveal</string>
-    <string name="action_edit">Edit</string>
 </resources>

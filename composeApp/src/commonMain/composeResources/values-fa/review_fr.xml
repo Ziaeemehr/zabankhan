@@ -16,7 +16,6 @@
     <string name="review_no_cards_due">در حال حاضر کارتی برای مرور نیست — بعداً دوباره سر بزنید</string>
     <string name="review_start">شروع مرور</string>
     <string name="review_box_tap_hint">برای مرور فقط یک جعبه، روی آن بزنید</string>
-    <string name="review_learned_words">واژه‌های آموخته‌شده</string>
     <string name="review_learned_progress">%1$d از %2$d مرور شده</string>
     <string name="review_learned_start">مرور آموخته‌ها</string>
     <string name="review_box_label">جعبه %1$d</string>
@@ -38,8 +37,4 @@
     <string name="review_moved_forward">انتقال به جعبه %1$d</string>
     <string name="review_returned_box_one">بازگشت به جعبه ۱</string>
     <string name="review_stayed_box">ماندن در جعبه %1$d</string>
-    <string name="accessibility_play_word">پخش تلفظ واژه</string>
-    <string name="accessibility_play_sentence">پخش صدای جمله</string>
-    <string name="review_tap_to_reveal">برای دیدن معنی روی کارت بزنید</string>
-    <string name="action_edit">ویرایش</string>
 </resources>
