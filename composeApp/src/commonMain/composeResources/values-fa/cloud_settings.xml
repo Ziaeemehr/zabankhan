@@ -1,0 +1,15 @@
+<resources>
+    <string name="cloud_sources">منابع ترجمه و واژه‌نامه</string>
+    <string name="cloud_google">گوگل / واژه‌نامهٔ خودکار</string>
+    <string name="cloud_notice">هوش مصنوعی آنلاین متن انتخابی را به سرویس‌دهنده می‌فرستد و ممکن است هزینه داشته باشد. برای فعال‌سازی ذخیره کنید.</string>
+    <string name="cloud_saved">تنظیمات ذخیره شد</string>
+    <string name="cloud_save_failed">ذخیرهٔ کلید API انجام نشد. دوباره تلاش کنید.</string>
+    <string name="cloud_https">نشانی پایهٔ API باید HTTPS و بدون اطلاعات ورود، پارامتر یا بخش پایانی باشد.</string>
+    <string name="cloud_saved_key">کلید ذخیره‌شده با پایان ⁦%1$s⁩</string>
+    <string name="cloud_replace">جایگزینی کلید</string>
+    <string name="cloud_test">آزمایش اتصال</string>
+    <string name="cloud_testing">در حال آزمایش…</string>
+    <string name="cloud_connected">اتصال برقرار شد: %1$s</string>
+    <string name="cloud_clear_cache">پاک کردن حافظهٔ نهان ترجمه</string>
+    <string name="cloud_cache_cleared">حافظهٔ نهان ترجمه پاک شد</string>
+</resources>

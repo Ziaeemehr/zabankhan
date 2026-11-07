@@ -1,0 +1,15 @@
+<resources>
+    <string name="cloud_sources">Translation &amp; dictionary sources</string>
+    <string name="cloud_google">Google / automatic dictionary</string>
+    <string name="cloud_notice">Online AI sends selected text to your provider. Usage may cost money. Save to activate.</string>
+    <string name="cloud_saved">Settings saved</string>
+    <string name="cloud_save_failed">Could not save the API key. Try again.</string>
+    <string name="cloud_https">Use an HTTPS API base URL without credentials, query or fragment.</string>
+    <string name="cloud_saved_key">Saved key ending in %1$s</string>
+    <string name="cloud_replace">Replace key</string>
+    <string name="cloud_test">Test connection</string>
+    <string name="cloud_testing">Testing…</string>
+    <string name="cloud_connected">Connected: %1$s</string>
+    <string name="cloud_clear_cache">Clear translation cache</string>
+    <string name="cloud_cache_cleared">Translation cache cleared</string>
+</resources>
