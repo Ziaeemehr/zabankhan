@@ -101,6 +101,9 @@ interface HeadlineDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertAll(items: List<HeadlineEntity>)
 
+    @Query("SELECT * FROM headlines WHERE lang = :lang ORDER BY publishedAtMs DESC LIMIT :limit")
+    suspend fun getRecent(lang: String, limit: Int): List<HeadlineEntity>
+
     @Query("DELETE FROM headlines WHERE lang = :lang AND sourceId = :sourceId")
     suspend fun clearSource(lang: String, sourceId: String)
 

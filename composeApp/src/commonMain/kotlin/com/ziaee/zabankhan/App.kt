@@ -25,7 +25,7 @@ import org.jetbrains.compose.resources.stringResource
     key(container) { AppContent(container, request, onRequestHandled) }
 }
 
-data class AppOpenRequest(val text: String? = null, val review: Boolean = false, val id: Long = 0)
+data class AppOpenRequest(val text: String? = null, val review: Boolean = false, val id: Long = 0, val youtubeVideoId: String? = null)
 
 @Composable private fun AppContent(container: AppContainer, request: AppOpenRequest?, onRequestHandled: () -> Unit) {
     val vm = viewModel(key = "app-${container.hashCode()}") { AppViewModel(container) }
@@ -53,6 +53,7 @@ data class AppOpenRequest(val text: String? = null, val review: Boolean = false,
                 if (request != null) {
                     when {
                         request.review -> nav.navigate("review") { launchSingleTop = true }
+                        request.youtubeVideoId != null -> nav.navigate(watchRoute(videoId = request.youtubeVideoId)) { launchSingleTop = true }
                         request.text != null -> { sharedText = request.text; nav.navigate("add") { launchSingleTop = true } }
                     }
                     onRequestHandled()

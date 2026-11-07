@@ -60,6 +60,7 @@ class MainActivity : ComponentActivity() {
         readIntent(intent)
     }
     private fun readIntent(intent: Intent?) {
+        val sharedVideo = intent?.dataString?.let(com.ziaee.zabankhan.watch.YoutubeUrl::videoId)
         val text = when (intent?.action) {
             Intent.ACTION_SEND -> if (intent.type == "text/plain") intent.getCharSequenceExtra(Intent.EXTRA_TEXT)?.toString() else null
             Intent.ACTION_PROCESS_TEXT -> intent.getCharSequenceExtra(Intent.EXTRA_PROCESS_TEXT)?.toString()
@@ -67,6 +68,7 @@ class MainActivity : ComponentActivity() {
         }
         request = when {
             intent?.getBooleanExtra("open_review", false) == true -> AppOpenRequest(review = true, id = android.os.SystemClock.elapsedRealtime())
+            sharedVideo != null -> AppOpenRequest(youtubeVideoId = sharedVideo, id = android.os.SystemClock.elapsedRealtime())
             !text.isNullOrBlank() -> AppOpenRequest(text = text, id = android.os.SystemClock.elapsedRealtime())
             else -> null
         }

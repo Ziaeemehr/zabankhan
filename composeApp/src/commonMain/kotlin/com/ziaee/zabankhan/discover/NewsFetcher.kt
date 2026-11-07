@@ -62,6 +62,7 @@ fun mergeHeadlines(vararg sources: List<NewsItem>, limit: Int): List<NewsItem> {
     }
     return merged.values.sortedWith(compareByDescending<NewsItem> { it.publishedAtMs }).take(limit)
 }
+
 internal fun parseFeedDate(raw: String): Long? {
     runCatching { Instant.parse(raw.trim()).toEpochMilliseconds() }.getOrNull()?.let { return it }
     val parts = Regex("(?:[A-Za-z]+,?\\s+)?(\\d{1,2})\\s+([A-Za-z]{3})\\s+(\\d{4})\\s+(\\d{2}):(\\d{2})(?::(\\d{2}))?\\s+([+-]\\d{4}|GMT|UTC|UT|Z)", RegexOption.IGNORE_CASE).matchEntire(raw.trim()) ?: return null

@@ -6,6 +6,19 @@
     <key>CFBundleURLTypes</key><array><dict><key>CFBundleURLSchemes</key><array><string>$(ZABANKHAN_GOOGLE_REDIRECT_SCHEME)</string></array></dict></array>
     <key>UIFileSharingEnabled</key><true/>
     <key>LSSupportsOpeningDocumentsInPlace</key><true/>
+    <key>CFBundleDocumentTypes</key>
+    <array>
+        <dict>
+            <key>CFBundleTypeName</key><string>Reading document</string>
+            <key>LSHandlerRank</key><string>Alternate</string>
+            <key>LSItemContentTypes</key>
+            <array>
+                <string>public.plain-text</string><string>net.daringfireball.markdown</string>
+                <string>com.adobe.pdf</string><string>org.idpf.epub-container</string>
+                <string>public.image</string>
+            </array>
+        </dict>
+    </array>
     <key>NSMicrophoneUsageDescription</key><string>Use the microphone to practice pronunciation and shadow sentences.</string>
     <key>NSSpeechRecognitionUsageDescription</key><string>Recognize your speech to compare it with the learning sentence.</string>
     <key>CFBundleDevelopmentRegion</key><string>en</string>

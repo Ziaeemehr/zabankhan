@@ -56,6 +56,10 @@ data class AppSettings(
     val ttsCacheMaxAgeDays: Int = 30,
     val ttsVoices: Map<String, String> = emptyMap(),
     val lastDictionaryProviders: Map<String, String> = emptyMap(),
+    val newsCategories: Map<String, String> = emptyMap(),
+    val newsKeywords: Map<String, String> = emptyMap(),
+    val newsMatchingFirst: Boolean = true,
+    val newsOnlyMatching: Boolean = false,
     val reminderEnabled: Boolean = false,
     val reminderHour: Int = 19,
     val reminderMinute: Int = 0,
@@ -110,6 +114,10 @@ class SettingsRepository(private val store: DataStore<Preferences>, private val 
         val engine = stringPreferencesKey("voice_engine")
         val voices = stringPreferencesKey("tts_voices")
         val dictionaryProviders = stringPreferencesKey("last_dictionary_providers")
+        val newsCategories = stringPreferencesKey("news_categories")
+        val newsKeywords = stringPreferencesKey("news_keywords")
+        val newsMatchingFirst = androidx.datastore.preferences.core.booleanPreferencesKey("news_matching_first")
+        val newsOnlyMatching = androidx.datastore.preferences.core.booleanPreferencesKey("news_only_matching")
         val reminderEnabled = androidx.datastore.preferences.core.booleanPreferencesKey("review_reminder_enabled")
         val reminderHour = intPreferencesKey("review_reminder_hour")
         val reminderMinute = intPreferencesKey("review_reminder_minute")
@@ -153,6 +161,10 @@ class SettingsRepository(private val store: DataStore<Preferences>, private val 
             ttsCacheMaxAgeDays = (p[K.cacheAge] ?: 30).coerceIn(1, 365),
             ttsVoices = runCatching { kotlinx.serialization.json.Json.decodeFromString<Map<String, String>>(p[K.voices] ?: "{}") }.getOrDefault(emptyMap()),
             lastDictionaryProviders = runCatching { kotlinx.serialization.json.Json.decodeFromString<Map<String, String>>(p[K.dictionaryProviders] ?: "{}") }.getOrDefault(emptyMap()),
+            newsCategories = runCatching { kotlinx.serialization.json.Json.decodeFromString<Map<String, String>>(p[K.newsCategories] ?: "{}") }.getOrDefault(emptyMap()),
+            newsKeywords = runCatching { kotlinx.serialization.json.Json.decodeFromString<Map<String, String>>(p[K.newsKeywords] ?: "{}") }.getOrDefault(emptyMap()),
+            newsMatchingFirst = p[K.newsMatchingFirst] ?: true,
+            newsOnlyMatching = p[K.newsOnlyMatching] ?: false,
             reminderEnabled = p[K.reminderEnabled] ?: false,
             reminderHour = (p[K.reminderHour] ?: 19).coerceIn(0, 23),
             reminderMinute = (p[K.reminderMinute] ?: 0).coerceIn(0, 59),
@@ -197,6 +209,16 @@ class SettingsRepository(private val store: DataStore<Preferences>, private val 
         val providers = runCatching { kotlinx.serialization.json.Json.decodeFromString<Map<String, String>>(it[K.dictionaryProviders] ?: "{}") }.getOrDefault(emptyMap())
         it[K.dictionaryProviders] = kotlinx.serialization.json.Json.encodeToString(providers + (lang to provider))
     }
+    suspend fun setNewsCategory(lang: String, category: String) = store.edit {
+        val values = runCatching { kotlinx.serialization.json.Json.decodeFromString<Map<String, String>>(it[K.newsCategories] ?: "{}") }.getOrDefault(emptyMap())
+        it[K.newsCategories] = kotlinx.serialization.json.Json.encodeToString(values + (lang to category))
+    }
+    suspend fun setNewsKeywords(lang: String, keywords: String) = store.edit {
+        val values = runCatching { kotlinx.serialization.json.Json.decodeFromString<Map<String, String>>(it[K.newsKeywords] ?: "{}") }.getOrDefault(emptyMap())
+        it[K.newsKeywords] = kotlinx.serialization.json.Json.encodeToString(values + (lang to keywords))
+    }
+    suspend fun setNewsMatchingFirst(enabled: Boolean) = store.edit { it[K.newsMatchingFirst] = enabled }
+    suspend fun setNewsOnlyMatching(enabled: Boolean) = store.edit { it[K.newsOnlyMatching] = enabled }
     suspend fun setMeaningLang(code: String) = store.edit { it[K.meaning] = code }
     suspend fun setUiLang(code: String) = store.edit { it[K.ui] = code }
     suspend fun setThemeMode(mode: String) = store.edit { it[K.theme] = mode }

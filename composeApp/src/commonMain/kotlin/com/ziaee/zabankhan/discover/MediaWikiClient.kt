@@ -10,7 +10,17 @@ data class WikiSearchResult(val pageId: Int, val title: String, val snippet: Str
 data class WikiArticle(val title: String, val text: String, val publishedAtMs: Long?)
 class MediaWikiClient(private val http: HttpClient, val source: WikiSource) {
     suspend fun search(query: String, limit: Int = 10): List<WikiSearchResult> = parseSearchResults(http.contentGet("${source.api}?action=query&list=search&format=json&srlimit=${limit.coerceIn(1, 50)}&srprop=snippet%7Cwordcount&srsearch=${percentEncode(query)}"))
-    suspend fun fetchArticle(pageId: Int): WikiArticle? = parseArticle(http.contentGet("${source.api}?action=query&prop=extracts%7Crevisions&explaintext=1&rvprop=timestamp&format=json&pageids=$pageId"), pageId)
+    suspend fun fetchArticle(pageId: Int): WikiArticle? {
+        if (source.id != "wikisource") return parseArticle(http.contentGet("${source.api}?action=query&prop=extracts%7Crevisions&explaintext=1&rvprop=timestamp&format=json&pageids=$pageId"), pageId)
+        val meta = parseArticle(http.contentGet("${source.api}?action=query&prop=extracts%7Crevisions&explaintext=1&rvprop=timestamp&format=json&pageids=$pageId"), pageId) ?: return null
+        val page = Json.parseToJsonElement(http.contentGet("${source.api}?action=parse&format=json&prop=text&page=${percentEncode(meta.title)}")).jsonObject["parse"] as? JsonObject ?: return null
+        val html = ((page["text"] as? JsonObject)?.get("*") as? JsonPrimitive)?.contentOrNull.orEmpty()
+        val cleaned = html
+            .replace(Regex("<(div|span|table)\\b[^>]*class=[\\\"'][^\\\"']*(ws-noexport|headertemplate|pagenum|ws-pagenum)[^\\\"']*[\\\"'][^>]*>[\\s\\S]*?</\\1\\s*>", RegexOption.IGNORE_CASE), "")
+            .replace(Regex("<table\\b[^>]*>[\\s\\S]*?</table\\s*>", RegexOption.IGNORE_CASE), "")
+        val text = htmlToParagraphs(cleaned).takeIf { it.isNotBlank() } ?: return null
+        return WikiArticle(meta.title, text, meta.publishedAtMs)
+    }
     companion object {
         fun parseSearchResults(json: String): List<WikiSearchResult> {
             val query = Json.parseToJsonElement(json).jsonObject["query"] as? JsonObject ?: return emptyList()

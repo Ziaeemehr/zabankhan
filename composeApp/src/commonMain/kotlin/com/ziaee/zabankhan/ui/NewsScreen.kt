@@ -8,6 +8,7 @@ import androidx.compose.material.icons.filled.Newspaper
 import androidx.compose.material3.*
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.ziaee.zabankhan.app.AppViewModel
@@ -26,6 +27,13 @@ import org.jetbrains.compose.resources.stringResource
 // Ported from French Reader's ui/home/NewsScreen.kt; headlines come from the learning language's ContentSources.
 
 data class Headline(val item: NewsItem, val source: NewsSource)
+
+private fun personalizeNews(headlines: List<Headline>, rawKeywords: String, onlyMatching: Boolean): List<Headline> {
+    val keywords = rawKeywords.split(',', '\n').map { it.trim().lowercase() }.filter { it.isNotEmpty() }
+    if (keywords.isEmpty()) return headlines
+    val (matching, other) = headlines.partition { h -> keywords.any((h.item.title + " " + h.item.snippet).lowercase()::contains) }
+    return when { onlyMatching -> matching; else -> matching + other }
+}
 
 /** Merged headlines of every news source of a language; [failed] counts sources that could not be refreshed. */
 internal data class NewsLoad(val headlines: List<Headline>, val failed: Int)
@@ -60,11 +68,27 @@ fun NewsScreen(vm: AppViewModel, settings: AppSettings, onBack: () -> Unit, onOp
     var existingId by remember { mutableStateOf<Long?>(null) }
     var importing by remember { mutableStateOf(false) }
     var previewError by remember { mutableStateOf(false) }
+    var category by remember(lang) { mutableStateOf(settings.newsCategories[lang] ?: "all") }
+    var keywords by remember(lang) { mutableStateOf(settings.newsKeywords[lang].orEmpty()) }
+    var categoryMenu by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
     val http = vm.container.http
     LaunchedEffect(lang, refresh) {
         isRefreshing = true
-        load = loadNews(sources) { NewsFetcher(http).fetchItems(it.feedUrl, 25) }
+        val stored = vm.container.database.headlines().getRecent(lang, 100).mapNotNull { row ->
+            val source = sources.firstOrNull { it.id == row.sourceId } ?: return@mapNotNull null
+            Headline(NewsItem(row.title, row.snippet, row.articleUrl, row.externalId, row.publishedAtMs, row.imageUrl), source)
+        }
+        load = load.copy(headlines = stored)
+        val fresh = loadNews(sources) { source ->
+            val items = NewsFetcher(http).fetchItems(source.feedUrl, 25)
+            vm.container.database.headlines().replaceSource(lang, source.id, items.map { item ->
+                com.ziaee.zabankhan.data.HeadlineEntity(source.id, source.name, item.guid, item.title, item.snippet, item.link,
+                    item.imageUrl, item.publishedAtMs, com.ziaee.zabankhan.data.nowMs(), lang)
+            })
+            items
+        }
+        load = if (fresh.headlines.isEmpty() && fresh.failed > 0) NewsLoad(stored, fresh.failed) else fresh
         isRefreshing = false
     }
     LaunchedEffect(selected) {
@@ -78,10 +102,30 @@ fun NewsScreen(vm: AppViewModel, settings: AppSettings, onBack: () -> Unit, onOp
                 stringResource(Res.string.news_no_sources_body), Modifier.fillMaxSize())
             return@Column
         }
+        val visible = personalizeNews(load.headlines.filter { category == "all" || category in it.source.categories }, keywords, settings.newsOnlyMatching)
         PullToRefreshBox(isRefreshing = isRefreshing, onRefresh = { refresh++ }, modifier = Modifier.fillMaxSize()) {
             LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(16.dp)) {
+                item {
+                    val categories = (listOf("all") + sources.flatMap { it.categories }).distinct()
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Box {
+                            TextButton(onClick = { categoryMenu = true }) { Text(category) }
+                            DropdownMenu(expanded = categoryMenu, onDismissRequest = { categoryMenu = false }) {
+                                categories.forEach { value -> DropdownMenuItem(text = { Text(value) }, onClick = {
+                                    category = value; categoryMenu = false; scope.launch { vm.container.settings.setNewsCategory(lang, value) }
+                                }) }
+                            }
+                        }
+                    }
+                    OutlinedTextField(keywords, { value -> keywords = value; scope.launch { vm.container.settings.setNewsKeywords(lang, value) } },
+                        modifier = Modifier.fillMaxWidth(), label = { Text(stringResource(Res.string.batch_e_news_keywords)) })
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Checkbox(settings.newsOnlyMatching, { value -> scope.launch { vm.container.settings.setNewsOnlyMatching(value) } })
+                        Text(stringResource(Res.string.batch_e_news_only_matching))
+                    }
+                }
                 item { NewsStatus(load.failed > 0 && load.headlines.isNotEmpty(), !isRefreshing && load.headlines.isEmpty(), { refresh++ }) }
-                items(load.headlines, key = { it.source.id + it.item.guid }) { headline ->
+                items(visible, key = { it.source.id + it.item.guid }) { headline ->
                     NewsHeadlineRow(headline, onClick = { previewError = false; selected = headline })
                 }
             }
