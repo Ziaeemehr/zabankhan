@@ -4,7 +4,7 @@
         <item quantity="one">روز پیاپی</item>
         <item quantity="other">روز پیاپی</item>
     </plurals>
-    <string name="home_minutes_week">دقیقه در این هفته</string>
+    <string name="home_new_words_week">واژهٔ تازه این هفته</string>
     <string name="review_learned_words">واژه‌های آموخته‌شده</string>
     <string name="activity_goal_done">هدف امروز تکمیل شد ✓</string>
     <string name="home_goal_caption">امروز %1$s از %2$s دقیقه</string>

@@ -102,7 +102,7 @@ import com.ziaee.zabankhan.watch.WatchHistory
         LazyColumn(Modifier.fillMaxSize()) {
             if (statsReady) item {
                 ProgressCard(
-                    HomeProgress(activityStreak(activity, today, reviews, attemptsState.orEmpty()), activityMinutes(activity, today, 7).total.roundToInt(),
+                    HomeProgress(activityStreak(activity, today, reviews, attemptsState.orEmpty()), allWords.count { it.createdAtMs >= com.ziaee.zabankhan.data.nowMs() - 7 * 86_400_000L },
                         allWords.count { it.srsState().status() == VocabStatus.LEARNED }, activityMinutes(activity, today, 1).total.roundToInt(), settings.dailyGoalMinutes),
                     onOpen = progress, onSavedWords = words,
                     modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
