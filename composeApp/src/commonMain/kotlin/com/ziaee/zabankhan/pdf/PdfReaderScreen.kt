@@ -1,5 +1,8 @@
 package com.ziaee.zabankhan.pdf
 
+import com.ziaee.zabankhan.ui.TranslationSourceIcon
+import com.ziaee.zabankhan.translate.ExampleTranslation
+
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.text.selection.SelectionContainer
@@ -385,7 +388,7 @@ private data class PdfRange(val page: Int, val first: Int, val last: Int, val wo
             matches = vm.container.ownDictionary.lookupOrEmpty(source.word, dictionaryLang)
                 .filter { dictionaryIdiomMatches(it.word, source.word) }.map { entry ->
                     val result = vm.container.ownDictionary.meaningOrEnglish(entry, dictionaryLang, translationTarget, dictionaryTranslator)
-                    PdfDictionaryMatch(entry.word, result.meanings.take(4).joinToString("؛ "), result.machineTranslated)
+                    PdfDictionaryMatch(entry.word, result.meanings.take(4).joinToString("؛ "), result.machineTranslated, result.translations)
                 }
         }
         PdfTranslationSheet(vm, settings, text, source, translationTarget,
@@ -598,7 +601,7 @@ private data class PdfRange(val page: Int, val first: Int, val last: Int, val wo
 }
 
 /** Expressions found in the selected text, ready to save with their dictionary meaning. */
-internal data class PdfDictionaryMatch(val phrase: String, val meaning: String, val machineTranslated: Boolean = false)
+internal data class PdfDictionaryMatch(val phrase: String, val meaning: String, val machineTranslated: Boolean = false, val translations: List<ExampleTranslation> = emptyList())
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
@@ -609,6 +612,7 @@ private fun PdfTranslationSheet(
     onDictionary: () -> Unit, dismiss: () -> Unit,
 ) {
     val repository = vm.container.translations(settings)
+    var provenance by remember(source, target) { mutableStateOf<ExampleTranslation?>(null) }
     var translation by remember(source, target) { mutableStateOf<String?>(null) }
     var loading by remember(source, target) { mutableStateOf(true) }
     var attempt by remember(source, target) { mutableIntStateOf(0) }
@@ -627,7 +631,8 @@ private fun PdfTranslationSheet(
         loading = true
         translation = null
         try {
-            translation = repository.translateText(source.word, text.lang, target, source.sentence).getOrThrow()
+            provenance = repository.translateTextWithSource(source.word, text.lang, target, source.sentence).getOrThrow()
+            translation = provenance?.text
         } catch (cancelled: CancellationException) { throw cancelled }
         catch (_: Exception) { translation = null }
         finally { loading = false }
@@ -652,8 +657,7 @@ private fun PdfTranslationSheet(
                             textDirection = if (rtl) TextDirection.Rtl else TextDirection.Ltr),
                             textAlign = if (rtl) TextAlign.Right else TextAlign.Left)
                     }
-                    Icon(Icons.Default.Translate, stringResource(Res.string.pdf_translation_engine), Modifier.size(16.dp),
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                    TranslationSourceIcon(provenance)
                 }
             }
             dictionaryMatches.forEach { match ->
@@ -661,8 +665,8 @@ private fun PdfTranslationSheet(
                     Column(Modifier.padding(12.dp)) {
                         Text(match.phrase, style = contentStyle(match.phrase))
                         Text(match.meaning, style = contentStyle(match.meaning))
-                        if (match.machineTranslated) Icon(Icons.Default.Translate,
-                            stringResource(Res.string.own_dictionary_machine_translation), Modifier.size(16.dp))
+                        if (match.translations.isEmpty()) TranslationSourceIcon(com.ziaee.zabankhan.translate.ExampleSource.DICTIONARY)
+                        else match.translations.distinctBy { it.source to it.engine }.forEach { TranslationSourceIcon(it) }
                         var matchSaved by remember(source, target, match) { mutableStateOf(false) }
                         var matchSaving by remember(source, target, match) { mutableStateOf(false) }
                         TextButton(enabled = match.meaning.isNotBlank() && !matchSaved && !matchSaving, onClick = {

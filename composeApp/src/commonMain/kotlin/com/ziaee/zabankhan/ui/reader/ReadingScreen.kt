@@ -1,5 +1,8 @@
 package com.ziaee.zabankhan.ui.reader
 
+import com.ziaee.zabankhan.ui.TranslationSourceIcon
+import com.ziaee.zabankhan.translate.ExampleTranslation
+
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.ui.input.pointer.*
@@ -175,7 +178,7 @@ fun ReadingScreen(vm: AppViewModel, settings: AppSettings, textId: Long, onBack:
     var findIndex by remember(findQuery) { mutableIntStateOf(0) }
     var findRevision by remember { mutableIntStateOf(0) }
     var shadowRange by remember(textId) { mutableStateOf<IntRange?>(null) }
-    val translations = remember(textId, text.body, settings.meaningLang) { mutableStateMapOf<Int, Pair<ChunkStatus, String?>>() }
+    val translations = remember(textId, text.body, settings.meaningLang) { mutableStateMapOf<Int, Pair<ChunkStatus, ExampleTranslation?>>() }
     val shadowSentences = remember(parts, lang) { parts.flatMap { part ->
         splitSentences(part.block.plainText, lang).map { range ->
             part.block.plainText.substring(range) to
@@ -203,7 +206,7 @@ fun ReadingScreen(vm: AppViewModel, settings: AppSettings, textId: Long, onBack:
         ChunkState(part.block, part.sourceOffsets, status,
             splitSentences(part.block.plainText, lang).map { range ->
                 SentenceBoundary(part.block.plainText.substring(range), range.first.toDouble(), (range.last + 1 - range.first).toDouble())
-            }, translations[index]?.second, translations[index]?.first ?: ChunkStatus.PENDING)
+            }, translations[index]?.second?.text, translations[index]?.first ?: ChunkStatus.PENDING, translations[index]?.second)
     }
     val findMatches = remember(parts, findQuery) { parts.flatMapIndexed { index, part ->
         findTextMatches(part.block.plainText, findQuery).map { index to it }
@@ -302,7 +305,7 @@ fun ReadingScreen(vm: AppViewModel, settings: AppSettings, textId: Long, onBack:
                 if (part.block.type != BlockType.IMAGE && translations[index] == null) {
                     translations[index] = ChunkStatus.LOADING to null
                     scope.launch {
-                        val result = repository.translateText(part.block.spokenText, text.lang, targetLang)
+                        val result = repository.translateTextWithSource(part.block.spokenText, text.lang, targetLang)
                         translations[index] = (if (result.isSuccess) ChunkStatus.READY else ChunkStatus.ERROR) to result.getOrNull()
                     }
                 }
@@ -857,6 +860,7 @@ private fun ChunkParagraph(
                             style = LocalTextStyle.current.copy(textDirection = TextDirection.Content),
                             modifier = Modifier.fillMaxWidth()
                         )
+                        TranslationSourceIcon(chunk.translationSource)
                     }
                     ChunkStatus.LOADING -> Text(
                         stringResource(Res.string.translation_loading),

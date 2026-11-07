@@ -30,10 +30,14 @@ fun OwnDictionaryBlock(matches: List<DictionaryMeaning>) {
                 listOfNotNull(entry.gender, entry.pos.takeIf(String::isNotBlank)).forEach { label ->
                     SuggestionChip(onClick = {}, label = { Text(label) })
                 }
-                if (match.machineTranslated) Icon(Icons.Default.Translate,
-                    stringResource(Res.string.own_dictionary_machine_translation), Modifier.size(16.dp))
+
             }
-            match.meanings.take(4).forEach { Text(it, style = contentStyle(it)) }
+            match.meanings.take(4).forEachIndexed { index, meaning ->
+                Text(meaning, style = contentStyle(meaning))
+                val translation = match.translations.getOrNull(index)
+                if (translation != null) com.ziaee.zabankhan.ui.TranslationSourceIcon(translation)
+                else com.ziaee.zabankhan.ui.TranslationSourceIcon(com.ziaee.zabankhan.translate.ExampleSource.DICTIONARY)
+            }
             entry.example?.split('\t')?.filter(String::isNotBlank)?.forEach {
                 Text(it, style = MaterialTheme.typography.bodySmall.merge(contentStyle(it)))
             }

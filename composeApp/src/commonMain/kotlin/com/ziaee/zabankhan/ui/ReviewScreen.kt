@@ -1,5 +1,8 @@
 package com.ziaee.zabankhan.ui
 
+import com.ziaee.zabankhan.ui.TranslationSourceIcon
+import com.ziaee.zabankhan.translate.ExampleTranslation
+
 // Port of FrenchReader ui/VocabReviewScreen.kt + ui/VocabFlashcard.kt (overview, box ladder, flip card, answers, summary).
 // Scheduling stays zabankhan's (srs package, VocabDao); French assumptions go through LanguageSpec / the entry's lang.
 import androidx.compose.animation.AnimatedContent
@@ -127,7 +130,7 @@ class ReviewViewModel(private val container: AppContainer, private val settings:
     var studyTimeMs by mutableLongStateOf(0L); private set
     var nextScheduledAtMs by mutableStateOf<Long?>(null); private set
     var listNames by mutableStateOf<Map<Long, String>>(emptyMap()); private set
-    var sentenceTranslation by mutableStateOf<String?>(null); private set
+    var sentenceTranslation by mutableStateOf<ExampleTranslation?>(null); private set
     var sentenceTranslationLoading by mutableStateOf(false); private set
     var sentenceTranslationError by mutableStateOf(false); private set
     var pronunciationEnabled by mutableStateOf(settings.cardPronunciationPractice); private set
@@ -283,7 +286,7 @@ class ReviewViewModel(private val container: AppContainer, private val settings:
         sentenceTranslationLoading = true; sentenceTranslationError = false
         viewModelScope.launch {
             val result = try {
-                container.translations(settings).translateText(entry.sentence, entry.lang, target)
+                container.translations(settings).translateTextWithSource(entry.sentence, entry.lang, target)
             } catch (e: CancellationException) { throw e } catch (e: Exception) { Result.failure(e) }
             if (slot !== requested || meaningTarget != target) return@launch
             result.fold({ sentenceTranslation = it }, { sentenceTranslationError = true })
@@ -669,7 +672,7 @@ internal fun EntryFlashcard(
     onFlip: () -> Unit,
     onPlayWord: () -> Unit,
     onPlaySentence: () -> Unit,
-    sentenceTranslation: String?,
+    sentenceTranslation: ExampleTranslation?,
     sentenceTranslationLoading: Boolean,
     sentenceTranslationError: Boolean,
     onEdit: () -> Unit,
@@ -731,7 +734,10 @@ internal fun EntryFlashcard(
                 when {
                     sentenceTranslationLoading && sentenceTranslation == null -> Text(stringResource(Res.string.translation_loading), color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.labelSmall)
                     sentenceTranslationError -> Text(stringResource(Res.string.error_translation_unavailable), color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.labelSmall)
-                    sentenceTranslation != null -> Text(sentenceTranslation, color = MaterialTheme.colorScheme.onSurfaceVariant, fontStyle = FontStyle.Italic, style = centeredContent(MaterialTheme.typography.bodySmall))
+                    sentenceTranslation != null -> {
+                        Text(sentenceTranslation.text, color = MaterialTheme.colorScheme.onSurfaceVariant, fontStyle = FontStyle.Italic, style = centeredContent(MaterialTheme.typography.bodySmall))
+                        TranslationSourceIcon(sentenceTranslation)
+                    }
                 }
             }
         }

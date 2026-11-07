@@ -74,7 +74,7 @@ private fun JsonElement?.dictionaryStrings(): List<String> = when (this) {
 
 @Serializable
 private data class DictionaryIndex(val lang: String, val version: JsonPrimitive, val shards: List<String>)
-data class DictionaryMeaning(val entry: OwnDictionaryEntry, val meanings: List<String>, val machineTranslated: Boolean = false)
+data class DictionaryMeaning(val entry: OwnDictionaryEntry, val meanings: List<String>, val machineTranslated: Boolean = false, val translations: List<com.ziaee.zabankhan.translate.ExampleTranslation> = emptyList())
 data class DictionaryDownload(val completed: Int, val total: Int, val bytes: Long) {
     val complete: Boolean get() = total > 0 && completed == total
 }
@@ -150,16 +150,14 @@ class OwnDictionary(
         translations: TranslationRepository): DictionaryMeaning {
         if (target != Languages.PERSIAN.code) return DictionaryMeaning(entry, entry.en.orEmpty())
         if (entry.persian.isNotEmpty()) return DictionaryMeaning(entry, entry.persian)
-        val key = translationCacheKey("own-dictionary-fa", lang.code, entry.pos, entry.word)
-        cache.get(key)?.takeIf(String::isNotBlank)?.let {
-            return DictionaryMeaning(entry, json.decodeFromString<List<String>>(it), true)
-        }
+        // The repository caches each gloss together with its provider. Older dictionary-only
+        // caches contain text alone and cannot identify who produced it.
         val translated = entry.en.orEmpty().take(4).mapNotNull { gloss ->
-            translations.translateText(gloss, Languages.ENGLISH.code, Languages.PERSIAN.code).getOrNull()
-                ?.takeIf(String::isNotBlank)
+            translations.translateTextWithSource(gloss, Languages.ENGLISH.code, Languages.PERSIAN.code).getOrNull()
+                ?.takeIf { it.text.isNotBlank() }
         }
-        if (translated.isNotEmpty() && translated.size == entry.en.orEmpty().take(4).size) cache.put(key, JsonArray(translated.map(::JsonPrimitive)).toString())
-        return DictionaryMeaning(entry, translated.ifEmpty { entry.en.orEmpty() }, translated.isNotEmpty())
+        return DictionaryMeaning(entry, translated.map { it.text }.ifEmpty { entry.en.orEmpty() },
+            translated.isNotEmpty(), translated)
     }
     suspend fun downloadAll(lang: LanguageSpec, progress: (DictionaryDownload) -> Unit) = withContext(Dispatchers.IO) {
         require(lang.ownDictionaryAvailable)

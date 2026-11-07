@@ -4,9 +4,9 @@ import com.ziaee.zabankhan.translate.llm.LlmError
 import kotlinx.coroutines.CancellationException
 import kotlinx.io.IOException
 
-enum class ExampleSource { EDITED, BUNDLED, MODEL, GOOGLE }
+enum class ExampleSource { EDITED, BUNDLED, MODEL, GOOGLE, DICTIONARY }
 
-data class ExampleTranslation(val text: String, val source: ExampleSource, val modelError: LlmError.Kind? = null)
+data class ExampleTranslation(val text: String, val source: ExampleSource, val modelError: LlmError.Kind? = null, val engine: String? = null)
 
 internal fun exampleModelError(error: Throwable): LlmError.Kind = when (error) {
     is LlmError -> error.kind

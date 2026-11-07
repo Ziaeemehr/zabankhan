@@ -23,6 +23,7 @@ internal fun MeaningOptionPills(
     targetLang: String,
     enabled: Boolean = true,
     quietMeaning: String? = null,
+    sourceIcon: @Composable (MeaningOption) -> Unit = {},
     onSelect: (MeaningOption) -> Unit
 ) {
     CompositionLocalProvider(LocalLayoutDirection provides if (com.ziaee.zabankhan.lang.Languages.byCode(targetLang)?.direction == com.ziaee.zabankhan.lang.TextDir.RTL) LayoutDirection.Rtl else LayoutDirection.Ltr) {
@@ -40,6 +41,7 @@ internal fun MeaningOptionPills(
                         else if (option.text == quietMeaning) MaterialTheme.colorScheme.onSurfaceVariant
                         else MaterialTheme.colorScheme.onSurface) {
                     Row(Modifier.padding(horizontal = 10.dp, vertical = 5.dp), verticalAlignment = Alignment.CenterVertically) {
+                        sourceIcon(option)
                         Text(option.text, style = MaterialTheme.typography.bodyMedium.copy(fontFamily = readerContentFamily(option.text)), maxLines = 1,
                             overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
                         option.gloss?.let { gloss ->

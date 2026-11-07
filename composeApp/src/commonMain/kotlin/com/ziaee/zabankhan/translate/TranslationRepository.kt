@@ -9,7 +9,7 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.serialization.json.*
 
 /** One dictionary group in the target language. */
-data class MeaningSense(val pos: String, val meanings: List<String>)
+data class MeaningSense(val pos: String, val meanings: List<String>, val engine: String? = null)
 data class WordMeaning(val primary: String, val senses: List<MeaningSense>, val engine: String)
 
 class TranslationRepository(private val http: HttpClient, private val cache: KeyValueCache, private val llm: LlmTranslator?) {
@@ -19,26 +19,30 @@ class TranslationRepository(private val http: HttpClient, private val cache: Key
     private val bundledSentences = mutableMapOf<String, com.ziaee.zabankhan.content.BundledSentenceTranslations>()
     private val engines = listOf("google-gtx", "google-clients5", "mymemory")
 
-    suspend fun translateText(text: String, source: String, target: String, sentenceContext: String? = null): Result<String> = result {
-        overrides.getOverride(text, source, target)?.let { return@result it }
+    suspend fun translateText(text: String, source: String, target: String, sentenceContext: String? = null): Result<String> =
+        translateTextWithSource(text, source, target, sentenceContext).map { it.text }
+
+    suspend fun translateTextWithSource(text: String, source: String, target: String, sentenceContext: String? = null): Result<ExampleTranslation> = result {
+        overrides.getOverride(text, source, target)?.let { return@result ExampleTranslation(it, ExampleSource.EDITED) }
         Languages.byCode(TranslationService.baseLanguage(source))?.let { spec ->
             val bundled = bundledSentences[spec.code] ?: com.ziaee.zabankhan.content.BundledSentenceTranslations.forLanguage(spec)
                 .also { bundledSentences[spec.code] = it }
-            bundled.get(text, target)?.let { return@result it }
+            bundled.get(text, target)?.let { return@result ExampleTranslation(it, ExampleSource.BUNDLED) }
         }
-        if (TranslationService.baseLanguage(source) == TranslationService.baseLanguage(target)) return@result text
+        if (TranslationService.baseLanguage(source) == TranslationService.baseLanguage(target)) return@result ExampleTranslation(text, ExampleSource.EDITED)
         if (llm != null) {
-            modelCache.get(text, source, target, contextCacheId(llm.cacheId, sentenceContext))?.let { return@result it }
+            modelCache.get(text, source, target, contextCacheId(llm.cacheId, sentenceContext))?.let { return@result ExampleTranslation(it, ExampleSource.MODEL, engine = llm.cacheId) }
             try {
                 val value = llm.translateLines(listOf(text), sentenceContext, null, target, source).single()
                 modelCache.put(text, source, target, contextCacheId(llm.cacheId, sentenceContext), value)
-                return@result value
+                return@result ExampleTranslation(value, ExampleSource.MODEL, engine = llm.cacheId)
             } catch (cancelled: CancellationException) { throw cancelled
             } catch (_: Exception) { /* Continue through the free providers. */ }
         }
-        for (engine in engines) translations.get(text, source, target, engine)?.let { return@result it }
+        for (engine in engines) translations.get(text, source, target, engine)?.let { return@result ExampleTranslation(it, ExampleSource.GOOGLE, engine = engine) }
         val service = TranslationService(http)
-        service.translate(text, target, source).also { translations.put(text, source, target, service.lastEngine, it) }
+        val value = service.translate(text, target, source).also { translations.put(text, source, target, service.lastEngine, it) }
+        ExampleTranslation(value, ExampleSource.GOOGLE, engine = service.lastEngine)
     }
 
     private fun contextCacheId(engine: String, context: String?): String =
@@ -55,13 +59,13 @@ class TranslationRepository(private val http: HttpClient, private val cache: Key
             try {
                 val value = llm.meaning(word, sentence, target, source)
                 modelCache.putMeaning(word, sentence, source, target, llm.cacheId, value)
-                val alternatives = try { googleMeaning(word, sentence, source, target).senses }
+                val alternatives = try { googleMeaning(word, sentence, source, target).let { value -> value.senses.map { it.copy(engine = value.engine) } } }
                     catch (cancelled: CancellationException) { throw cancelled }
                     catch (_: Exception) { emptyList() }
                 val seen = mutableSetOf(normalizePersian(value))
                 val extra = alternatives.mapNotNull { sense ->
                     sense.meanings.filter { seen.add(normalizePersian(it)) }.takeIf { it.isNotEmpty() }
-                        ?.let { MeaningSense(sense.pos, it) }
+                        ?.let { MeaningSense(sense.pos, it, sense.engine) }
                 }
                 return@result WordMeaning(value, listOf(MeaningSense("", listOf(value))) + extra, llm.cacheId)
             } catch (cancelled: CancellationException) { throw cancelled
@@ -120,7 +124,7 @@ private suspend fun <T> result(block: suspend () -> T): Result<T> = try { Result
 private fun encodeMeaning(value: WordMeaning): String = buildJsonObject {
     put("primary", value.primary); put("engine", value.engine)
     putJsonArray("senses") { value.senses.forEach { sense -> add(buildJsonObject {
-        put("pos", sense.pos); put("meanings", JsonArray(sense.meanings.map(::JsonPrimitive)))
+        sense.engine?.let { put("engine", it) }; put("pos", sense.pos); put("meanings", JsonArray(sense.meanings.map(::JsonPrimitive)))
     }) } }
 }.toString()
 private fun decodeMeaning(raw: String): WordMeaning {
@@ -128,6 +132,6 @@ private fun decodeMeaning(raw: String): WordMeaning {
     return WordMeaning(value.getValue("primary").jsonPrimitive.content,
         value.getValue("senses").jsonArray.map {
             val sense = it.jsonObject
-            MeaningSense(sense.getValue("pos").jsonPrimitive.content, sense.getValue("meanings").jsonArray.map { term -> term.jsonPrimitive.content })
+            MeaningSense(sense.getValue("pos").jsonPrimitive.content, sense.getValue("meanings").jsonArray.map { term -> term.jsonPrimitive.content }, sense["engine"]?.jsonPrimitive?.contentOrNull)
         }, value.getValue("engine").jsonPrimitive.content)
 }

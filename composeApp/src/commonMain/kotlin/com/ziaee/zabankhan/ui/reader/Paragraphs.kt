@@ -111,7 +111,8 @@ internal data class ChunkState(
     val status: ChunkStatus = ChunkStatus.PENDING,
     val sentences: List<SentenceBoundary> = emptyList(),
     val translation: String? = null,
-    val translationStatus: ChunkStatus = ChunkStatus.PENDING
+    val translationStatus: ChunkStatus = ChunkStatus.PENDING,
+    val translationSource: com.ziaee.zabankhan.translate.ExampleTranslation? = null
 ) {
     val text get() = block.plainText
     fun readingDisplayText() = text

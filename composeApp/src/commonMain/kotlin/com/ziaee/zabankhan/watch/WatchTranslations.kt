@@ -11,6 +11,7 @@ internal data class WatchTranslationState(
     val loading: Boolean = false,
     val failed: Boolean = false,
     val corrected: Boolean = false,
+    val provenance: com.ziaee.zabankhan.translate.ExampleTranslation? = null,
 )
 
 /** A window is bounded by sentence units, even when adjacent units have identical text. */
@@ -23,6 +24,7 @@ internal class WatchTranslations(
     private val overrides: TranslationOverrides,
     private val source: String,
     private val target: String,
+    private val translateWithSource: (suspend (String) -> Result<com.ziaee.zabankhan.translate.ExampleTranslation>)? = null,
     private val translate: suspend (String) -> Result<String>,
 ) {
     val states = mutableStateMapOf<String, WatchTranslationState>()
@@ -37,8 +39,9 @@ internal class WatchTranslations(
                 val corrected = overrides.getOverride(text, source, target)
                 states[text] = if (corrected != null) WatchTranslationState(text = corrected, corrected = true)
                 else {
-                    val result = translate(text)
-                    WatchTranslationState(text = result.getOrNull(), failed = result.isFailure)
+                    val sourced = translateWithSource?.invoke(text)
+                    val result = sourced?.map { it.text } ?: translate(text)
+                    WatchTranslationState(text = result.getOrNull(), failed = result.isFailure, provenance = sourced?.getOrNull())
                 }
             } catch (cancelled: CancellationException) {
                 states.remove(text)
