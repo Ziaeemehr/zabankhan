@@ -10,6 +10,7 @@ import androidx.compose.ui.text.style.TextAlign
 import org.jetbrains.compose.resources.StringResource
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.ui.draw.clip
@@ -318,7 +319,24 @@ internal fun StepperSetting(label: String, value: Int, minimum: Int, maximum: In
         IconButton(onClick = { onChange(settingsStep(value, -1, minimum, maximum)) }, enabled = value > minimum) {
             Text("−", style = MaterialTheme.typography.titleLarge)
         }
-        Text(value.toString(), style = MaterialTheme.typography.bodyMedium)
+        // Typing the number avoids dozens of taps for big jumps (10 -> 100).
+        var draft by remember(value) { mutableStateOf(value.toString()) }
+        androidx.compose.foundation.text.BasicTextField(
+            value = draft,
+            onValueChange = { text ->
+                draft = text.filter { it.isDigit() }.take(6)
+                draft.toIntOrNull()?.takeIf { it in minimum..maximum && it != value }?.let(onChange)
+            },
+            singleLine = true,
+            keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Number),
+            textStyle = MaterialTheme.typography.bodyMedium.copy(color = MaterialTheme.colorScheme.onSurface, textAlign = TextAlign.Center),
+            cursorBrush = androidx.compose.ui.graphics.SolidColor(MaterialTheme.colorScheme.primary),
+            modifier = Modifier.width(56.dp).onFocusChanged { if (!it.isFocused) draft = value.toString() },
+            decorationBox = { inner ->
+                Box(Modifier.border(1.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(8.dp)).padding(vertical = 6.dp),
+                    contentAlignment = Alignment.Center) { inner() }
+            },
+        )
         IconButton(onClick = { onChange(settingsStep(value, 1, minimum, maximum)) }, enabled = value < maximum) {
             Text("+", style = MaterialTheme.typography.titleLarge)
         }
