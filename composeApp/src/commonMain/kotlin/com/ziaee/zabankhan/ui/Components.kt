@@ -19,7 +19,13 @@ import org.jetbrains.compose.resources.stringResource
     Languages.ENGLISH.code -> Res.string.language_english
     else -> Res.string.language_french
 })
-fun contentStyle(text: String) = TextStyle(textDirection = TextDirection.Content, textAlign = TextAlign.Start)
+// Inherit the theme style (Vazirmatn); a bare TextStyle would fall back to the system font.
+@Composable
+fun contentStyle(text: String): TextStyle {
+    val base = LocalTextStyle.current.merge(TextStyle(textDirection = TextDirection.Content, textAlign = TextAlign.Start))
+    // Reader themes on iOS use the system font for non-Persian UIs; Persian content always gets Vazirmatn.
+    return if (isRtlText(text)) base.copy(fontFamily = com.ziaee.zabankhan.ui.theme.appFontFamily()) else base
+}
 
 @Composable fun <T> Choice(label: String, value: T, options: List<Pair<T, String>>, onSelect: (T) -> Unit) {
     var expanded by remember { mutableStateOf(false) }

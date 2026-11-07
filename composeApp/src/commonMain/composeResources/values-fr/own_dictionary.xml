@@ -9,4 +9,19 @@
     <string name="own_dictionary_download_failed">Échec du téléchargement. Relancez pour reprendre.</string>
     <string name="own_dictionary_machine_translation">Traduction automatique</string>
     <string name="own_dictionary_forms">Formes</string>
+    <string name="own_compact_all_meanings">Tous les sens (%1$d)</string>
+    <string name="own_compact_examples">Exemples (%1$d)</string>
+    <string name="own_compact_expressions">Expressions (%1$d)</string>
+    <string name="own_compact_conjugation">Conjugaison (%1$d)</string>
+    <string name="own_compact_forms">Formes (%1$d)</string>
+    <string name="own_listen">Écouter</string><string name="own_add_to_leitner">Ajouter à Leitner</string><string name="own_remove_from_leitner">Retirer de Leitner</string><string name="own_more_examples">Plus d’exemples</string><string name="own_expressions">Expressions</string><string name="own_show_more">Afficher plus</string><string name="own_show_less">Afficher moins</string>
+    <string name="own_search">Rechercher dans le dictionnaire</string><string name="own_search_hint">Rechercher un mot</string><string name="own_search_results">Résultats</string>
+    <string name="own_form_ind">indicatif</string><string name="own_form_subj">subjonctif</string><string name="own_form_cond">conditionnel</string><string name="own_form_imp">impératif</string><string name="own_form_pres">présent</string><string name="own_form_impf">imparfait</string><string name="own_form_fut">futur</string><string name="own_form_past">passé</string><string name="own_form_pp">participe passé</string><string name="own_form_ppr">participe présent</string><string name="own_form_inf">infinitif</string>
+    <string name="own_form_1s">1re personne du singulier</string><string name="own_form_2s">2e personne du singulier</string><string name="own_form_3s">3e personne du singulier</string><string name="own_form_1p">1re personne du pluriel</string><string name="own_form_2p">2e personne du pluriel</string><string name="own_form_3p">3e personne du pluriel</string><string name="own_form_m">masculin</string><string name="own_form_f">féminin</string><string name="own_form_sg">singulier</string><string name="own_form_pl">pluriel</string><string name="own_form_refl">pronominal</string><string name="own_form_form">forme</string>
+    <string name="own_frequency_very_common">très courant</string><string name="own_frequency_common">courant</string><string name="own_show_all_meanings">Afficher les %1$d sens</string>
+    <string name="own_searching">Recherche…</string><string name="own_no_entry">Aucune entrée. Essayez un dictionnaire en ligne.</string><string name="own_search_error">Impossible de charger le dictionnaire. Vérifiez la connexion et réessayez.</string>
+    <string name="own_dictionary_follow_app">Suivre le réglage de l’application</string>
+    <string name="own_dictionary_persian">Persan</string>
+    <string name="own_dictionary_english">Anglais</string>
+    <string name="own_dictionary_meaning_language">Langue des sens : %1$s</string>
 </resources>

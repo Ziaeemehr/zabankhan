@@ -249,10 +249,12 @@
     <string name="action_retry">Réessayer</string>
     <string name="audio_preparing">Préparation de l’audio pour cette section…</string>
     <string name="dictionary_apply_word">Rechercher</string>
+    <string name="dictionary_edit_word">Modifier le mot et le sens</string>
     <string name="dictionary_meaning_english">Sens en anglais</string>
     <string name="dictionary_meaning_persian">Sens en persan</string>
     <string name="dictionary_reset_word">Rétablir</string>
     <string name="dictionary_saved_elsewhere">Déjà enregistré dans %1$d autre(s) contexte(s)</string>
+    <string name="dictionary_source_own">Zabankhan</string>
     <string name="error_translation_unavailable">La traduction n’est pas disponible.</string>
     <string name="font_scale_large">Grande</string>
     <string name="font_scale_medium">Moyenne</string>
@@ -316,6 +318,7 @@
     <string name="translation_loading">Traduction en cours…</string>
     <string name="vocab_list_name_field">Nom de la liste</string>
     <string name="vocab_list_new">Nouvelle liste</string>
+    <string name="vocab_list_select">Choisir une liste</string>
     <string name="vocab_list_uncategorized">Sans catégorie</string>
     <string name="action_close">Fermer</string>
     <string name="gesture_reading_row_2">Mot → sélectionner ; étirer avec les poignées</string>

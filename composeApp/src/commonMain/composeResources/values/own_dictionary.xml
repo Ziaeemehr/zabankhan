@@ -9,4 +9,22 @@
     <string name="own_dictionary_download_failed">Download failed. Tap download to resume.</string>
     <string name="own_dictionary_machine_translation">Machine translation</string>
     <string name="own_dictionary_forms">Forms</string>
+    <string name="own_compact_all_meanings">All meanings (%1$d)</string>
+    <string name="own_compact_examples">Examples (%1$d)</string>
+    <string name="own_compact_expressions">Expressions (%1$d)</string>
+    <string name="own_compact_conjugation">Conjugation (%1$d)</string>
+    <string name="own_compact_forms">Forms (%1$d)</string>
+    <string name="own_listen">Listen</string><string name="own_add_to_leitner">Add to Leitner</string><string name="own_remove_from_leitner">Remove from Leitner</string>
+    <string name="own_more_examples">More examples</string><string name="own_expressions">Expressions</string><string name="own_show_more">Show more</string><string name="own_show_less">Show less</string>
+    <string name="own_search">Search the dictionary</string><string name="own_search_hint">Search a word</string><string name="own_search_results">Results</string>
+    <string name="own_form_ind">indicative</string><string name="own_form_subj">subjunctive</string><string name="own_form_cond">conditional</string><string name="own_form_imp">imperative</string>
+    <string name="own_form_pres">present</string><string name="own_form_impf">imperfect</string><string name="own_form_fut">future</string><string name="own_form_past">past</string><string name="own_form_pp">past participle</string><string name="own_form_ppr">present participle</string><string name="own_form_inf">infinitive</string>
+    <string name="own_form_1s">1st singular</string><string name="own_form_2s">2nd singular</string><string name="own_form_3s">3rd singular</string><string name="own_form_1p">1st plural</string><string name="own_form_2p">2nd plural</string><string name="own_form_3p">3rd plural</string>
+    <string name="own_form_m">masculine</string><string name="own_form_f">feminine</string><string name="own_form_sg">singular</string><string name="own_form_pl">plural</string><string name="own_form_refl">reflexive</string><string name="own_form_form">form</string>
+    <string name="own_frequency_very_common">very common</string><string name="own_frequency_common">common</string><string name="own_show_all_meanings">Show all %1$d meanings</string>
+    <string name="own_searching">Searching…</string><string name="own_no_entry">No entry found. Try a web dictionary.</string><string name="own_search_error">The dictionary could not be loaded. Check your connection and try again.</string>
+    <string name="own_dictionary_follow_app">Follow app setting</string>
+    <string name="own_dictionary_persian">Persian</string>
+    <string name="own_dictionary_english">English</string>
+    <string name="own_dictionary_meaning_language">Meaning language: %1$s</string>
 </resources>

@@ -15,23 +15,35 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.foundation.border
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.ui.input.nestedscroll.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.StrokeJoin
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.PointerType
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.IntSize
+import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.material.icons.filled.DragIndicator
+import androidx.compose.animation.core.Animatable
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.unit.dp
@@ -53,12 +65,21 @@ import com.ziaee.zabankhan.speech.*
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.contentDescription
 import com.ziaee.zabankhan.ui.reader.*
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import org.jetbrains.compose.resources.stringResource
@@ -69,7 +90,7 @@ private data class PdfRange(val page: Int, val first: Int, val last: Int, val wo
 }
 @OptIn(ExperimentalLayoutApi::class, ExperimentalMaterial3Api::class)
 @Composable fun PdfReaderScreen(vm: AppViewModel, settings: AppSettings, text: TextDocument, back: () -> Unit) {
-    val path = requireNotNull(text.pdfPath)
+    val path = rebasePdfPath(requireNotNull(text.pdfPath), AppFiles.filesDir)
     var document by remember(path) { mutableStateOf<PdfDocumentHandle?>(null) }
     var failed by remember(path) { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
@@ -107,6 +128,10 @@ private data class PdfRange(val page: Int, val first: Int, val last: Int, val wo
     var viewportWidth by remember { mutableIntStateOf(0) }
     var viewportHeight by remember { mutableIntStateOf(0) }
     val layout = remember(handle, text.lang) { PdfPageWords(path, handle, text.lang) }
+    // Real heights up front: on iOS aspect queued behind page renders, and a late height change above the viewport broke backward flings.
+    LaunchedEffect(layout) {
+        for (i in 0 until handle.pageCount) if (i !in layout.aspects) runCatching { layout.aspects[i] = handle.pageAspect(i) }
+    }
     val vocab by remember(text.lang) { vm.container.vocab.observeAll(text.lang) }.collectAsState(emptyList())
     val highlights by remember(text.id) { vm.container.database.pdfHighlights().observeForText(text.id) }.collectAsState(emptyList())
     val inkDao = vm.container.database.pdfInk()
@@ -129,9 +154,17 @@ private data class PdfRange(val page: Int, val first: Int, val last: Int, val wo
         }
     }
     var penMode by remember(path) { mutableStateOf(false) }
-    var penColor by remember(path) { mutableStateOf("primary") }
-    var eraser by remember(path) { mutableStateOf(false) }
-    var fingerInk by remember(path) { mutableStateOf(false) }
+    var penColor by rememberSaveable(path) { mutableStateOf("primary") }
+    var penWidth by rememberSaveable(path) { mutableFloatStateOf(.004f) }
+    var highlighter by rememberSaveable(path) { mutableStateOf(false) }
+    var eraser by rememberSaveable(path) { mutableStateOf(false) }
+    var lastInkToolHighlighter by rememberSaveable(path) { mutableStateOf(false) }
+    var fingerInk by rememberSaveable(path) { mutableStateOf(false) }
+    var inkToolbarExpanded by rememberSaveable(path) { mutableStateOf(false) }
+    var inkToolbarMinimized by rememberSaveable(path) { mutableStateOf(false) }
+    var toolbarFractionX by rememberSaveable(path) { mutableFloatStateOf(.5f) }
+    var toolbarFractionY by rememberSaveable(path) { mutableFloatStateOf(.9f) }
+    var recentInkColors by rememberSaveable(path) { mutableStateOf(listOf("primary", "secondary", "tertiary", "#FF222222", "#FFB42318", "#FF1570EF")) }
     var selection by remember(path) { mutableStateOf<ReaderSelection?>(null) }
     var range by remember(path) { mutableStateOf<PdfRange?>(null) }
     var selecting by remember(path) { mutableStateOf(false) }
@@ -218,6 +251,12 @@ private data class PdfRange(val page: Int, val first: Int, val last: Int, val wo
                     Icon(Icons.Default.Gesture, stringResource(Res.string.pdf_select_area), Modifier.size(20.dp),
                         tint = if (areaMode) MaterialTheme.colorScheme.primary else LocalContentColor.current)
                 }
+                IconToggleButton(checked = penMode, enabled = !recognizing, onCheckedChange = {
+                    penMode = it; areaMode = false; range = null
+                }, modifier = Modifier.size(40.dp).semantics { contentDescription = "Pen" }) {
+                    Icon(Icons.Default.Edit, stringResource(Res.string.pdf_pen), Modifier.size(20.dp),
+                        tint = if (penMode) MaterialTheme.colorScheme.primary else LocalContentColor.current)
+                }
                 Box {
                     IconButton(onClick = { overflow = true }, modifier = Modifier.size(40.dp)) { Icon(Icons.Default.MoreVert, stringResource(Res.string.selection_action_more), Modifier.size(20.dp)) }
                     DropdownMenu(expanded = overflow, onDismissRequest = { overflow = false }) {
@@ -228,31 +267,8 @@ private data class PdfRange(val page: Int, val first: Int, val last: Int, val wo
                         DropdownMenuItem(enabled = lastSentence != null,
                             text = { Text(stringResource(Res.string.pdf_translate_sentence)) },
                             onClick = { overflow = false; lastSentence?.let { translate(it, it) } })
-                        DropdownMenuItem(enabled = !recognizing && savedInk != null,
-                            text = { Text(stringResource(Res.string.pdf_pen)) }, onClick = {
-                                overflow = false; penMode = !penMode; areaMode = false; range = null
-                            })
                     }
                 }
-            }
-        }
-        if (penMode) Surface(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp), shape = MaterialTheme.shapes.large, color = MaterialTheme.colorScheme.surfaceVariant) {
-            FlowRow(Modifier.fillMaxWidth().padding(12.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                listOf("primary" to Res.string.highlight_primary, "secondary" to Res.string.highlight_secondary, "tertiary" to Res.string.highlight_tertiary).forEach { (key, label) ->
-                    val swatch = when (key) { "secondary" -> MaterialTheme.colorScheme.secondary; "tertiary" -> MaterialTheme.colorScheme.tertiary; else -> MaterialTheme.colorScheme.primary }
-                    val onSwatch = when (key) { "secondary" -> MaterialTheme.colorScheme.onSecondary; "tertiary" -> MaterialTheme.colorScheme.onTertiary; else -> MaterialTheme.colorScheme.onPrimary }
-                    val description = stringResource(label)
-                    IconToggleButton(checked = penColor == key && !eraser, onCheckedChange = { penColor = key; eraser = false }, modifier = Modifier.size(48.dp).semantics { contentDescription = description }) {
-                        Box(Modifier.size(28.dp).background(swatch, CircleShape), contentAlignment = Alignment.Center) {
-                            if (penColor == key && !eraser) Icon(Icons.Default.Check, null, tint = onSwatch, modifier = Modifier.size(18.dp))
-                        }
-                    }
-                }
-                FilterChip(selected = eraser, onClick = { eraser = !eraser }, label = { Text(stringResource(Res.string.pdf_pen_eraser)) })
-                FilterChip(selected = fingerInk, onClick = { fingerInk = !fingerInk }, label = { Text(stringResource(Res.string.pdf_pen_finger)) })
-                val undoPage = lastInkPage ?: page
-                TextButton(enabled = pageInk(undoPage).isNotEmpty(), onClick = { saveInk(undoPage, pageInk(undoPage).dropLast(1)) }) { Text(stringResource(Res.string.pdf_pen_undo)) }
-                TextButton(enabled = pageInk(page).isNotEmpty(), onClick = { saveInk(page, emptyList()) }) { Text(stringResource(Res.string.pdf_pen_clear)) }
             }
         }
         if (recognizing) LinearProgressIndicator(Modifier.fillMaxWidth())
@@ -288,10 +304,38 @@ private data class PdfRange(val page: Int, val first: Int, val last: Int, val wo
                 }
             }
         }) {
-            Box(Modifier.fillMaxSize().clipToBounds()
+            var toolbarAreaSize by remember { mutableStateOf(IntSize.Zero) }
+            var toolbarSize by remember { mutableStateOf(IntSize.Zero) }
+            val maxToolbarX = (toolbarAreaSize.width - toolbarSize.width).coerceAtLeast(0)
+            val maxToolbarY = (toolbarAreaSize.height - toolbarSize.height).coerceAtLeast(0)
+            val offsetX = remember { Animatable(0f) }
+            val targetX = (toolbarFractionX * maxToolbarX).toInt().coerceIn(0, maxToolbarX)
+            val targetY = (toolbarFractionY * maxToolbarY).toInt().coerceIn(0, maxToolbarY)
+            LaunchedEffect(targetX, toolbarSize, toolbarAreaSize) { offsetX.snapTo(targetX.toFloat()) }
+            val dragModifier = Modifier.offset { IntOffset(offsetX.value.toInt().coerceIn(0, maxToolbarX), targetY) }
+            fun moveToolbar(delta: Offset) {
+                val nextX = (offsetX.value + delta.x).toInt().coerceIn(0, maxToolbarX)
+                val nextY = (targetY + delta.y).toInt().coerceIn(0, maxToolbarY)
+                toolbarFractionX = if (maxToolbarX == 0) 0f else nextX.toFloat() / maxToolbarX
+                toolbarFractionY = if (maxToolbarY == 0) 0f else nextY.toFloat() / maxToolbarY
+                scope.launch { offsetX.snapTo(nextX.toFloat()) }
+            }
+            fun settleToolbar() {
+                val edge = with(density) { 24.dp.roundToPx() }
+                val x = offsetX.value.toInt().coerceIn(0, maxToolbarX)
+                val target = when { x <= edge -> 0; maxToolbarX - x <= edge -> maxToolbarX; else -> null }
+                if (target != null) scope.launch {
+                    offsetX.animateTo(target.toFloat(), tween(200))
+                    toolbarFractionX = if (maxToolbarX == 0) 0f else target.toFloat() / maxToolbarX
+                }
+            }
+            BoxWithConstraints(Modifier.fillMaxSize().clipToBounds()
                 .scrollable(horizontalPan, Orientation.Horizontal,
                     enabled = zoom > 1f && !areaMode && !(penMode && fingerInk))
                 .nestedScroll(verticalPan)) {
+                LaunchedEffect(maxWidth, maxHeight) {
+                    toolbarAreaSize = IntSize(with(density) { maxWidth.roundToPx() }, with(density) { maxHeight.roundToPx() })
+                }
                 LazyColumn(state = list, userScrollEnabled = !areaMode && !(penMode && fingerInk),
                     modifier = Modifier.fillMaxSize().graphicsLayer {
                         scaleX = zoom; scaleY = zoom
@@ -300,7 +344,9 @@ private data class PdfRange(val page: Int, val first: Int, val last: Int, val wo
                     }, verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     items((0 until handle.pageCount).toList(), key = { it }) { index ->
                         PdfPage(handle, layout, index, renderZoom, areaMode, range?.takeIf { it.page == index }, highlights.filter { it.page == index },
-                            penMode = penMode, penColor = penColor, eraser = eraser, fingerInk = fingerInk,
+                            listState = list,
+                            penMode = penMode, penColor = penColor, penWidth = penWidth, highlighter = highlighter,
+                            eraser = eraser, fingerInk = fingerInk,
                             ink = pageInk(index),
                             onInk = { saveInk(index, it) },
                             onError = { failed = true },
@@ -324,6 +370,8 @@ private data class PdfRange(val page: Int, val first: Int, val last: Int, val wo
                                 scope.launch {
                                     recognizing = true
                                     try {
+                                        // Area mode disables new scrolling; also wait out any existing fling.
+                                        if (handle.deferWorkWhileScrolling) snapshotFlow { list.isScrollInProgress }.first { !it }
                                         val recognized = withContext(Dispatchers.Default) {
                                             val highResolution = handle.renderPage(index, OcrRegionFilter.renderWidth(rect, handle.pageAspect(index), image.width))
                                             createOcrEngine().recognizeWords(cropPdfImage(highResolution, rect), text.lang)
@@ -337,6 +385,34 @@ private data class PdfRange(val page: Int, val first: Int, val last: Int, val wo
                             })
                     }
                 }
+            }
+            if (penMode) {
+                val undoPage = lastInkPage ?: page
+                PencilDoubleTapEffect(enabled = penMode, onToggle = {
+                    if (eraser) { eraser = false; highlighter = lastInkToolHighlighter }
+                    else { eraser = true; highlighter = false }
+                })
+                PdfInkToolbar(
+                    modifier = dragModifier.onSizeChanged { toolbarSize = it },
+                    onMove = { delta -> moveToolbar(delta) }, onDragEnd = { settleToolbar() },
+                    minimized = inkToolbarMinimized, expanded = inkToolbarExpanded,
+                    penColor = penColor, recentColors = recentInkColors, penWidth = penWidth,
+                    eraser = eraser, highlighter = highlighter, fingerInk = fingerInk,
+                    onMinimize = { inkToolbarMinimized = true }, onRestore = { inkToolbarMinimized = false },
+                    onExpand = { inkToolbarExpanded = !inkToolbarExpanded },
+                    onColor = { color ->
+                        penColor = color
+                        if (eraser) { highlighter = false; lastInkToolHighlighter = false }
+                        eraser = false
+                        recentInkColors = (listOf(color) + recentInkColors.filterNot { it == color }).take(6)
+                    },
+                    onWidth = { penWidth = it }, onEraser = { eraser = it; if (it) highlighter = false else lastInkToolHighlighter = false },
+                    onHighlighter = { highlighter = it; if (it) { eraser = false; lastInkToolHighlighter = true } else lastInkToolHighlighter = false }, onFinger = { fingerInk = it },
+                    onToggleEraser = { if (eraser) { eraser = false; highlighter = lastInkToolHighlighter } else { if (!highlighter) lastInkToolHighlighter = false; eraser = true; highlighter = false } },
+                    onUndo = { if (pageInk(undoPage).isNotEmpty()) saveInk(undoPage, pageInk(undoPage).dropLast(1)) },
+                    onClear = { if (pageInk(page).isNotEmpty()) saveInk(page, emptyList()) },
+                    canUndo = pageInk(undoPage).isNotEmpty(), canClear = pageInk(page).isNotEmpty()
+                )
             }
         }
     }
@@ -385,8 +461,8 @@ private data class PdfRange(val page: Int, val first: Int, val last: Int, val wo
         val dictionaryTranslator = vm.container.translations(settings)
         var matches by remember(source, translationTarget, dictionaryLang) { mutableStateOf(emptyList<PdfDictionaryMatch>()) }
         LaunchedEffect(source, translationTarget, dictionaryLang, dictionaryTranslator) {
-            matches = vm.container.ownDictionary.lookupOrEmpty(source.word, dictionaryLang)
-                .filter { dictionaryIdiomMatches(it.word, source.word) }.map { entry ->
+            val lookup = vm.container.ownDictionary.lookupOrEmpty(source.word, dictionaryLang, source.sentence)
+            matches = lookup.idioms.map { entry ->
                     val result = vm.container.ownDictionary.meaningOrEnglish(entry, dictionaryLang, translationTarget, dictionaryTranslator)
                     PdfDictionaryMatch(entry.word, result.meanings.take(4).joinToString("؛ "), result.machineTranslated, result.translations)
                 }
@@ -418,15 +494,17 @@ private data class PdfRange(val page: Int, val first: Int, val last: Int, val wo
 
 @Composable private fun PdfPage(handle: PdfDocumentHandle, layout: PdfPageWords, index: Int, renderZoom: Float, areaMode: Boolean,
     selection: PdfRange?, highlights: List<PdfHighlight>,
-    penMode: Boolean, penColor: String, eraser: Boolean, fingerInk: Boolean,
+    listState: LazyListState,
+    penMode: Boolean, penColor: String, penWidth: Float, highlighter: Boolean, eraser: Boolean, fingerInk: Boolean,
     ink: List<InkStroke>, onInk: (List<InkStroke>) -> Unit, onError: () -> Unit,
     onTap: (List<PdfWord>, PdfWord) -> Unit, onRange: (Int, Int, List<PdfWord>, Rect) -> Unit, onRangeEnd: () -> Unit, onDoubleTap: (Offset) -> Unit,
     onArea: (ImageBitmap, PdfRect) -> Unit) {
     val currentInk by rememberUpdatedState(ink)
     val saveInk by rememberUpdatedState(onInk)
     var preview by remember(handle, index) { mutableStateOf<List<InkStroke>?>(null) }
-    var aspect by remember(handle, index) { mutableFloatStateOf(1.414f) }
-    var image by remember(handle, index) { mutableStateOf<ImageBitmap?>(null) }
+    val livePoints = remember(handle, index) { mutableStateListOf<Float>() }
+    val aspect = layout.aspects[index] ?: 1.414f
+    var image by remember(handle, index) { mutableStateOf<ImageBitmap?>(layout.cachedImage(index)) }
     var words by remember(handle, index) { mutableStateOf<List<PdfWord>>(emptyList()) }
     var width by remember { mutableIntStateOf(0) }
     val doubleTap by rememberUpdatedState(onDoubleTap)
@@ -437,15 +515,35 @@ private data class PdfRange(val page: Int, val first: Int, val last: Int, val wo
     var renderFailed by remember { mutableStateOf(false) }
     var attempt by remember { mutableIntStateOf(0) }
     LaunchedEffect(handle, index, attempt) {
-        try { aspect = handle.pageAspect(index) }
+        try { if (index !in layout.aspects) layout.aspects[index] = handle.pageAspect(index) }
         catch (e: CancellationException) { throw e }
         catch (_: Exception) { renderFailed = true; onError() }
     }
     LaunchedEffect(handle, index, width, renderZoom, attempt) {
+        if (handle.deferWorkWhileScrolling) {
+            // collectLatest cancels extraction (including a pending mutex wait) as soon as a fling starts.
+            snapshotFlow { listState.isScrollInProgress }.distinctUntilChanged().collectLatest { scrolling ->
+                if (width <= 0) return@collectLatest
+                renderFailed = false
+                try {
+                    val target = (width * renderZoom).toInt().coerceIn(1, 4096)
+                    image = layout.image(index, if (scrolling) (target / 2).coerceAtLeast(1) else target,
+                        reuseLarger = true)
+                    if (!scrolling) {
+                        delay(300)
+                        if (!listState.isScrollInProgress) words = layout.get(index)
+                    }
+                } catch (e: CancellationException) { throw e }
+                catch (_: Exception) { renderFailed = true; onError() }
+            }
+            return@LaunchedEffect
+        }
         if (width > 0) {
             renderFailed = false
             try {
-                image = handle.renderPage(index, (width * renderZoom).toInt().coerceAtMost(4096))
+                image = layout.image(index, (width * renderZoom).toInt().coerceAtMost(4096))
+                // Word boxes (and OCR on scans) are heavy; skip them for pages that only flash past in a fling.
+                delay(300)
                 words = layout.get(index)
             } catch (e: CancellationException) { throw e }
             catch (_: Exception) { renderFailed = true; onError() }
@@ -467,7 +565,7 @@ private data class PdfRange(val page: Int, val first: Int, val last: Int, val wo
     Box(Modifier.fillMaxWidth().aspectRatio(1f / aspect).onSizeChanged {
         width = it.width; viewport = Size(it.width.toFloat(), it.height.toFloat())
     }.onGloballyPositioned { coordinates = it }.background(MaterialTheme.colorScheme.surface)
-        .pointerInput(penMode, penColor, eraser, fingerInk, viewport) {
+        .pointerInput(penMode, penColor, penWidth, highlighter, eraser, fingerInk, viewport) {
             if (penMode) awaitPointerEventScope {
                 while (true) {
                     val down = awaitPointerEvent(PointerEventPass.Initial).changes.firstOrNull {
@@ -480,8 +578,11 @@ private data class PdfRange(val page: Int, val first: Int, val last: Int, val wo
                     var strokes = original
                     val points = mutableListOf<Float>()
                     var previous: Offset? = null
+                    var filtered: Offset? = null
                     fun update(point: Offset) {
-                        val n = normalized(point)
+                        val raw = normalized(point)
+                        val n = filtered?.let { it + (raw - it) * .5f } ?: raw
+                        filtered = n
                         if (erase) {
                             val start = previous ?: n
                             val steps = kotlin.math.ceil((n - start).getDistance() / .005f).toInt().coerceAtLeast(1)
@@ -490,8 +591,8 @@ private data class PdfRange(val page: Int, val first: Int, val last: Int, val wo
                                 strokes = strokes.filterNot { inkHit(it, point.x, point.y) }
                             }
                             previous = n
-                        } else { points += n.x; points += n.y }
-                        preview = if (erase) strokes else strokes + InkStroke(penColor, points = simplifyInkPoints(points))
+                        } else { points += n.x; points += n.y; livePoints.add(n.x); livePoints.add(n.y) }
+                        if (erase) preview = strokes
                     }
                     try {
                         update(down.position)
@@ -509,13 +610,16 @@ private data class PdfRange(val page: Int, val first: Int, val last: Int, val wo
                                 break
                             }
                             val change = event.changes.firstOrNull { it.id == down.id } ?: break
+                            change.historical.forEach { update(it.position) }
                             update(change.position)
                             change.consume()
                             pressed = change.pressed
                         }
-                        val result = preview ?: original
+                        val result = if (erase) preview ?: original else original + InkStroke(penColor,
+                            width = penWidth * if (highlighter) 3f else 1f,
+                            points = simplifyInkPoints(points), highlighter = highlighter)
                         if (!pinch && result != original) saveInk(result)
-                    } finally { preview = null }
+                    } finally { preview = null; livePoints.clear() }
                 }
             }
         }
@@ -583,19 +687,172 @@ private data class PdfRange(val page: Int, val first: Int, val last: Int, val wo
                 }
             }
             (preview ?: ink).forEach { stroke ->
-                val color = (when (stroke.colorKey) { "secondary" -> secondary; "tertiary" -> tertiary; else -> primary }).copy(alpha = .9f)
+                val color = inkColor(stroke.colorKey, primary, secondary, tertiary)
+                    .copy(alpha = if (stroke.highlighter) .35f else .9f)
                 val points = stroke.points
                 val radius = stroke.width * size.width / 2f
                 // One path per stroke: overlapping translucent segments would leave darker dots.
                 if (points.size == 2) drawCircle(color, radius, Offset(points[0] * size.width, points[1] * size.height))
-                else drawPath(androidx.compose.ui.graphics.Path().apply {
+                else drawPath(Path().apply {
                     moveTo(points[0] * size.width, points[1] * size.height)
-                    for (i in 2 until points.size - 1 step 2) lineTo(points[i] * size.width, points[i + 1] * size.height)
-                }, color, style = androidx.compose.ui.graphics.drawscope.Stroke(radius * 2f,
-                    cap = androidx.compose.ui.graphics.StrokeCap.Round, join = androidx.compose.ui.graphics.StrokeJoin.Round))
+                    if (points.size == 4) lineTo(points[2] * size.width, points[3] * size.height)
+                    else inkCurveSegments(points).forEach { segment ->
+                        quadraticBezierTo(segment.controlX * size.width, segment.controlY * size.height,
+                            segment.endX * size.width, segment.endY * size.height)
+                    }
+                    if (points.size > 4) lineTo(points[points.size - 2] * size.width, points.last() * size.height)
+                }, color, style = Stroke(radius * 2f, cap = StrokeCap.Round, join = StrokeJoin.Round))
             }
             selection?.selected?.forEach { rectangle(it.rect, primary.copy(alpha = .3f)) }
             box?.let { rectangle(it, primary.copy(alpha = .25f)) }
+        }
+        Canvas(Modifier.fillMaxSize()) {
+            val points = livePoints.toList()
+            if (points.size >= 2) {
+                val color = inkColor(penColor, primary, secondary, tertiary).copy(alpha = if (highlighter) .35f else .9f)
+                val radius = penWidth * if (highlighter) 3f else 1f
+                if (points.size == 2) drawCircle(color, radius * size.width / 2f, Offset(points[0] * size.width, points[1] * size.height))
+                else drawPath(Path().apply {
+                    moveTo(points[0] * size.width, points[1] * size.height)
+                    if (points.size == 4) lineTo(points[2] * size.width, points[3] * size.height)
+                    else inkCurveSegments(points).forEach { segment ->
+                        quadraticBezierTo(segment.controlX * size.width, segment.controlY * size.height,
+                            segment.endX * size.width, segment.endY * size.height)
+                    }
+                    if (points.size > 4) lineTo(points[points.size - 2] * size.width, points.last() * size.height)
+                }, color, style = Stroke(radius * size.width, cap = StrokeCap.Round, join = StrokeJoin.Round))
+            }
+        }
+    }
+}
+
+private val curatedInkColors = listOf(
+    "#FF171717", "#FF667085", "#FF98A2B3", "#FFD0D5DD",
+    "#FFB42318", "#FFDC6803", "#FFCA8A04", "#FF3F6212",
+    "#FF15803D", "#FF0F766E", "#FF026AA2", "#FF175CD3",
+    "#FF5925DC", "#FF7A5AF8", "#FFC11574", "#FFD92D20",
+)
+
+private fun inkColor(key: String, primary: androidx.compose.ui.graphics.Color,
+    secondary: androidx.compose.ui.graphics.Color, tertiary: androidx.compose.ui.graphics.Color): androidx.compose.ui.graphics.Color {
+    if (key == "secondary") return secondary
+    if (key == "tertiary") return tertiary
+    if (key == "primary") return primary
+    val value = key.drop(1).toLongOrNull(16) ?: return primary
+    return androidx.compose.ui.graphics.Color(
+        red = ((value shr 16) and 0xff).toFloat() / 255f,
+        green = ((value shr 8) and 0xff).toFloat() / 255f,
+        blue = (value and 0xff).toFloat() / 255f,
+        alpha = ((value shr 24) and 0xff).toFloat() / 255f,
+    )
+}
+
+@Composable
+private fun PdfInkToolbar(
+    modifier: Modifier, minimized: Boolean, expanded: Boolean, penColor: String, recentColors: List<String>,
+    penWidth: Float, eraser: Boolean, highlighter: Boolean, fingerInk: Boolean,
+    onMinimize: () -> Unit, onRestore: () -> Unit, onExpand: () -> Unit,
+    onMove: (Offset) -> Unit, onDragEnd: () -> Unit,
+    onColor: (String) -> Unit, onWidth: (Float) -> Unit, onEraser: (Boolean) -> Unit,
+    onHighlighter: (Boolean) -> Unit, onFinger: (Boolean) -> Unit,
+    onToggleEraser: () -> Unit,
+    onUndo: () -> Unit, onClear: () -> Unit, canUndo: Boolean, canClear: Boolean,
+) {
+    val widths = listOf(.0025f, .004f, .007f)
+    val palette = remember { mutableStateOf(false) }
+    val currentToolIcon = when { eraser -> Icons.Default.Delete; highlighter -> Icons.Default.Highlight; else -> Icons.Default.Edit }
+    if (minimized) {
+        Surface(modifier = modifier.size(52.dp).combinedClickable(onClick = onRestore, onLongClick = onToggleEraser)
+            .pointerInput(Unit) { detectDragGestures(onDragEnd = onDragEnd) { change, delta -> change.consume(); onMove(delta) } },
+            shape = CircleShape, color = MaterialTheme.colorScheme.surfaceContainerHigh, shadowElevation = 6.dp) {
+            Box(contentAlignment = Alignment.Center) {
+                Box(Modifier.size(46.dp), contentAlignment = Alignment.Center) {
+                    Box(Modifier.size(12.dp).align(Alignment.BottomEnd).background(inkColor(penColor,
+                        MaterialTheme.colorScheme.primary, MaterialTheme.colorScheme.secondary, MaterialTheme.colorScheme.tertiary), CircleShape))
+                    Icon(currentToolIcon, "Restore pen toolbar", Modifier.size(21.dp))
+                }
+            }
+        }
+        return
+    }
+    BoxWithConstraints(modifier) {
+        Column(Modifier.widthIn(max = this@BoxWithConstraints.maxWidth), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            AnimatedVisibility(visible = expanded, enter = expandVertically(tween(150)) + fadeIn(tween(150)),
+                exit = shrinkVertically(tween(150)) + fadeOut(tween(150))) {
+                Surface(shape = MaterialTheme.shapes.extraLarge, color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                    shadowElevation = 5.dp) {
+                    FlowRow(Modifier.widthIn(max = this@BoxWithConstraints.maxWidth).padding(horizontal = 8.dp, vertical = 5.dp),
+                        horizontalArrangement = Arrangement.Center, verticalArrangement = Arrangement.Center) {
+                        recentColors.take(6).forEach { key ->
+                            val swatchScale by animateFloatAsState(if (key == penColor) 1.08f else 1f,
+                                animationSpec = tween(150), label = "ink-swatch-selection")
+                            IconButton(onClick = { onColor(key) }, modifier = Modifier.size(44.dp).semantics { contentDescription = "Ink color" }) {
+                    Box(Modifier.size(28.dp).graphicsLayer { scaleX = swatchScale; scaleY = swatchScale }
+                        .background(inkColor(key, MaterialTheme.colorScheme.primary,
+                                    MaterialTheme.colorScheme.secondary, MaterialTheme.colorScheme.tertiary), CircleShape)
+                                    .then(if (key == penColor) Modifier.border(2.dp, MaterialTheme.colorScheme.onSurface, CircleShape) else Modifier))
+                            }
+                        }
+                        Box {
+                            IconButton(onClick = { palette.value = true }, modifier = Modifier.size(44.dp).semantics { contentDescription = "More colors" }) {
+                                Icon(Icons.Default.Add, "More colors", Modifier.size(20.dp))
+                            }
+                            DropdownMenu(expanded = palette.value, onDismissRequest = { palette.value = false }) {
+                                FlowRow(Modifier.width(192.dp).padding(4.dp), horizontalArrangement = Arrangement.Center) {
+                                    curatedInkColors.forEach { color ->
+                                        IconButton(onClick = { onColor(color); palette.value = false }, modifier = Modifier.size(44.dp).semantics { contentDescription = "Ink color" }) {
+                                            Box(Modifier.size(28.dp).background(inkColor(color, MaterialTheme.colorScheme.primary,
+                                                MaterialTheme.colorScheme.secondary, MaterialTheme.colorScheme.tertiary), CircleShape))
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        widths.forEachIndexed { index, value ->
+                            IconToggleButton(checked = penWidth == value, onCheckedChange = { onWidth(value) },
+                                modifier = Modifier.size(44.dp).semantics { contentDescription = listOf("Thin width", "Medium width", "Thick width")[index] }) {
+                                Box(Modifier.size(listOf(5.dp, 8.dp, 11.dp)[index]).background(MaterialTheme.colorScheme.onSurface, CircleShape))
+                            }
+                        }
+                        IconToggleButton(checked = !eraser && !highlighter, onCheckedChange = { onEraser(false); onHighlighter(false) },
+                            modifier = Modifier.size(44.dp).semantics { contentDescription = "Pen" }) { Icon(Icons.Default.Edit, "Pen", Modifier.size(20.dp)) }
+                        IconToggleButton(checked = highlighter, onCheckedChange = onHighlighter,
+                            modifier = Modifier.size(44.dp).semantics { contentDescription = "Highlighter" }) { Icon(Icons.Default.Highlight, "Highlighter", Modifier.size(20.dp)) }
+                        IconToggleButton(checked = eraser, onCheckedChange = onEraser,
+                            modifier = Modifier.size(44.dp).semantics { contentDescription = "Eraser" }) { Icon(Icons.Default.Delete, "Eraser", Modifier.size(20.dp)) }
+                        IconToggleButton(checked = fingerInk, onCheckedChange = onFinger,
+                            modifier = Modifier.size(44.dp).semantics { contentDescription = "Finger ink" }) { Icon(Icons.Default.TouchApp, "Finger ink", Modifier.size(20.dp)) }
+                        IconButton(enabled = canUndo, onClick = onUndo, modifier = Modifier.size(44.dp).semantics { contentDescription = "Undo ink" }) { Icon(Icons.Default.Undo, "Undo", Modifier.size(20.dp)) }
+                        IconButton(enabled = canClear, onClick = onClear, modifier = Modifier.size(44.dp).semantics { contentDescription = "Clear page ink" }) { Icon(Icons.Default.Clear, "Clear", Modifier.size(20.dp)) }
+                    }
+                }
+            }
+            Surface(shape = CircleShape, color = MaterialTheme.colorScheme.surfaceContainerHigh, shadowElevation = 6.dp) {
+                FlowRow(Modifier.heightIn(min = 48.dp).padding(horizontal = 4.dp),
+                    verticalArrangement = Arrangement.Center, horizontalArrangement = Arrangement.Center) {
+                    Box(Modifier.size(28.dp).pointerInput(Unit) {
+                        detectDragGestures(onDragEnd = onDragEnd) { change, delta -> change.consume(); onMove(delta) }
+                    }.semantics { contentDescription = "Move toolbar" }, contentAlignment = Alignment.Center) {
+                        Icon(Icons.Default.DragIndicator, "Move toolbar", Modifier.size(18.dp))
+                    }
+                    IconToggleButton(checked = !eraser && !highlighter, onCheckedChange = { onEraser(false); onHighlighter(false) },
+                        modifier = Modifier.size(40.dp).semantics { contentDescription = "Pen" }) { Icon(Icons.Default.Edit, "Pen", Modifier.size(19.dp)) }
+                    IconToggleButton(checked = highlighter, onCheckedChange = onHighlighter,
+                        modifier = Modifier.size(40.dp).semantics { contentDescription = "Highlighter" }) { Icon(Icons.Default.Highlight, "Highlighter", Modifier.size(19.dp)) }
+                    IconToggleButton(checked = eraser, onCheckedChange = onEraser,
+                        modifier = Modifier.size(40.dp).semantics { contentDescription = "Eraser" }) { Icon(Icons.Default.Delete, "Eraser", Modifier.size(19.dp)) }
+                    Box(Modifier.size(32.dp).background(inkColor(penColor, MaterialTheme.colorScheme.primary,
+                        MaterialTheme.colorScheme.secondary, MaterialTheme.colorScheme.tertiary), CircleShape)
+                        .semantics { contentDescription = "Current ink color" })
+                    IconButton(onClick = onExpand, modifier = Modifier.size(44.dp).semantics { contentDescription = if (expanded) "Hide pen tools" else "More pen tools" }) {
+                        Icon(if (expanded) Icons.Default.ExpandMore else Icons.Default.ExpandLess,
+                            if (expanded) "Hide pen tools" else "More pen tools", Modifier.size(20.dp))
+                    }
+                    IconButton(onClick = onMinimize, modifier = Modifier.size(44.dp).semantics { contentDescription = "Minimize pen toolbar" }) {
+                        Icon(Icons.Default.Close, "Minimize toolbar", Modifier.size(18.dp))
+                    }
+                }
+            }
         }
     }
 }

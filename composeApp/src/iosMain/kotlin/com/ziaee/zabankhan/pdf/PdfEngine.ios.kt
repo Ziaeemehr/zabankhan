@@ -4,7 +4,7 @@ package com.ziaee.zabankhan.pdf
 import androidx.compose.runtime.*
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asSkiaBitmap
-import androidx.compose.ui.graphics.toComposeImageBitmap
+import androidx.compose.ui.graphics.asComposeImageBitmap
 import com.ziaee.zabankhan.data.iosDocumentsDir
 import com.ziaee.zabankhan.lang.Languages
 import kotlinx.cinterop.*
@@ -15,6 +15,9 @@ import org.jetbrains.skia.Image
 import org.jetbrains.skia.Bitmap
 import org.jetbrains.skia.Canvas
 import org.jetbrains.skia.Rect
+import org.jetbrains.skia.ImageInfo
+import org.jetbrains.skia.ColorType
+import org.jetbrains.skia.ColorAlphaType
 import platform.Foundation.*
 import platform.CoreGraphics.*
 import platform.PDFKit.*
@@ -22,48 +25,58 @@ import platform.UIKit.*
 import platform.UniformTypeIdentifiers.*
 import platform.Vision.*
 import platform.darwin.NSObject
-import platform.posix.memcpy
-import okio.HashingSink
-import okio.buffer
-import okio.use
-import okio.FileSystem
-import okio.Path.Companion.toPath
+import kotlin.coroutines.resume
 
 actual object AppFiles {
     actual val filesDir: String get() = iosDocumentsDir()
     actual val cacheDir: String get() = NSSearchPathForDirectoriesInDomains(NSCachesDirectory, NSUserDomainMask, true).first() as String
 }
-private fun NSData.bytesArray(): ByteArray = ByteArray(length.toInt()).also { result ->
-    if (result.isNotEmpty()) result.usePinned { memcpy(it.addressOf(0), bytes, length) }
-}
-private fun UIImage.bitmap(): ImageBitmap =
-    Image.makeFromEncoded(requireNotNull(UIImagePNGRepresentation(this)).bytesArray()).toComposeImageBitmap()
-
 actual fun openPdf(path: String): PdfDocumentHandle = IosPdf(path)
 private class IosPdf(path: String): PdfDocumentHandle {
     private var document: PDFDocument? = PDFDocument(uRL = NSURL.fileURLWithPath(path))
     private val mutex = Mutex()
+    override val deferWorkWhileScrolling = true
     override val pageCount = requireNotNull(document) { "Cannot open PDF" }.pageCount.toInt()
+    // openPdf is called on IO before the reader is published. No PDFKit access/lock for item layout.
+    private val aspects = FloatArray(pageCount) { index ->
+        page(index).boundsForBox(kPDFDisplayBoxCropBox).useContents { (size.height / size.width).toFloat() }
+    }
     private fun page(index: Int): PDFPage {
         require(index in 0 until pageCount)
         return requireNotNull(document?.pageAtIndex(index.toULong()))
     }
-    override suspend fun pageAspect(index: Int): Float = withContext(Dispatchers.Default) {
-        mutex.withLock { page(index).boundsForBox(kPDFDisplayBoxCropBox).useContents { (size.height / size.width).toFloat() } }
-    }
+    override suspend fun pageAspect(index: Int): Float = aspects[index]
     override suspend fun renderPage(index: Int, widthPx: Int): ImageBitmap = withContext(Dispatchers.Default) {
         mutex.withLock {
+            currentCoroutineContext().ensureActive()
             val p = page(index)
-            val aspect = p.boundsForBox(kPDFDisplayBoxCropBox).useContents { size.height / size.width }
-            p.thumbnailOfSize(CGSizeMake(widthPx.toDouble(), widthPx * aspect), forBox = kPDFDisplayBoxCropBox).bitmap()
+            val aspect = aspects[index]
+            val heightPx = (widthPx * aspect).toInt().coerceAtLeast(1)
+            val thumbnail = p.thumbnailOfSize(CGSizeMake(widthPx.toDouble(), heightPx.toDouble()), forBox = kPDFDisplayBoxCropBox)
+            currentCoroutineContext().ensureActive()
+            // Draw straight into Skia pixel memory: no PNG round-trip, so no multi-MB Kotlin heap garbage per page.
+            val bitmap = Bitmap().apply { allocPixels(ImageInfo(widthPx, heightPx, ColorType.BGRA_8888, ColorAlphaType.PREMUL)) }
+            bitmap.withBitmapContext { context ->
+                CGContextSetRGBFillColor(context, 1.0, 1.0, 1.0, 1.0)
+                CGContextFillRect(context, CGRectMake(0.0, 0.0, widthPx.toDouble(), heightPx.toDouble()))
+                // A raw bitmap context preserves CGImage's top-first memory rows, as Skia expects.
+                // A UIKit-style translate/scale flip here would turn the page upside down.
+                CGContextDrawImage(context, CGRectMake(0.0, 0.0, widthPx.toDouble(), heightPx.toDouble()), thumbnail.CGImage)
+            }
+            bitmap.setImmutable()
+            bitmap.asComposeImageBitmap()
         }
     }
     override suspend fun words(index: Int): List<PdfWord> = withContext(Dispatchers.Default) {
+        val job = currentCoroutineContext()
         mutex.withLock {
+            job.ensureActive()
             val p = page(index)
             val text = p.string.orEmpty()
             val bounds = p.boundsForBox(kPDFDisplayBoxCropBox)
-            val chars = text.mapIndexed { i, char ->
+            // Consume glyphs as a stream, without retaining a page-sized Kotlin character list.
+            val chars = text.asSequence().mapIndexed { i, char ->
+                job.ensureActive()
                 val b = p.characterBoundsAtIndex(i.toLong())
                 val normalized = bounds.useContents {
                     val ox = origin.x; val oy = origin.y; val w = size.width; val h = size.height
@@ -80,7 +93,21 @@ private class IosPdf(path: String): PdfDocumentHandle {
         }
     }
     override suspend fun pageText(index: Int): String = withContext(Dispatchers.Default) { mutex.withLock { page(index).string.orEmpty() } }
-    override fun close() { runBlocking { mutex.withLock { document = null } } }
+    override fun close() { runBlocking(Dispatchers.Default) { mutex.withLock { document = null } } }
+}
+
+/** Borrow native Skia storage; keep the pixmap alive until CoreGraphics releases the context. */
+private inline fun <T> Bitmap.withBitmapContext(block: (CGContextRef) -> T): T {
+    val pixels = requireNotNull(peekPixels())
+    try {
+        val colorSpace = requireNotNull(CGColorSpaceCreateDeviceRGB())
+        try {
+            val context = requireNotNull(CGBitmapContextCreate(interpretCPointer<COpaque>(pixels.addr),
+                width.toULong(), height.toULong(), 8u, (rowBytesAsPixels * 4).toULong(), colorSpace,
+                CGImageAlphaInfo.kCGImageAlphaPremultipliedFirst.value or kCGBitmapByteOrder32Little))
+            try { return block(context) } finally { CGContextRelease(context) }
+        } finally { CGColorSpaceRelease(colorSpace) }
+    } finally { pixels.close() }
 }
 actual fun cropPdfImage(image: ImageBitmap, rect: PdfRect): ImageBitmap {
     val left = (rect.left * image.width).toInt().coerceIn(0, image.width - 1)
@@ -94,26 +121,40 @@ actual fun cropPdfImage(image: ImageBitmap, rect: PdfRect): ImageBitmap {
             Rect.makeXYWH(left.toFloat(), top.toFloat(), width.toFloat(), height.toFloat()),
             Rect.makeWH(width.toFloat(), height.toFloat()))
     } finally { canvas.close() }
-    return Image.makeFromBitmap(bitmap).toComposeImageBitmap()
+    bitmap.setImmutable()
+    return bitmap.asComposeImageBitmap()
 }
 actual fun createOcrEngine(): OcrEngine = object : OcrEngine {
     override suspend fun recognizeWords(image: ImageBitmap, langCode: String): List<PdfWord> = withContext(Dispatchers.Default) {
         val language = requireNotNull(Languages.byCode(langCode))
-        // Encode via Skia without using UIKit drawing on a worker thread.
-        val bytes = requireNotNull(Image.makeFromBitmap(image.asSkiaBitmap()).encodeToData()).bytes
-        val data = bytes.usePinned { NSData.create(bytes = it.addressOf(0), length = bytes.size.toULong()) }
-        val uiImage = requireNotNull(UIImage.imageWithData(data))
+        currentCoroutineContext().ensureActive()
         val request = VNRecognizeTextRequest()
         request.recognitionLevel = VNRequestTextRecognitionLevelAccurate
         request.recognitionLanguages = listOf(language.code)
         request.usesLanguageCorrection = true
-        val handler = VNImageRequestHandler(cGImage = requireNotNull(uiImage.CGImage), options = emptyMap<Any?, Any>())
-        memScoped {
-            val error = alloc<ObjCObjectVar<NSError?>>()
-            check(handler.performRequests(listOf(request), error.ptr)) { error.value?.localizedDescription ?: "OCR failed" }
+        // Vision accepts native pixels directly; avoid PNG -> ByteArray -> NSData -> UIImage.
+        image.asSkiaBitmap().withBitmapContext { context ->
+            val cgImage = requireNotNull(CGBitmapContextCreateImage(context))
+            try {
+                val handler = VNImageRequestHandler(cGImage = cgImage, options = emptyMap<Any?, Any>())
+                suspendCancellableCoroutine<Unit> { continuation ->
+                    continuation.invokeOnCancellation { request.cancel() }
+                    if (continuation.isActive) memScoped {
+                        val error = alloc<ObjCObjectVar<NSError?>>()
+                        val success = handler.performRequests(listOf(request), error.ptr)
+                        // Cancellation can interrupt Vision; don't turn that into a reader error.
+                        if (continuation.isActive) {
+                            if (success) continuation.resume(Unit)
+                            else continuation.resumeWith(Result.failure(IllegalStateException(error.value?.localizedDescription ?: "OCR failed")))
+                        }
+                    }
+                }
+            } finally { CGImageRelease(cgImage) }
         }
+        currentCoroutineContext().ensureActive()
         val result = mutableListOf<PdfWord>()
         for (observation in request.results.orEmpty().filterIsInstance<VNRecognizedTextObservation>()) {
+            currentCoroutineContext().ensureActive()
             val recognized = observation.topCandidates(1u).firstOrNull() as? VNRecognizedText ?: continue
             val text = recognized.string
             for (match in Regex("[^\\s]+").findAll(text)) {

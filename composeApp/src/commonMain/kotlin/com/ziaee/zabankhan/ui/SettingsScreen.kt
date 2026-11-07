@@ -211,7 +211,9 @@ fun SettingsScreen(vm: AppViewModel, settings: AppSettings, progress: () -> Unit
 
                             }
                             3 -> {
-                                com.ziaee.zabankhan.dictionary.OwnDictionarySettings(vm, settings)
+                                var searchDictionary by remember { mutableStateOf(false) }
+                                com.ziaee.zabankhan.dictionary.OwnDictionarySettings(vm, settings) { searchDictionary = true }
+                                if (searchDictionary) DictionarySearchDialog(vm, settings) { searchDictionary = false }
 
                                 TranslationEngineSettings(vm.container, settings)
 

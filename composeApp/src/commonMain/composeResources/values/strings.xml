@@ -253,10 +253,12 @@
     <string name="action_retry">Retry</string>
     <string name="audio_preparing">Preparing audio for this section…</string>
     <string name="dictionary_apply_word">Look up</string>
+    <string name="dictionary_edit_word">Edit word and meaning</string>
     <string name="dictionary_meaning_english">English meaning</string>
     <string name="dictionary_meaning_persian">Persian meaning</string>
     <string name="dictionary_reset_word">Reset</string>
     <string name="dictionary_saved_elsewhere">Previously saved in %1$d other context(s)</string>
+    <string name="dictionary_source_own">Zabankhan</string>
     <string name="error_translation_unavailable">Translation is unavailable.</string>
     <string name="font_scale_large">Large</string>
     <string name="font_scale_medium">Medium</string>
@@ -320,6 +322,7 @@
     <string name="translation_loading">Translating…</string>
     <string name="vocab_list_name_field">List name</string>
     <string name="vocab_list_new">New list</string>
+    <string name="vocab_list_select">Choose a list</string>
     <string name="vocab_list_uncategorized">Uncategorized</string>
     <string name="action_close">Close</string>
     <string name="gesture_reading_row_2">Word → select; drag handles to extend</string>

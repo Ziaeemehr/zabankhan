@@ -253,10 +253,12 @@
     <string name="action_retry">تلاش مجدد</string>
     <string name="audio_preparing">در حال آماده‌سازی صدا برای این بخش...</string>
     <string name="dictionary_apply_word">جست‌وجو</string>
+    <string name="dictionary_edit_word">ویرایش واژه و معنی</string>
     <string name="dictionary_meaning_english">معنی انگلیسی</string>
     <string name="dictionary_meaning_persian">معنی فارسی</string>
     <string name="dictionary_reset_word">بازگردانی</string>
     <string name="dictionary_saved_elsewhere">قبلاً در %1$d زمینه‌ی دیگر ذخیره شده</string>
+    <string name="dictionary_source_own">زبان‌خوان</string>
     <string name="error_translation_unavailable">ترجمه در دسترس نیست.</string>
     <string name="font_scale_large">بزرگ</string>
     <string name="font_scale_medium">متوسط</string>
@@ -320,6 +322,7 @@
     <string name="translation_loading">در حال ترجمه...</string>
     <string name="vocab_list_name_field">نام لیست</string>
     <string name="vocab_list_new">لیست جدید</string>
+    <string name="vocab_list_select">انتخاب لیست</string>
     <string name="vocab_list_uncategorized">بدون دسته</string>
     <string name="action_close">بستن</string>
     <string name="gesture_reading_row_2">واژه ← انتخاب؛ دستگیره‌ها را برای گسترش بکشید</string>

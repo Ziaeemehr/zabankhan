@@ -10,6 +10,7 @@ import com.ziaee.zabankhan.ui.contentStyle
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
@@ -141,7 +142,18 @@ fun GrammarListScreen(
         selectedLeadingIconColor = LocalGrammarColors.current.accent
     )
     val results by remember(index) { derivedStateOf { index.search(query).filter { shown(it.note) } } }
-    GrammarPage { padding ->
+    GrammarPage(topBar = {
+        GrammarBackRow(onBack, title) {
+            TextButton(
+                onClick = onOpenPosters,
+                colors = ButtonDefaults.textButtonColors(contentColor = LocalGrammarColors.current.accent)
+            ) {
+                Icon(Icons.Default.Collections, contentDescription = null, modifier = Modifier.size(18.dp))
+                Spacer(Modifier.width(4.dp))
+                Text(stringResource(Res.string.grammar_posters))
+            }
+        }
+    }) { padding ->
         if (notes == null) {
             CircularProgressIndicator(Modifier.padding(padding).padding(ZabankhanDesign.spacing.small))
         } else {
@@ -151,18 +163,6 @@ fun GrammarListScreen(
                 contentPadding = PaddingValues(ZabankhanDesign.spacing.small),
                 verticalArrangement = Arrangement.spacedBy(ZabankhanDesign.spacing.xSmall)
             ) {
-                item(key = "back") {
-                    GrammarBackRow(onBack, title) {
-                        TextButton(
-                            onClick = onOpenPosters,
-                            colors = ButtonDefaults.textButtonColors(contentColor = LocalGrammarColors.current.accent)
-                        ) {
-                            Icon(Icons.Default.Collections, contentDescription = null, modifier = Modifier.size(18.dp))
-                            Spacer(Modifier.width(4.dp))
-                            Text(stringResource(Res.string.grammar_posters))
-                        }
-                    }
-                }
                 item(key = "search") {
                     OutlinedTextField(
                         value = query,
@@ -339,46 +339,45 @@ fun GrammarNoteScreen(
     val export = rememberGrammarExport()
     val exportPdf = rememberGrammarPdfExport()
     LaunchedEffect(note?.id) { if (note != null) preferences.opened(note.id) }
-    GrammarPage(snackbar) { padding ->
+    GrammarPage(snackbar, topBar = {
+        GrammarBackRow(onBack) {
+            if (note != null && markdown != null) {
+                IconButton(onClick = { scope.launch { preferences.toggleFavourite(note.id) } }) {
+                    val favourite = note.id in prefs.favourites
+                    Icon(
+                        if (favourite) Icons.Default.Star else Icons.Outlined.StarBorder,
+                        stringResource(if (favourite) Res.string.grammar_remove_favourite else Res.string.grammar_add_favourite),
+                        tint = if (favourite) LocalGrammarColors.current.accent else MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                var expanded by remember { mutableStateOf(false) }
+                Box {
+                    IconButton(onClick = { expanded = true }) {
+                        Icon(Icons.Default.Share, stringResource(Res.string.grammar_export))
+                    }
+                    DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+                        DropdownMenuItem(text = { Text(stringResource(Res.string.grammar_share_text)) }, onClick = {
+                            expanded = false; export(markdown, null, false)
+                        })
+                        DropdownMenuItem(text = { Text(stringResource(Res.string.grammar_share_markdown)) }, onClick = {
+                            expanded = false; export(markdown, "${note.id}.md", false)
+                        })
+                        DropdownMenuItem(text = { Text(stringResource(Res.string.grammar_share_pdf)) }, onClick = {
+                            expanded = false; exportPdf(grammarNoteToPdfBlocks(note, labels), "${note.id}.pdf", labels.appName)
+                        })
+                        DropdownMenuItem(text = { Text(stringResource(Res.string.grammar_save_markdown)) }, onClick = {
+                            expanded = false; export(markdown, "${note.id}.md", true)
+                        })
+                    }
+                }
+            }
+        }
+    }) { padding ->
         LazyColumn(
             modifier = Modifier.fillMaxSize().padding(padding),
             contentPadding = PaddingValues(ZabankhanDesign.spacing.small),
             verticalArrangement = Arrangement.spacedBy(ZabankhanDesign.spacing.small)
         ) {
-            item {
-                GrammarBackRow(onBack) {
-                    if (note != null && markdown != null) {
-                        IconButton(onClick = { scope.launch { preferences.toggleFavourite(note.id) } }) {
-                            val favourite = note.id in prefs.favourites
-                            Icon(
-                                if (favourite) Icons.Default.Star else Icons.Outlined.StarBorder,
-                                stringResource(if (favourite) Res.string.grammar_remove_favourite else Res.string.grammar_add_favourite),
-                                tint = if (favourite) LocalGrammarColors.current.accent else MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                        var expanded by remember { mutableStateOf(false) }
-                        Box {
-                            IconButton(onClick = { expanded = true }) {
-                                Icon(Icons.Default.Share, stringResource(Res.string.grammar_export))
-                            }
-                            DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
-                                DropdownMenuItem(text = { Text(stringResource(Res.string.grammar_share_text)) }, onClick = {
-                                    expanded = false; export(markdown, null, false)
-                                })
-                                DropdownMenuItem(text = { Text(stringResource(Res.string.grammar_share_markdown)) }, onClick = {
-                                    expanded = false; export(markdown, "${note.id}.md", false)
-                                })
-                                DropdownMenuItem(text = { Text(stringResource(Res.string.grammar_share_pdf)) }, onClick = {
-                                    expanded = false; exportPdf(grammarNoteToPdfBlocks(note, labels), "${note.id}.pdf", labels.appName)
-                                })
-                                DropdownMenuItem(text = { Text(stringResource(Res.string.grammar_save_markdown)) }, onClick = {
-                                    expanded = false; export(markdown, "${note.id}.md", true)
-                                })
-                            }
-                        }
-                    }
-                }
-            }
             if (notes == null) item { CircularProgressIndicator() }
             else if (note == null) item { Text(stringResource(Res.string.grammar_not_found)) }
             else {
@@ -393,21 +392,38 @@ fun GrammarNoteScreen(
                 items(note.blocks) { GrammarBlockContent(it) }
                 val related = note.related.mapNotNull { relatedId -> notes.firstOrNull { it.id == relatedId } }
                 if (related.isNotEmpty()) item {
-                    Column(verticalArrangement = Arrangement.spacedBy(ZabankhanDesign.spacing.xSmall)) {
+                    Column {
                         GrammarSectionHeader(Res.string.grammar_related)
-                        // Body font plus an arrow and underline, so related notes read as links, not stray buttons.
                         related.forEach { relatedNote ->
                             val title = if (showPersian) relatedNote.titleFa else relatedNote.titleLearning
-                            Row(Modifier.fillMaxWidth().clip(MaterialTheme.shapes.small).clickable { onOpenNote(relatedNote.id) }
-                                .padding(vertical = ZabankhanDesign.spacing.xSmall),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(ZabankhanDesign.spacing.xSmall)) {
-                                Icon(Icons.AutoMirrored.Filled.ArrowForward, null, tint = LocalGrammarColors.current.accent,
-                                    modifier = Modifier.size(16.dp))
-                                Text(title, style = MaterialTheme.typography.bodyLarge.merge(contentStyle(title)).copy(
-                                    color = LocalGrammarColors.current.accent,
-                                    textDecoration = androidx.compose.ui.text.style.TextDecoration.Underline))
+                            val direction = if (grammarIsRtlText(title)) LayoutDirection.Rtl else LayoutDirection.Ltr
+                            CompositionLocalProvider(LocalLayoutDirection provides direction) {
+                                Row(
+                                    Modifier.fillMaxWidth()
+                                        .clip(MaterialTheme.shapes.small)
+                                        .clickable { onOpenNote(relatedNote.id) }
+                                        .padding(horizontal = ZabankhanDesign.spacing.xSmall, vertical = 10.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(ZabankhanDesign.spacing.xSmall),
+                                ) {
+                                    Text(
+                                        title,
+                                        modifier = Modifier.weight(1f),
+                                        style = MaterialTheme.typography.bodyLarge.merge(contentStyle(title)).copy(
+                                            fontFamily = appFontFamily(),
+                                            color = MaterialTheme.colorScheme.primary,
+                                            textDecoration = null,
+                                        ),
+                                    )
+                                    Icon(
+                                        Icons.AutoMirrored.Filled.ArrowForward,
+                                        null,
+                                        tint = MaterialTheme.colorScheme.primary,
+                                        modifier = Modifier.size(16.dp),
+                                    )
+                                }
                             }
+                            if (relatedNote != related.last()) HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
                         }
                     }
                 }
@@ -417,11 +433,15 @@ fun GrammarNoteScreen(
 }
 
 @Composable
-private fun GrammarPage(snackbar: SnackbarHostState? = null, content: @Composable (PaddingValues) -> Unit) {
-    Scaffold(snackbarHost = { if (snackbar != null) SnackbarHost(snackbar) }, content = content)
+private fun GrammarPage(
+    snackbar: SnackbarHostState? = null,
+    topBar: @Composable () -> Unit = {},
+    content: @Composable (PaddingValues) -> Unit
+) {
+    Scaffold(topBar = topBar, snackbarHost = { if (snackbar != null) SnackbarHost(snackbar) }, content = content)
 }
 
-/** A compact back row that scrolls away with the page instead of a pinned app bar. */
+/** A compact fixed header matching the app's other screen top bars. */
 @Composable
 private fun GrammarBackRow(onBack: () -> Unit, title: String? = null, actions: @Composable () -> Unit = {}) {
     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {

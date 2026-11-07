@@ -25,9 +25,13 @@ import kotlin.math.roundToInt
 fun Tts.pronounce(text: String, lang: String, settings: AppSettings, done: () -> Unit = {}) {
     setVoice(settings.ttsVoices[lang]); speak(text, lang, settings.speechRate, done)
 }
+/** Speaker buttons: a second tap while speaking stops playback instead of restarting it. */
+fun Tts.togglePronounce(text: String, lang: String, settings: AppSettings) {
+    if (isSpeaking.value) stop() else pronounce(text, lang, settings)
+}
 @Composable fun SpeakerButton(text: String, lang: String, settings: AppSettings) {
     val tts = remember { createTts() }
-    EditorialIconButton({ tts.pronounce(text, lang, settings) }, Icons.AutoMirrored.Filled.VolumeUp, stringResource(Res.string.speech_listen))
+    EditorialIconButton({ tts.togglePronounce(text, lang, settings) }, Icons.AutoMirrored.Filled.VolumeUp, stringResource(Res.string.speech_listen))
 }
 
 /** [replay] supplies video-cue playback instead of TTS, returning its measured duration. */

@@ -33,6 +33,7 @@ data class AppSettings(
     val learningLangs: List<String> = emptyList(),
     /** Language meanings are shown in ("fa" / "en"). */
     val meaningLang: String = Languages.PERSIAN.code,
+    val dictionaryMeaningLang: String = "",
     /** UI language ("system", "en", "fa", "fr"). */
     val uiLang: String = "system",
     val themeMode: String = "SYSTEM",
@@ -95,6 +96,7 @@ class SettingsRepository(private val store: DataStore<Preferences>, private val 
         val lang = stringPreferencesKey("learning_lang")
         val langs = stringPreferencesKey("learning_langs")
         val meaning = stringPreferencesKey("meaning_lang")
+        val dictionaryMeaning = stringPreferencesKey("dictionary_meaning_lang")
         val ui = stringPreferencesKey("ui_lang")
         val theme = stringPreferencesKey("theme_mode")
         val newCards = intPreferencesKey("daily_new_cards")
@@ -143,6 +145,7 @@ class SettingsRepository(private val store: DataStore<Preferences>, private val 
             meaningLang = p[K.meaning]?.takeIf {
                 it == Languages.PERSIAN.code || (it == Languages.ENGLISH.code && it != active)
             } ?: Languages.PERSIAN.code,
+            dictionaryMeaningLang = p[K.dictionaryMeaning]?.takeIf { it.isBlank() || it == Languages.PERSIAN.code || it == Languages.ENGLISH.code }.orEmpty(),
             uiLang = p[K.ui] ?: "system",
             themeMode = p[K.theme] ?: "SYSTEM",
             dailyNewCards = p[K.newCards] ?: 10,
@@ -238,6 +241,7 @@ class SettingsRepository(private val store: DataStore<Preferences>, private val 
     suspend fun setNewsMatchingFirst(enabled: Boolean) = store.edit { it[K.newsMatchingFirst] = enabled }
     suspend fun setNewsOnlyMatching(enabled: Boolean) = store.edit { it[K.newsOnlyMatching] = enabled }
     suspend fun setMeaningLang(code: String) = store.edit { it[K.meaning] = code }
+    suspend fun setDictionaryMeaningLang(code: String) = store.edit { it[K.dictionaryMeaning] = code.takeIf { it.isBlank() || it == Languages.PERSIAN.code || it == Languages.ENGLISH.code }.orEmpty() }
     suspend fun setUiLang(code: String) = store.edit { it[K.ui] = code }
     suspend fun setThemeMode(mode: String) = store.edit { it[K.theme] = mode }
     suspend fun setWeeklyPointsGoal(points: Int) = progressPrefs.setGoal(points)

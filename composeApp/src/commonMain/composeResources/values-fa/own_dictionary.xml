@@ -9,4 +9,19 @@
     <string name="own_dictionary_download_failed">دریافت ناموفق بود. برای ادامه دوباره دریافت را بزنید.</string>
     <string name="own_dictionary_machine_translation">ترجمهٔ ماشینی</string>
     <string name="own_dictionary_forms">صورت‌های دیگر</string>
+    <string name="own_compact_all_meanings">همهٔ معنی‌ها (%1$d)</string>
+    <string name="own_compact_examples">مثال‌ها (%1$d)</string>
+    <string name="own_compact_expressions">عبارت‌ها (%1$d)</string>
+    <string name="own_compact_conjugation">صرف فعل (%1$d)</string>
+    <string name="own_compact_forms">صورت‌ها (%1$d)</string>
+    <string name="own_listen">شنیدن</string><string name="own_add_to_leitner">افزودن به لایتنر</string><string name="own_remove_from_leitner">حذف از لایتنر</string><string name="own_more_examples">مثال‌های بیشتر</string><string name="own_expressions">عبارت‌ها</string><string name="own_show_more">بیشتر</string><string name="own_show_less">کمتر</string>
+    <string name="own_search">جست‌وجو در واژه‌نامه</string><string name="own_search_hint">جست‌وجوی واژه</string><string name="own_search_results">نتایج</string>
+    <string name="own_form_ind">اخباری</string><string name="own_form_subj">التزامی</string><string name="own_form_cond">شرطی</string><string name="own_form_imp">امری</string><string name="own_form_pres">حال</string><string name="own_form_impf">ناقص</string><string name="own_form_fut">آینده</string><string name="own_form_past">گذشته</string><string name="own_form_pp">اسم مفعول</string><string name="own_form_ppr">اسم فاعل</string><string name="own_form_inf">مصدر</string>
+    <string name="own_form_1s">اول‌شخص مفرد</string><string name="own_form_2s">دوم‌شخص مفرد</string><string name="own_form_3s">سوم‌شخص مفرد</string><string name="own_form_1p">اول‌شخص جمع</string><string name="own_form_2p">دوم‌شخص جمع</string><string name="own_form_3p">سوم‌شخص جمع</string><string name="own_form_m">مذکر</string><string name="own_form_f">مونث</string><string name="own_form_sg">مفرد</string><string name="own_form_pl">جمع</string><string name="own_form_refl">انعکاسی</string><string name="own_form_form">صورت</string>
+    <string name="own_frequency_very_common">بسیار رایج</string><string name="own_frequency_common">رایج</string><string name="own_show_all_meanings">نمایش همهٔ %1$d معنی</string>
+    <string name="own_searching">در حال جست‌وجو…</string><string name="own_no_entry">مدخلی پیدا نشد. واژه‌نامه‌های وب را امتحان کنید.</string><string name="own_search_error">بارگذاری واژه‌نامه ناموفق بود. اتصال را بررسی و دوباره تلاش کنید.</string>
+    <string name="own_dictionary_follow_app">پیروی از تنظیم برنامه</string>
+    <string name="own_dictionary_persian">فارسی</string>
+    <string name="own_dictionary_english">انگلیسی</string>
+    <string name="own_dictionary_meaning_language">زبان معنی: %1$s</string>
 </resources>

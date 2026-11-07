@@ -1,5 +1,6 @@
 package com.ziaee.zabankhan.ui.reader
 
+import androidx.compose.runtime.saveable.rememberSaveable
 import com.ziaee.zabankhan.ui.TranslationSourceIcon
 import com.ziaee.zabankhan.translate.ExampleTranslation
 
@@ -41,6 +42,9 @@ import com.ziaee.zabankhan.translate.MeaningOption
 import com.ziaee.zabankhan.ui.contentStyle
 import com.ziaee.zabankhan.ui.theme.ReaderReferenceTheme
 import com.ziaee.zabankhan.ui.theme.readerContentFamily
+import com.ziaee.zabankhan.speech.createTts
+import com.ziaee.zabankhan.speech.pronounce
+import com.ziaee.zabankhan.speech.togglePronounce
 import org.jetbrains.compose.resources.stringResource
 
 internal fun manualDictionaryWord(raw: String): String? = raw.trim().takeIf { it.isNotEmpty() }
@@ -120,6 +124,7 @@ private fun ReferenceDictionaryPane(
     listen: (() -> Unit)? = null, listenFromHere: (() -> Unit)? = null, shadow: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
+    val tts = remember { createTts() }
     val lang = requireNotNull(Languages.byCode(text.lang))
     val meaningTarget = settings.meaningLang.takeIf { it != text.lang } ?: if (text.lang == Languages.PERSIAN.code) Languages.ENGLISH.code else Languages.PERSIAN.code
     val originalWord = selection.word
@@ -149,22 +154,23 @@ private fun ReferenceDictionaryPane(
     var autoTranslating by remember(word, meaningTarget) { mutableStateOf(false) }
     var listMenuExpanded by remember { mutableStateOf(false) }
     var showNewListDialog by remember { mutableStateOf(false) }
+    var showWordEditor by remember(word) { mutableStateOf(false) }
     val uri = LocalUriHandler.current
     val providers = dictionaryProviders(lang, meaningTarget)
     var selectedProviderName by remember(lang.code, settings.lastDictionaryProviders[lang.code]) {
         mutableStateOf(settings.lastDictionaryProviders[lang.code])
     }
     val provider = selectedDictionaryProvider(providers, selectedProviderName)
+    var selectedDictionarySource by rememberSaveable(lang.code) { mutableStateOf("own") }
     val url = provider?.urlFor(word)
     var webViewFailed by remember(url) { mutableStateOf(false) }
     val repository = vm.container.translations(settings)
-    var ownMatches by remember(word, lang, meaningTarget) { mutableStateOf(emptyList<DictionaryMeaning>()) }
+    var ownLookup by remember(word, lang, meaningTarget) { mutableStateOf(DictionaryLookup(word, emptyList(), emptyList(), emptyList())) }
     var ownLoaded by remember(word, lang, meaningTarget) { mutableStateOf(false) }
     LaunchedEffect(word, lang, meaningTarget, repository) {
         ownLoaded = false
-        ownMatches = vm.container.ownDictionary.lookupOrEmpty(word, lang).take(4).map { entry ->
-            vm.container.ownDictionary.meaningOrEnglish(entry, lang, meaningTarget, repository)
-        }
+        val lookup = vm.container.ownDictionary.lookupOrEmpty(word, lang, selection.sentence)
+        ownLookup = lookup
         ownLoaded = true
     }
 
@@ -176,12 +182,12 @@ private fun ReferenceDictionaryPane(
             saved = existing.meaningLang == meaningTarget
         }
     }
-    LaunchedEffect(entries != null, word, selection.sentence, meaningTarget, repository, savedState.exactEntry?.id, ownLoaded, ownMatches) {
+    LaunchedEffect(entries != null, word, selection.sentence, meaningTarget, repository, savedState.exactEntry?.id, ownLoaded, ownLookup) {
         if (!ownLoaded || entries == null || savedState.exactEntry != null || meaningEdited) return@LaunchedEffect
         selectedListId = vm.container.cache.get("dictionary:last-list:${lang.code}")?.toLongOrNull()
         autoTranslating = true
         try {
-            val exactOwnMatches = ownMatches.filter { normalizeDictionaryQuery(it.entry.word) == normalizeDictionaryQuery(word) }
+            val exactOwnMatches = (ownLookup.entries + ownLookup.idioms).distinctBy { it.id }.map { entry -> vm.container.ownDictionary.meaningOrEnglish(entry, lang, meaningTarget, repository) }.filter { normalizeDictionaryQuery(it.entry.word) == normalizeDictionaryQuery(word) }
             val result = if (exactOwnMatches.any { it.meanings.isNotEmpty() }) {
                 ownMeaningSource = exactOwnMatches.firstOrNull { it.meanings.isNotEmpty() }?.translations?.firstOrNull()
                 val senses = exactOwnMatches.map { com.ziaee.zabankhan.translate.MeaningSense(it.entry.pos, it.meanings) }
@@ -205,11 +211,10 @@ private fun ReferenceDictionaryPane(
         if (selectedListId != null && lists.none { it.id == selectedListId }) selectedListId = null
     }
     BoxWithConstraints(modifier.fillMaxWidth().imePadding()) {
-      val controlsMaxHeight = if (providers.isEmpty()) maxHeight else maxHeight * 0.65f
+      val controlsMaxHeight = if (providers.isEmpty() || selectedDictionarySource == "own") maxHeight else maxHeight * 0.65f
       Column(Modifier.fillMaxSize().padding(horizontal = 20.dp)) {
         // Only controls scroll on short screens; the browser owns its bounded viewport.
         Column(Modifier.heightIn(max = controlsMaxHeight).verticalScroll(rememberScrollState())) {
-            OwnDictionaryBlock(ownMatches)
             val focusManager = LocalFocusManager.current
             var draft by remember(word) { mutableStateOf(TextFieldValue(word, TextRange(word.length))) }
             val draftWord = manualDictionaryWord(draft.text)
@@ -244,44 +249,57 @@ private fun ReferenceDictionaryPane(
                     }
                 )
             }
-            val wordActions: @Composable () -> Unit = {
-                if (draftWord != null && draftWord != word) {
-                    IconButton(onClick = applyDraft) {
-                        Icon(
-                            Icons.Default.Check,
-                            contentDescription = stringResource(Res.string.dictionary_apply_word),
-                            tint = MaterialTheme.colorScheme.primary
-                        )
-                    }
+            val wordPills: @Composable (Boolean) -> Unit = { compact ->
+                shownLemmas.forEach { lemma -> WordPill("→ $lemma", compact = compact) { currentWord = lemma } }
+                if (!isOriginal) {
+                    val resetLabel = stringResource(Res.string.dictionary_reset_word)
+                    WordPill("↺ $originalWord", Modifier.semantics { contentDescription = "$resetLabel: $originalWord" }, compact = compact) { currentWord = originalWord }
                 }
-                IconButton(onClick = { provider?.let { uri.openUri(it.urlFor(word)) } }, enabled = provider != null) {
-                    Icon(Icons.Default.OpenInBrowser, contentDescription = stringResource(Res.string.accessibility_open_in_browser))
-                }
+            }
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                wordField(Modifier.weight(1f))
                 IconButton(onClick = dismiss) {
                     Icon(Icons.Default.Close, contentDescription = stringResource(Res.string.accessibility_close))
                 }
             }
-            val wordPills: @Composable (Boolean) -> Unit = { compact ->
-                shownLemmas.forEach { lemma ->
-                    WordPill("→ $lemma", compact = compact) { currentWord = lemma }
+            if (shownLemmas.isNotEmpty() || !isOriginal) {
+                FlowRow(modifier = Modifier.fillMaxWidth().padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) { wordPills(false) }
+            }
+            FlowRow(
+                modifier = Modifier.fillMaxWidth().padding(top = 8.dp, bottom = 12.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                TooltipBox(positionProvider = TooltipDefaults.rememberPlainTooltipPositionProvider(),
+                    tooltip = { PlainTooltip { Text(stringResource(if (savedState.exactEntry != null) Res.string.accessibility_vocabulary_saved else Res.string.accessibility_save_vocabulary)) } },
+                    state = rememberTooltipState()) {
+                    FilledTonalIconButton(onClick = { showWordEditor = !showWordEditor }) {
+                        Icon(if (savedState.exactEntry != null) Icons.Default.BookmarkAdded else Icons.Default.BookmarkAdd,
+                            contentDescription = stringResource(if (savedState.exactEntry != null) Res.string.accessibility_vocabulary_saved else Res.string.accessibility_save_vocabulary))
+                    }
                 }
-                if (!isOriginal) {
-                    val resetLabel = stringResource(Res.string.dictionary_reset_word)
-                    WordPill("↺ $originalWord", Modifier.semantics { contentDescription = "$resetLabel: $originalWord" }, compact = compact) {
-                        currentWord = originalWord
+                TooltipBox(positionProvider = TooltipDefaults.rememberPlainTooltipPositionProvider(),
+                    tooltip = { PlainTooltip { Text(stringResource(Res.string.dictionary_edit_word)) } },
+                    state = rememberTooltipState()) {
+                    IconButton(onClick = { showWordEditor = !showWordEditor }) {
+                        Icon(Icons.Default.Edit, contentDescription = stringResource(Res.string.dictionary_edit_word))
+                    }
+                }
+                TooltipBox(positionProvider = TooltipDefaults.rememberPlainTooltipPositionProvider(),
+                    tooltip = { PlainTooltip { Text(stringResource(Res.string.accessibility_open_in_browser)) } },
+                    state = rememberTooltipState()) {
+                    IconButton(onClick = { provider?.let { uri.openUri(it.urlFor(word)) } }, enabled = provider != null) {
+                        Icon(Icons.Default.OpenInNew, contentDescription = stringResource(Res.string.accessibility_open_in_browser))
+                    }
+                }
+                listen?.let { speak ->
+                    TooltipBox(positionProvider = TooltipDefaults.rememberPlainTooltipPositionProvider(),
+                        tooltip = { PlainTooltip { Text(stringResource(Res.string.selection_action_listen)) } },
+                        state = rememberTooltipState()) {
+                        IconButton(onClick = speak) { Icon(Icons.Default.VolumeUp, contentDescription = stringResource(Res.string.selection_action_listen)) }
                     }
                 }
             }
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    wordField(Modifier.weight(1f))
-                    wordActions()
-                }
-                if (shownLemmas.isNotEmpty() || !isOriginal) {
-                    FlowRow(
-                        modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
-                        horizontalArrangement = Arrangement.spacedBy(6.dp)
-                    ) { wordPills(false) }
-                }
             val saveWord: () -> Unit = {
                 if (!saving) {
                     val snapshotWord = word
@@ -322,7 +340,8 @@ private fun ReferenceDictionaryPane(
             }
             Spacer(Modifier.height(12.dp))
 
-            Row(verticalAlignment = Alignment.CenterVertically) {
+            if (showWordEditor) {
+              Row(verticalAlignment = Alignment.CenterVertically) {
                 OutlinedTextField(
                     value = meaning,
                     onValueChange = { meaning = it; meaningEdited = true; saved = false },
@@ -351,7 +370,7 @@ private fun ReferenceDictionaryPane(
                         )
                     )
                 }
-            }
+              }
 
             if (!meaningEdited) {
                 if (meaningEngine == "own-dictionary" && ownMeaningSource != null) TranslationSourceIcon(ownMeaningSource)
@@ -417,35 +436,42 @@ private fun ReferenceDictionaryPane(
                     }
                 }
             }
-
-        }
-        if (provider != null && url != null) {
-            FlowRow(Modifier.fillMaxWidth()) {
+            }
+            FlowRow(
+                modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                verticalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                DictionarySourceButton(
+                    selected = selectedDictionarySource == "own",
+                    label = stringResource(Res.string.dictionary_source_own),
+                    icon = null,
+                    own = true,
+                    onClick = { selectedDictionarySource = "own" }
+                )
                 providers.forEach { item ->
-                    Tab(
-                        selected = provider.name == item.name,
+                    DictionarySourceButton(
+                        selected = selectedDictionarySource == item.name,
+                        label = item.name,
+                        icon = dictionaryProviderIcon(item.name),
                         onClick = {
+                            selectedDictionarySource = item.name
                             selectedProviderName = item.name
                             vm.action { vm.container.settings.setLastDictionaryProvider(lang.code, item.name) }
                             webViewFailed = false
-                        },
-                        modifier = Modifier.height(40.dp).width(48.dp),
-                        unselectedContentColor = MaterialTheme.colorScheme.onSurfaceVariant
-                    ) {
-                        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                            val icon = dictionaryProviderIcon(item.name)
-                            if (icon != null) Image(painterResource(icon), item.name, Modifier.size(20.dp))
-                            else Icon(Icons.Default.MenuBook, item.name, Modifier.size(20.dp))
-                            if (provider.name == item.name) HorizontalDivider(
-                                modifier = Modifier.align(Alignment.BottomCenter),
-                                thickness = 3.dp,
-                                color = MaterialTheme.colorScheme.primary
-                            )
                         }
-                    }
+                    )
                 }
             }
             HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+            if (selectedDictionarySource == "own") {
+                OwnDictionaryBlock(ownLookup, lang, meaningTarget, vm, text.id, selection.sentence,
+                    speak = { tts.togglePronounce(it, lang.code, settings) }, onLookup = { currentWord = it })
+            }
+
+
+        }
+        if (selectedDictionarySource != "own" && provider != null && url != null) {
             Box(Modifier.fillMaxWidth().weight(1f)) {
                 DictionaryWebView(url, Modifier.fillMaxSize(), onFailed = { webViewFailed = true })
                 if (webViewFailed) {
@@ -483,6 +509,34 @@ private fun ReferenceDictionaryPane(
                 TextButton(onClick = { showNewListDialog = false }) { Text(stringResource(Res.string.action_cancel)) }
             }
         )
+    }
+}
+
+@Composable
+private fun DictionarySourceButton(
+    selected: Boolean,
+    label: String,
+    icon: DrawableResource?,
+    own: Boolean = false,
+    onClick: () -> Unit
+) {
+    val shape = RoundedCornerShape(12.dp)
+    Surface(
+        onClick = onClick,
+        modifier = Modifier.size(40.dp).semantics { contentDescription = label },
+        shape = shape,
+        color = if (selected) MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.surface,
+        contentColor = if (selected) MaterialTheme.colorScheme.onSecondaryContainer else MaterialTheme.colorScheme.onSurfaceVariant,
+        border = androidx.compose.foundation.BorderStroke(
+            if (selected) 1.5.dp else 1.dp,
+            if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant
+        )
+    ) {
+        Box(contentAlignment = Alignment.Center) {
+            if (icon != null) Image(painterResource(icon), contentDescription = null, modifier = Modifier.size(24.dp))
+            else if (own) Image(painterResource(Res.drawable.about_launcher_logo), contentDescription = null, modifier = Modifier.size(26.dp))
+            else Icon(Icons.Default.MenuBook, contentDescription = null, modifier = Modifier.size(22.dp))
+        }
     }
 }
 @Composable
