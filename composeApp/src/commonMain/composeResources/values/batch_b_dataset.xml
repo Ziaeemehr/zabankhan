@@ -1,5 +1,8 @@
 <resources>
   <string name="dataset_title">Dataset</string>
+  <string name="dataset_home_title">Ready-made decks &amp; stories</string>
+  <string name="dataset_menu_title">Decks &amp; stories</string>
+  <string name="dataset_home_count">%1$d installed / available</string>
   <string name="dataset_settings_entry">Built-in dataset</string>
   <string name="dataset_subtitle">Download licensed content packs by language. Adding them again skips duplicates.</string>
   <string name="dataset_decks">Decks</string>

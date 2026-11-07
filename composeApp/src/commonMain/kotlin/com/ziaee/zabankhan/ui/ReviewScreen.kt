@@ -115,6 +115,7 @@ class ReviewViewModel(private val container: AppContainer, private val settings:
     var failed by mutableStateOf(false); private set
     var stage by mutableStateOf(ReviewStage.OVERVIEW); private set
     var overview by mutableStateOf<ReviewOverview?>(null); private set
+    var hasCards by mutableStateOf(false); private set
     var streak by mutableIntStateOf(0); private set
     var session by mutableStateOf<ReviewSession?>(null); private set
     var slot by mutableStateOf<CardSlot?>(null); private set
@@ -176,6 +177,7 @@ class ReviewViewModel(private val container: AppContainer, private val settings:
     fun load() = run {
         val now = nowMs()
         val entries = scopedEntries()
+        hasCards = entries.isNotEmpty()
         val logs = container.vocab.reviewLogSince(lang, 0)
         overview = reviewOverview(entries, logs, settings.dailyNewCards, now, intervals = intervals)
         listNames = container.vocab.observeLists(lang).first().associate { it.id to it.name }
@@ -300,7 +302,7 @@ internal fun meaningTarget(cardLang: String, settings: AppSettings): String =
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ReviewScreen(container: AppContainer, settings: AppSettings, onBack: () -> Unit = {}, onOpenSettings: () -> Unit = {}, listScope: Long = -1L) {
+fun ReviewScreen(container: AppContainer, settings: AppSettings, onBack: () -> Unit = {}, onOpenSettings: () -> Unit = {}, listScope: Long = -1L, onOpenDatasets: () -> Unit = {}) {
     val vm = viewModel(key = "review:${container.hashCode()}:${settings.learningLang}:${settings.dailyNewCards}:${settings.reviewIntervalDays}:$listScope") { ReviewViewModel(container, settings, listScope) }
     val snackbar = remember { SnackbarHostState() }
     val tts = remember { createTts() }
@@ -396,7 +398,7 @@ fun ReviewScreen(container: AppContainer, settings: AppSettings, onBack: () -> U
         Box(Modifier.fillMaxSize().padding(padding).padding(horizontal = 20.dp)) {
             when {
                 vm.loading -> CircularProgressIndicator(Modifier.align(Alignment.Center))
-                vm.stage == ReviewStage.OVERVIEW -> vm.overview?.let { ReviewOverviewPane(vm, it) }
+                vm.stage == ReviewStage.OVERVIEW -> vm.overview?.let { ReviewOverviewPane(vm, it, onOpenDatasets) }
                     ?: if (vm.failed) TextButton(onClick = vm::load, modifier = Modifier.align(Alignment.Center)) { Text(stringResource(Res.string.retry)) } else Unit
                 vm.stage == ReviewStage.SUMMARY -> ReviewSummary(vm) { vm.backToOverview() }
                 else -> {
@@ -421,7 +423,7 @@ fun ReviewScreen(container: AppContainer, settings: AppSettings, onBack: () -> U
 }
 
 @Composable
-private fun ReviewOverviewPane(vm: ReviewViewModel, o: ReviewOverview) {
+private fun ReviewOverviewPane(vm: ReviewViewModel, o: ReviewOverview, onOpenDatasets: () -> Unit) {
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(vertical = 12.dp), horizontalAlignment = Alignment.CenterHorizontally) {
         Text(stringResource(Res.string.review_today_title), style = MaterialTheme.typography.headlineSmall)
         Spacer(Modifier.height(12.dp))
@@ -449,6 +451,9 @@ private fun ReviewOverviewPane(vm: ReviewViewModel, o: ReviewOverview) {
                 stringResource(if (o.newCapReached) Res.string.review_new_cap_reached else Res.string.review_no_cards_due),
                 style = MaterialTheme.typography.bodyMedium
             )
+            if (!vm.hasCards) {
+                EditorialPrimaryButton(stringResource(Res.string.dataset_home_title), onOpenDatasets)
+            }
         }
         Button(onClick = { vm.startReview() }, enabled = o.dueCount + o.newCount > 0 && !vm.busy, modifier = Modifier.fillMaxWidth().padding(vertical = 16.dp).heightIn(min = 52.dp)) {
             Icon(Icons.Default.PlayArrow, null); Spacer(Modifier.width(8.dp)); Text(stringResource(Res.string.review_start))

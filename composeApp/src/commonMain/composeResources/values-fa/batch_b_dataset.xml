@@ -1,5 +1,8 @@
 <resources>
   <string name="dataset_title">مجموعه‌داده</string>
+  <string name="dataset_home_title">دسته‌ها و داستان‌های آماده</string>
+  <string name="dataset_menu_title">دسته‌ها و داستان‌ها</string>
+  <string name="dataset_home_count">%1$d بستهٔ آماده</string>
   <string name="dataset_settings_entry">مجموعه‌دادهٔ داخلی</string>
   <string name="dataset_subtitle">محتوای مجاز را برای هر زبان دانلود کنید. موارد تکراری هنگام افزودن دوباره نادیده گرفته می‌شوند.</string>
   <string name="dataset_decks">دسته‌ها</string>

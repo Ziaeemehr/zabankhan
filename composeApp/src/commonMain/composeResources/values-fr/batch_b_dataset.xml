@@ -1,5 +1,8 @@
 <resources>
   <string name="dataset_title">Données</string>
+  <string name="dataset_home_title">Paquets et histoires prêts à l’emploi</string>
+  <string name="dataset_menu_title">Paquets et histoires</string>
+  <string name="dataset_home_count">%1$d paquets disponibles</string>
   <string name="dataset_settings_entry">Données intégrées</string>
   <string name="dataset_subtitle">Téléchargez des contenus sous licence pour chaque langue. Les doublons sont ignorés lors d’un nouvel ajout.</string>
   <string name="dataset_decks">Paquets</string>

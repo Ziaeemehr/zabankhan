@@ -148,6 +148,16 @@ fun ExamsCard(onOpen: () -> Unit, modifier: Modifier = Modifier) {
 }
 
 @Composable
+fun DatasetEntryCard(language: String, onOpen: () -> Unit, modifier: Modifier = Modifier) {
+    val packCount by produceState(0, language) {
+        val spec = com.ziaee.zabankhan.lang.Languages.byCode(language)
+        value = if (spec == null) 0 else com.ziaee.zabankhan.content.bundledDatasetPackCount(spec)
+    }
+    HomeEntryCard(Icons.Default.CollectionsBookmark, MaterialTheme.colorScheme.primary,
+        stringResource(Res.string.dataset_home_title), stringResource(Res.string.dataset_home_count, packCount), onOpen, modifier)
+}
+
+@Composable
 fun TodayNewsCard(headlineCount: Int, language: String, onOpen: () -> Unit, modifier: Modifier = Modifier) {
     HomeEntryCard(Icons.Default.Newspaper, MaterialTheme.colorScheme.secondary, stringResource(Res.string.home_section_today_news),
         if (headlineCount > 0) pluralStringResource(Res.plurals.home_news_headlines, headlineCount, headlineCount.toString())

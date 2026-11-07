@@ -3,6 +3,8 @@ package com.ziaee.zabankhan.content
 import com.ziaee.zabankhan.data.VocabEntry
 import kotlinx.serialization.json.*
 import okio.ByteString.Companion.encodeUtf8
+import com.ziaee.zabankhan.lang.LanguageSpec
+import com.ziaee.zabankhan.resources.Res
 
 data class DatasetDeckPack(
     val id: String,
@@ -46,6 +48,12 @@ data class DatasetManifest(
     val starterDeckIds: Set<String> = emptySet(),
     val starterStoryIds: Set<String> = emptySet()
 )
+
+suspend fun bundledDatasetPackCount(language: LanguageSpec): Int = try {
+    val source = DatasetSource.Bundled(language.code)
+    parseDatasetManifest(Res.readBytes("files/${language.code}/dataset/manifest.json").decodeToString(), source)
+        .let { it.decks.size + it.stories.size }
+} catch (_: Exception) { 0 }
 
 data class DatasetSentenceTranslationMetadata(val model: String, val promptRevision: String)
 
