@@ -12,6 +12,9 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.input.nestedscroll.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
@@ -89,6 +92,12 @@ private data class PdfRange(val page: Int, val first: Int, val last: Int, val wo
         vm.container.cache.put("pdf:page-count:${text.id}", handle.pageCount.toString())
     }
     val list = rememberLazyListState(text.lastOffset.coerceIn(0, handle.pageCount - 1))
+    var zoom by rememberSaveable(path) { mutableFloatStateOf(1f) }
+    var panX by rememberSaveable(path) { mutableFloatStateOf(0f) }
+    var panY by rememberSaveable(path) { mutableFloatStateOf(0f) }
+    var renderZoom by rememberSaveable(path) { mutableFloatStateOf(zoom) }
+    var viewportWidth by remember { mutableIntStateOf(0) }
+    var viewportHeight by remember { mutableIntStateOf(0) }
     val layout = remember(handle, text.lang) { PdfPageWords(path, handle, text.lang) }
     val vocab by remember(text.lang) { vm.container.vocab.observeAll(text.lang) }.collectAsState(emptyList())
     val highlights by remember(text.id) { vm.container.database.pdfHighlights().observeForText(text.id) }.collectAsState(emptyList())
@@ -139,6 +148,37 @@ private data class PdfRange(val page: Int, val first: Int, val last: Int, val wo
     var lastSentence by remember(path) { mutableStateOf<String?>(null) }
     var highlightColors by remember(path) { mutableStateOf(false) }
     LaunchedEffect(list.isScrollInProgress) { if (list.isScrollInProgress) range = null }
+    fun changeView(factor: Float, centroid: Offset, move: Offset) {
+        val (view, overflowY) = pinchView(PdfView(zoom, Offset(panX, panY)), factor, centroid, move,
+            Size(viewportWidth.toFloat(), viewportHeight.toFloat()))
+        zoom = view.zoom
+        panX = view.pan.x
+        panY = view.pan.y
+        if (overflowY != 0f) list.dispatchRawDelta(-overflowY / zoom)
+        range = null
+    }
+    val pinchByLatest by rememberUpdatedState<(Float, Offset, Offset) -> Unit> { factor, centroid, move ->
+        changeView(factor, centroid, move)
+    }
+    val endPinch by rememberUpdatedState({ renderZoom = zoom })
+    val zoomAtPoint by rememberUpdatedState<(Float, Offset) -> Unit> { target, point ->
+        changeView(target / zoom, point, Offset.Zero)
+        renderZoom = zoom
+    }
+    val latestZoom by rememberUpdatedState(zoom)
+    val horizontalPan = rememberScrollableState { delta ->
+        val before = panX
+        panX = (panX + delta).coerceIn(-(zoom - 1f) * viewportWidth, 0f)
+        panX - before
+    }
+    val verticalPan = remember(path) { object : NestedScrollConnection {
+        override fun onPostScroll(consumed: Offset, available: Offset, source: NestedScrollSource): Offset {
+            if (available.y == 0f) return Offset.Zero
+            val before = panY
+            panY = (panY + available.y * zoom).coerceIn(-(zoom - 1f) * viewportHeight, 0f)
+            return Offset(0f, (panY - before) / zoom)
+        }
+    } }
     Column(Modifier.fillMaxSize()) {
         // Slim bar: the file name added nothing; only the page counter and a few actions remain.
         Surface(color = MaterialTheme.colorScheme.surface, tonalElevation = 2.dp) {
@@ -203,36 +243,79 @@ private data class PdfRange(val page: Int, val first: Int, val last: Int, val wo
             Text(stringResource(Res.string.pdf_error), Modifier.weight(1f), color = MaterialTheme.colorScheme.error)
             TextButton(onClick = { failed = false }) { Text(stringResource(Res.string.pdf_done)) }
         }
-        LazyColumn(state = list, userScrollEnabled = !areaMode, modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            items((0 until handle.pageCount).toList(), key = { it }) { index ->
-                PdfPage(handle, layout, index, areaMode, range?.takeIf { it.page == index }, highlights.filter { it.page == index },
-                    penMode = penMode, penColor = penColor, eraser = eraser, fingerInk = fingerInk,
-                    ink = pageInk(index),
-                    onInk = { saveInk(index, it) },
-                    onError = { failed = true },
-                    onTap = { words, word ->
-                        range = null
-                        lastSentence = sentenceAround(words, words.indexOf(word))
-                        selection = ReaderSelection(pdfLookupWord(word.text, text.lang), lastSentence.orEmpty(), 0..0, false)
-                    },
-                    onRange = { first, last, words, anchor -> selecting = true; range = PdfRange(index, first, last, words, anchor) },
-                    onRangeEnd = { selecting = false },
-                    onScroll = { amount -> scope.launch { list.scrollBy(amount) } },
-                    onArea = { image, rect ->
-                        scope.launch {
-                            recognizing = true
-                            try {
-                                val recognized = withContext(Dispatchers.Default) {
-                                    val highResolution = handle.renderPage(index, OcrRegionFilter.renderWidth(rect, handle.pageAspect(index), image.width))
-                                    createOcrEngine().recognizeWords(cropPdfImage(highResolution, rect), text.lang)
-                                }
-                                areaText = PdfTextCleaner.clean(recognized.joinToString(" ") { it.text })
-                            } catch (e: CancellationException) { throw e }
-                            catch (_: Exception) { failed = true }
-                            finally { recognizing = false }
-                            areaMode = false
+        // Pinch coordinates belong to the untransformed viewport, as in French Reader.
+        Box(Modifier.weight(1f).fillMaxWidth().onSizeChanged {
+            viewportWidth = it.width; viewportHeight = it.height
+        }.pointerInput(areaMode, penMode) {
+            if (areaMode) return@pointerInput
+            awaitEachGesture {
+                awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Initial)
+                var pinching = false
+                try {
+                    do {
+                        val event = awaitPointerEvent(PointerEventPass.Initial)
+                        val stylus = penMode && event.changes.any {
+                            it.pressed && (it.type == PointerType.Stylus || it.type == PointerType.Eraser)
                         }
-                    })
+                        if (!stylus && event.changes.count { it.pressed } >= 2) {
+                            pinching = true
+                            val factor = event.calculateZoom()
+                            if (factor.isFinite()) pinchByLatest(factor,
+                                event.calculateCentroid(useCurrent = false), event.calculatePan())
+                        }
+                        // Keep consuming until every finger lifts, including the remaining finger.
+                        if (pinching) event.changes.forEach { it.consume() }
+                    } while (event.changes.any { it.pressed })
+                } finally {
+                    if (pinching) endPinch()
+                }
+            }
+        }) {
+            Box(Modifier.fillMaxSize().clipToBounds()
+                .scrollable(horizontalPan, Orientation.Horizontal,
+                    enabled = zoom > 1f && !areaMode && !(penMode && fingerInk))
+                .nestedScroll(verticalPan)) {
+                LazyColumn(state = list, userScrollEnabled = !areaMode && !(penMode && fingerInk),
+                    modifier = Modifier.fillMaxSize().graphicsLayer {
+                        scaleX = zoom; scaleY = zoom
+                        translationX = panX; translationY = panY
+                        transformOrigin = TransformOrigin(0f, 0f)
+                    }, verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    items((0 until handle.pageCount).toList(), key = { it }) { index ->
+                        PdfPage(handle, layout, index, renderZoom, areaMode, range?.takeIf { it.page == index }, highlights.filter { it.page == index },
+                            penMode = penMode, penColor = penColor, eraser = eraser, fingerInk = fingerInk,
+                            ink = pageInk(index),
+                            onInk = { saveInk(index, it) },
+                            onError = { failed = true },
+                            onTap = { words, word ->
+                                range = null
+                                lastSentence = sentenceAround(words, words.indexOf(word))
+                                selection = ReaderSelection(pdfLookupWord(word.text, text.lang), lastSentence.orEmpty(), 0..0, false)
+                            },
+                            onRange = { first, last, words, anchor -> selecting = true; range = PdfRange(index, first, last, words, anchor) },
+                            onRangeEnd = { selecting = false },
+                            onDoubleTap = { point ->
+                                val item = list.layoutInfo.visibleItemsInfo.firstOrNull { it.index == index }
+                                if (item != null) zoomAtPoint(if (latestZoom > 1f) 1f else 2.5f,
+                                    Offset(point.x * latestZoom + panX, (point.y + item.offset) * latestZoom + panY))
+                            },
+                            onArea = { image, rect ->
+                                scope.launch {
+                                    recognizing = true
+                                    try {
+                                        val recognized = withContext(Dispatchers.Default) {
+                                            val highResolution = handle.renderPage(index, OcrRegionFilter.renderWidth(rect, handle.pageAspect(index), image.width))
+                                            createOcrEngine().recognizeWords(cropPdfImage(highResolution, rect), text.lang)
+                                        }
+                                        areaText = PdfTextCleaner.clean(recognized.joinToString(" ") { it.text })
+                                    } catch (e: CancellationException) { throw e }
+                                    catch (_: Exception) { failed = true }
+                                    finally { recognizing = false }
+                                    areaMode = false
+                                }
+                            })
+                    }
+                }
             }
         }
     }
@@ -288,11 +371,11 @@ private data class PdfRange(val page: Int, val first: Int, val last: Int, val wo
     }
 }
 
-@Composable private fun PdfPage(handle: PdfDocumentHandle, layout: PdfPageWords, index: Int, areaMode: Boolean,
+@Composable private fun PdfPage(handle: PdfDocumentHandle, layout: PdfPageWords, index: Int, renderZoom: Float, areaMode: Boolean,
     selection: PdfRange?, highlights: List<PdfHighlight>,
     penMode: Boolean, penColor: String, eraser: Boolean, fingerInk: Boolean,
     ink: List<InkStroke>, onInk: (List<InkStroke>) -> Unit, onError: () -> Unit,
-    onTap: (List<PdfWord>, PdfWord) -> Unit, onRange: (Int, Int, List<PdfWord>, Rect) -> Unit, onRangeEnd: () -> Unit, onScroll: (Float) -> Unit,
+    onTap: (List<PdfWord>, PdfWord) -> Unit, onRange: (Int, Int, List<PdfWord>, Rect) -> Unit, onRangeEnd: () -> Unit, onDoubleTap: (Offset) -> Unit,
     onArea: (ImageBitmap, PdfRect) -> Unit) {
     val currentInk by rememberUpdatedState(ink)
     val saveInk by rememberUpdatedState(onInk)
@@ -301,10 +384,9 @@ private data class PdfRange(val page: Int, val first: Int, val last: Int, val wo
     var image by remember(handle, index) { mutableStateOf<ImageBitmap?>(null) }
     var words by remember(handle, index) { mutableStateOf<List<PdfWord>>(emptyList()) }
     var width by remember { mutableIntStateOf(0) }
-    var view by remember(handle, index) { mutableStateOf(PdfView(1f, Offset.Zero)) }
+    val doubleTap by rememberUpdatedState(onDoubleTap)
     var viewport by remember { mutableStateOf(Size.Zero) }
     var coordinates by remember { mutableStateOf<LayoutCoordinates?>(null) }
-    var selectingWords by remember { mutableStateOf(false) }
     var box by remember(areaMode) { mutableStateOf<PdfRect?>(null) }
 
     var renderFailed by remember { mutableStateOf(false) }
@@ -314,11 +396,11 @@ private data class PdfRange(val page: Int, val first: Int, val last: Int, val wo
         catch (e: CancellationException) { throw e }
         catch (_: Exception) { renderFailed = true; onError() }
     }
-    LaunchedEffect(handle, index, width, attempt) {
+    LaunchedEffect(handle, index, width, renderZoom, attempt) {
         if (width > 0) {
             renderFailed = false
             try {
-                image = handle.renderPage(index, width)
+                image = handle.renderPage(index, (width * renderZoom).toInt().coerceAtMost(4096))
                 words = layout.get(index)
             } catch (e: CancellationException) { throw e }
             catch (_: Exception) { renderFailed = true; onError() }
@@ -339,17 +421,13 @@ private data class PdfRange(val page: Int, val first: Int, val last: Int, val wo
     }
     Box(Modifier.fillMaxWidth().aspectRatio(1f / aspect).onSizeChanged {
         width = it.width; viewport = Size(it.width.toFloat(), it.height.toFloat())
-    }.graphicsLayer {
-        scaleX = view.zoom; scaleY = view.zoom
-        translationX = view.pan.x; translationY = view.pan.y
-        transformOrigin = TransformOrigin(0f, 0f)
     }.onGloballyPositioned { coordinates = it }.background(MaterialTheme.colorScheme.surface)
         .pointerInput(penMode, penColor, eraser, fingerInk, viewport) {
             if (penMode) awaitPointerEventScope {
                 while (true) {
                     val down = awaitPointerEvent(PointerEventPass.Initial).changes.firstOrNull {
                         it.pressed && !it.previousPressed && (it.type == PointerType.Stylus ||
-                            it.type == PointerType.Eraser || (fingerInk && it.type == PointerType.Touch))
+                            it.type == PointerType.Eraser || (fingerInk && it.type == PointerType.Touch && !it.isConsumed))
                     } ?: continue
                     down.consume()
                     val erase = eraser || down.type == PointerType.Eraser
@@ -377,7 +455,14 @@ private data class PdfRange(val page: Int, val first: Int, val last: Int, val wo
                         while (pressed) {
                             val event = awaitPointerEvent(PointerEventPass.Initial)
                             // A second finger means pinch zoom: drop the provisional finger stroke.
-                            if (down.type == PointerType.Touch && event.changes.count { it.pressed } > 1) { pinch = true; break }
+                            if (down.type == PointerType.Touch && event.changes.count { it.pressed } > 1) {
+                                pinch = true
+                                preview = null
+                                do {
+                                    val remaining = awaitPointerEvent(PointerEventPass.Initial)
+                                } while (remaining.changes.any { it.pressed })
+                                break
+                            }
                             val change = event.changes.firstOrNull { it.id == down.id } ?: break
                             update(change.position)
                             change.consume()
@@ -389,12 +474,9 @@ private data class PdfRange(val page: Int, val first: Int, val last: Int, val wo
                 }
             }
         }
-        .pointerInput(areaMode, words, image, viewport) {
+        .pointerInput(areaMode, penMode, words, image, viewport) {
             detectTapGestures(
-                onDoubleTap = { point ->
-                    view = if (view.zoom > 1f) PdfView(1f, Offset.Zero) else
-                        PdfView(2.5f, clampPan(2.5f, point * -1.5f, viewport))
-                },
+                onDoubleTap = { doubleTap(it) },
                 onTap = { point ->
                     if (!areaMode) {
                         val n = normalized(point)
@@ -405,12 +487,11 @@ private data class PdfRange(val page: Int, val first: Int, val last: Int, val wo
         .pointerInput(areaMode, words, viewport) {
             var anchor: Int? = null
             if (!areaMode) detectDragGesturesAfterLongPress(
-                onDragEnd = { selectingWords = false; onRangeEnd() }, onDragCancel = { selectingWords = false; onRangeEnd() },
+                onDragEnd = { onRangeEnd() }, onDragCancel = { onRangeEnd() },
                 onDragStart = { point ->
                     val n = normalized(point)
                     hitTestWord(words, n.x, n.y, .012f)?.let { word ->
                         val first = words.indexOf(word)
-                        selectingWords = true
                         anchor = first
                         select(first, first)
                     }
@@ -435,34 +516,6 @@ private data class PdfRange(val page: Int, val first: Int, val last: Int, val wo
                     if (rect != null && bitmap != null && rect.right - rect.left > .01f && rect.bottom - rect.top > .01f) onArea(bitmap, rect)
                     box = null
                 }, onDragCancel = { box = null })
-            }
-        }
-        .pointerInput(areaMode, viewport, penMode, fingerInk) {
-            if (!areaMode) awaitEachGesture {
-                val down = awaitFirstDown(requireUnconsumed = false)
-                if (penMode && (down.type == PointerType.Stylus || down.type == PointerType.Eraser)) return@awaitEachGesture
-                val inkFinger = penMode && fingerInk && down.type == PointerType.Touch
-                var transforming = false
-                var totalPan = Offset.Zero
-                do {
-                    val event = awaitPointerEvent(PointerEventPass.Initial)
-                    if (penMode && event.changes.any { it.pressed && (it.type == PointerType.Stylus || it.type == PointerType.Eraser) }) continue
-                    val fingers = event.changes.count { it.pressed }
-                    // With finger drawing, one finger draws; only two fingers zoom or pan.
-                    if (inkFinger && fingers < 2 && !transforming) continue
-                    totalPan += event.calculatePan()
-                    if (fingers >= 2 || (!selectingWords && view.zoom > 1f && totalPan.getDistance() > viewConfiguration.touchSlop)) transforming = true
-                    if (transforming) {
-                        val zoom = event.calculateZoom()
-                        if (zoom.isFinite()) {
-                            val next = pinchView(view, zoom, event.calculateCentroid(useCurrent = false) * view.zoom + view.pan,
-                                event.calculatePan() * view.zoom, viewport)
-                            view = next.first
-                            if (next.second != 0f) onScroll(-next.second)
-                        }
-                        event.changes.forEach { it.consume() }
-                    }
-                } while (event.changes.any { it.pressed })
             }
         }) {
         image?.let { Image(it, null, Modifier.fillMaxSize()) }
