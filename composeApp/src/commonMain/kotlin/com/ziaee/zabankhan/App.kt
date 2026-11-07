@@ -64,7 +64,7 @@ data class AppOpenRequest(val text: String? = null, val review: Boolean = false,
                 val language = com.ziaee.zabankhan.lang.Languages.byCode(requireNotNull(prefs.learningLang)) ?: return@LaunchedEffect
                 try {
                     com.ziaee.zabankhan.content.DatasetSeeder.seedIfNeeded(
-                        com.ziaee.zabankhan.content.DatasetRepository(container.database, language, prefs.meaningLang),
+                        com.ziaee.zabankhan.content.DatasetRepository(container.database, language, prefs.meaningLang, container.http),
                         container.database, container.cache)
                 } catch (cancelled: kotlinx.coroutines.CancellationException) { throw cancelled }
                 catch (_: Exception) { /* The catalog remains available for a retry from Words. */ }

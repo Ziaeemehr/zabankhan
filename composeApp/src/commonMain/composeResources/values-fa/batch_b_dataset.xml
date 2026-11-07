@@ -1,7 +1,7 @@
 <resources>
   <string name="dataset_title">مجموعه‌داده</string>
   <string name="dataset_settings_entry">مجموعه‌دادهٔ داخلی</string>
-  <string name="dataset_subtitle">واژگان و داستان‌های سطح‌بندی‌شدهٔ داخلی. افزودن دوباره بی‌خطر است و موارد تکراری نادیده گرفته می‌شوند.</string>
+  <string name="dataset_subtitle">محتوای مجاز را برای هر زبان دانلود کنید. موارد تکراری هنگام افزودن دوباره نادیده گرفته می‌شوند.</string>
   <string name="dataset_decks">دسته‌ها</string>
   <string name="dataset_stories">داستان‌ها</string>
   <string name="dataset_cards_count">%1$d کارت</string>
@@ -14,5 +14,9 @@
   <string name="dataset_remove_deleted_deck_cards">حذف کارت‌های دک‌های پاک‌شده</string>
   <string name="dataset_remove_deleted_deck_cards_confirm">کارت‌های دسته‌بندی‌نشدهٔ دک‌های داخلی پاک‌سازی شوند؟ کارت‌های دک‌های پاک‌شده حذف می‌شوند. اگر دک دوباره اضافه شده باشد، کارت‌ها با آن ادغام می‌شوند و نسخه‌ای که سابقهٔ مرور دارد نگه داشته می‌شود. کلمات خودتان دست نمی‌خورند.</string>
   <string name="dataset_removed_result">%1$d کارت حذف شد</string>
-  <string name="dataset_empty_language">برای %1$s محتوای داخلی وجود ندارد.</string>
+  <string name="dataset_empty_language">هنوز بستهٔ محتوایی برای این زبان وجود ندارد</string>
+  <string name="dataset_download_install">دانلود و نصب</string>
+  <string name="dataset_pack_size">حجم دانلود: %1$s</string>
+  <string name="dataset_size_unknown">حجم نامشخص</string>
+  <string name="dataset_installed_count">نصب‌شده %1$d از %2$d</string>
 </resources>
