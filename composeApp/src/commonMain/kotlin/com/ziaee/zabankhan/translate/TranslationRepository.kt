@@ -19,7 +19,7 @@ class TranslationRepository(private val http: HttpClient, private val cache: Key
     private val bundledSentences = mutableMapOf<String, com.ziaee.zabankhan.content.BundledSentenceTranslations>()
     private val engines = listOf("google-gtx", "google-clients5", "mymemory")
 
-    suspend fun translateText(text: String, source: String, target: String): Result<String> = result {
+    suspend fun translateText(text: String, source: String, target: String, sentenceContext: String? = null): Result<String> = result {
         overrides.getOverride(text, source, target)?.let { return@result it }
         Languages.byCode(TranslationService.baseLanguage(source))?.let { spec ->
             val bundled = bundledSentences[spec.code] ?: com.ziaee.zabankhan.content.BundledSentenceTranslations.forLanguage(spec)
@@ -28,10 +28,10 @@ class TranslationRepository(private val http: HttpClient, private val cache: Key
         }
         if (TranslationService.baseLanguage(source) == TranslationService.baseLanguage(target)) return@result text
         if (llm != null) {
-            modelCache.get(text, source, target, llm.cacheId)?.let { return@result it }
+            modelCache.get(text, source, target, contextCacheId(llm.cacheId, sentenceContext))?.let { return@result it }
             try {
-                val value = llm.translateLines(listOf(text), null, null, target, source).single()
-                modelCache.put(text, source, target, llm.cacheId, value)
+                val value = llm.translateLines(listOf(text), sentenceContext, null, target, source).single()
+                modelCache.put(text, source, target, contextCacheId(llm.cacheId, sentenceContext), value)
                 return@result value
             } catch (cancelled: CancellationException) { throw cancelled
             } catch (_: Exception) { /* Continue through the free providers. */ }
@@ -40,6 +40,9 @@ class TranslationRepository(private val http: HttpClient, private val cache: Key
         val service = TranslationService(http)
         service.translate(text, target, source).also { translations.put(text, source, target, service.lastEngine, it) }
     }
+
+    private fun contextCacheId(engine: String, context: String?): String =
+        if (context.isNullOrBlank()) engine else "$engine:context:${context.length}:$context"
 
     suspend fun lookupWord(word: String, sentence: String?, source: String, target: String): Result<WordMeaning> = result {
         overrides.getOverride(word, source, target)?.let { return@result WordMeaning(it, emptyList(), "override") }
