@@ -17,7 +17,8 @@ data class PreparationItem(
     val deckId: Long? = null
 ) {
     val identity get() = if (kind == PreparationKind.MEANING)
-        meaningCacheKey("", language, text, sentence) else translationCacheKey("", language, text)
+        meaningCacheKey(model = "", source = "", target = language, word = text, sentence = sentence)
+        else translationCacheKey(model = "", source = "", target = language, text = text)
 }
 
 data class PreparationDeck(val id: Long?, val title: String, val cardCount: Int)
