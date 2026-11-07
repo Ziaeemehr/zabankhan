@@ -1,5 +1,9 @@
 package com.ziaee.zabankhan.ui.reader
 
+import androidx.compose.foundation.Image
+import androidx.compose.ui.text.style.TextAlign
+import org.jetbrains.compose.resources.DrawableResource
+import org.jetbrains.compose.resources.painterResource
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.*
@@ -74,7 +78,7 @@ private fun ReferenceDictionarySheet(
             ) {}
         }
     ) {
-        ReferenceDictionaryPane(vm, settings, text, selection, words, highlights, dismiss, listen, listenFromHere, shadow)
+        ReferenceDictionaryPane(vm, settings, text, selection, words, highlights, dismiss, listen, listenFromHere, shadow, Modifier.fillMaxHeight())
     }
 }
 
@@ -102,7 +106,7 @@ private fun SavedElsewhereBadge(count: Int, modifier: Modifier = Modifier) {
     }
 }
 
-/** Compact controls ported from French Reader; platform WebView dictionaries remain external. */
+/** Controls and embedded dictionary panel ported from French Reader. */
 @Suppress("UNUSED_PARAMETER")
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
@@ -139,8 +143,13 @@ private fun ReferenceDictionaryPane(
     var listMenuExpanded by remember { mutableStateOf(false) }
     var showNewListDialog by remember { mutableStateOf(false) }
     val uri = LocalUriHandler.current
-    val provider = lang.dictionaryLinks.firstOrNull { meaningTarget in it.meaningLangs }
-        ?: lang.dictionaryLinks.firstOrNull { it.supportsMeaningLanguage(meaningTarget) }
+    val providers = dictionaryProviders(lang, meaningTarget)
+    var selectedProviderName by remember(lang.code, settings.lastDictionaryProviders[lang.code]) {
+        mutableStateOf(settings.lastDictionaryProviders[lang.code])
+    }
+    val provider = selectedDictionaryProvider(providers, selectedProviderName)
+    val url = provider?.urlFor(word)
+    var webViewFailed by remember(url) { mutableStateOf(false) }
     val repository = vm.container.translations(settings)
     LaunchedEffect(savedState.exactEntry?.id, meaningTarget) {
         val existing = savedState.exactEntry
@@ -168,8 +177,11 @@ private fun ReferenceDictionaryPane(
     LaunchedEffect(lists) {
         if (selectedListId != null && lists.none { it.id == selectedListId }) selectedListId = null
     }
-    Column(modifier.fillMaxWidth().imePadding().verticalScroll(rememberScrollState())
-        .padding(horizontal = 20.dp).padding(bottom = 24.dp)) {
+    BoxWithConstraints(modifier.fillMaxWidth().imePadding()) {
+      val controlsMaxHeight = if (providers.isEmpty()) maxHeight else maxHeight * 0.65f
+      Column(Modifier.fillMaxSize().padding(horizontal = 20.dp)) {
+        // Only controls scroll on short screens; the browser owns its bounded viewport.
+        Column(Modifier.heightIn(max = controlsMaxHeight).verticalScroll(rememberScrollState())) {
             val focusManager = LocalFocusManager.current
             var draft by remember(word) { mutableStateOf(TextFieldValue(word, TextRange(word.length))) }
             val draftWord = manualDictionaryWord(draft.text)
@@ -374,6 +386,46 @@ private fun ReferenceDictionaryPane(
                 }
             }
 
+        }
+        if (provider != null && url != null) {
+            FlowRow(Modifier.fillMaxWidth()) {
+                providers.forEach { item ->
+                    Tab(
+                        selected = provider.name == item.name,
+                        onClick = {
+                            selectedProviderName = item.name
+                            vm.action { vm.container.settings.setLastDictionaryProvider(lang.code, item.name) }
+                            webViewFailed = false
+                        },
+                        modifier = Modifier.height(40.dp).width(48.dp),
+                        unselectedContentColor = MaterialTheme.colorScheme.onSurfaceVariant
+                    ) {
+                        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                            val icon = dictionaryProviderIcon(item.name)
+                            if (icon != null) Image(painterResource(icon), item.name, Modifier.size(20.dp))
+                            else Icon(Icons.Default.MenuBook, item.name, Modifier.size(20.dp))
+                            if (provider.name == item.name) HorizontalDivider(
+                                modifier = Modifier.align(Alignment.BottomCenter),
+                                thickness = 3.dp,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                        }
+                    }
+                }
+            }
+            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+            Box(Modifier.fillMaxWidth().weight(1f)) {
+                DictionaryWebView(url, Modifier.fillMaxSize(), onFailed = { webViewFailed = true })
+                if (webViewFailed) {
+                    Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.surfaceVariant) {
+                        Box(Modifier.fillMaxSize().padding(16.dp), contentAlignment = Alignment.Center) {
+                            Text(stringResource(Res.string.dictionary_webview_unavailable), textAlign = TextAlign.Center)
+                        }
+                    }
+                }
+            }
+        }
+      }
     }
     if (showNewListDialog) {
         var newListName by remember { mutableStateOf("") }
@@ -436,4 +488,15 @@ fun DictionaryPane(vm: AppViewModel, settings: AppSettings, text: TextDocument, 
     ReaderReferenceTheme(settings.uiLang, settings.themeMode) {
         ReferenceDictionaryPane(vm, settings, text, selection, words, highlights, dismiss, listen, listenFromHere, shadow, modifier)
     }
+}
+
+private fun dictionaryProviderIcon(name: String): DrawableResource? = when (name) {
+    "WordReference" -> Res.drawable.ic_dict_wordreference
+    "Reverso Conjugaison" -> Res.drawable.ic_dict_reverso
+    "B-amooz" -> Res.drawable.ic_dict_bamooz
+    "Glosbe" -> Res.drawable.ic_dict_glosbe
+    "Larousse" -> Res.drawable.ic_dict_larousse
+    "Linguee" -> Res.drawable.ic_dict_linguee
+    "Wiktionary" -> Res.drawable.ic_dict_wiktionary
+    else -> null
 }

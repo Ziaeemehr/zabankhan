@@ -127,3 +127,5 @@ Reviewer gate: run the full build/test gate above, regenerate the Xcode project,
 Data safety/privacy labels: optional Drive transfers contain the same user content/settings as local backups and are sent to Google on explicit user action. Assess this against the current [Play Data safety definitions](https://support.google.com/googleplay/android-developer/answer/10787469) and [Apple privacy disclosures](https://developer.apple.com/app-store/app-privacy-details/) for the shipped configuration; a user-owned app folder does not itself settle collection/sharing answers. Describe the optional transfer and Google's processing/retention. No developer server receives the backup.
 
 Implementation references: [Android authorization](https://developer.android.com/identity/authorization), [Google native OAuth / PKCE](https://developers.google.com/identity/protocols/oauth2/native-app), [Drive application data](https://developers.google.com/workspace/drive/api/guides/appdata).
+
+The dictionary panel loads the selected provider’s website in an embedded browser; the looked-up word is sent to that provider.

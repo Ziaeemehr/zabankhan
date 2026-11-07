@@ -49,6 +49,7 @@ data class AppSettings(
     val voiceEngine: String = "online",
     val autoPronounceCards: Boolean = false,
     val ttsVoices: Map<String, String> = emptyMap(),
+    val lastDictionaryProviders: Map<String, String> = emptyMap(),
     val reminderEnabled: Boolean = false,
     val reminderHour: Int = 19,
     val reminderMinute: Int = 0,
@@ -94,6 +95,7 @@ class SettingsRepository(private val store: DataStore<Preferences>, private val 
         val autoCards = androidx.datastore.preferences.core.booleanPreferencesKey("auto_pronounce_cards")
         val engine = stringPreferencesKey("voice_engine")
         val voices = stringPreferencesKey("tts_voices")
+        val dictionaryProviders = stringPreferencesKey("last_dictionary_providers")
         val reminderEnabled = androidx.datastore.preferences.core.booleanPreferencesKey("review_reminder_enabled")
         val reminderHour = intPreferencesKey("review_reminder_hour")
         val reminderMinute = intPreferencesKey("review_reminder_minute")
@@ -130,6 +132,7 @@ class SettingsRepository(private val store: DataStore<Preferences>, private val 
             voiceEngine = p[K.engine]?.takeIf { it == "device" } ?: "online",
             autoPronounceCards = p[K.autoCards] ?: false,
             ttsVoices = runCatching { kotlinx.serialization.json.Json.decodeFromString<Map<String, String>>(p[K.voices] ?: "{}") }.getOrDefault(emptyMap()),
+            lastDictionaryProviders = runCatching { kotlinx.serialization.json.Json.decodeFromString<Map<String, String>>(p[K.dictionaryProviders] ?: "{}") }.getOrDefault(emptyMap()),
             reminderEnabled = p[K.reminderEnabled] ?: false,
             reminderHour = (p[K.reminderHour] ?: 19).coerceIn(0, 23),
             reminderMinute = (p[K.reminderMinute] ?: 0).coerceIn(0, 59),
@@ -169,6 +172,10 @@ class SettingsRepository(private val store: DataStore<Preferences>, private val 
     suspend fun setLearningLang(code: String) = store.edit {
         require(Languages.learnable.any { it.code == code }) { "Unsupported learning language" }
         it[K.lang] = code
+    }
+    suspend fun setLastDictionaryProvider(lang: String, provider: String) = store.edit {
+        val providers = runCatching { kotlinx.serialization.json.Json.decodeFromString<Map<String, String>>(it[K.dictionaryProviders] ?: "{}") }.getOrDefault(emptyMap())
+        it[K.dictionaryProviders] = kotlinx.serialization.json.Json.encodeToString(providers + (lang to provider))
     }
     suspend fun setMeaningLang(code: String) = store.edit { it[K.meaning] = code }
     suspend fun setUiLang(code: String) = store.edit { it[K.ui] = code }

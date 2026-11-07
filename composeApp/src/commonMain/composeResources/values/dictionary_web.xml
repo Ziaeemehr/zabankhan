@@ -1,0 +1,4 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="dictionary_webview_unavailable">In-app dictionary preview isn't available; use the button next to the word above to open it in your browser.</string>
+</resources>

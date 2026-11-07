@@ -56,3 +56,5 @@ Policy updates will be published here with a revised date.
 ## Contact
 
 Open an issue at <https://github.com/Ziaeemehr/zabankhan/issues>. Do not include private texts, API keys or backups in public issues.
+
+The dictionary panel loads the selected provider’s website in an embedded browser; the looked-up word is sent to that provider.

@@ -1,0 +1,4 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="dictionary_webview_unavailable">L’aperçu du dictionnaire dans l’application n’est pas disponible ; utilisez le bouton à côté du mot ci-dessus pour l’ouvrir dans le navigateur.</string>
+</resources>
