@@ -20,6 +20,9 @@ class TranslationRepositoryTest {
             val llm = LlmTranslator(LlmClient(http, "https://model.test", "m", null, true), "model-id")
             val repository = TranslationRepository(http, InMemoryKeyValueCache(), llm)
             repeat(2) { assertEquals("translated", repository.translateText("hello", "en", "fa").getOrThrow()) }
+            val sourced = repository.translateTextWithSource("hello", "en", "fa").getOrThrow()
+            assertEquals(ExampleSource.MODEL, sourced.source)
+            assertEquals("model-id", sourced.engine)
             assertEquals(1, calls)
             assertEquals("translated", repository.translateText("hello", "es", "fa").getOrThrow())
             assertEquals(2, calls)
@@ -47,7 +50,12 @@ class TranslationRepositoryTest {
             val model = LlmTranslator(LlmClient(http, "https://model.test", "m", "key", false), "m")
             assertEquals("hello", TranslationRepository(http, cache, model).translateText("hola", "es", "en").getOrThrow())
             val offline = HttpClient(MockEngine { error("offline cache should win") })
-            try { assertEquals("hello", TranslationRepository(offline, cache, null).translateText("hola", "es", "en").getOrThrow()) }
+            try {
+                val sourced = TranslationRepository(offline, cache, null).translateTextWithSource("hola", "es", "en").getOrThrow()
+                assertEquals("hello", sourced.text)
+                assertEquals(ExampleSource.GOOGLE, sourced.source)
+                assertEquals("google-gtx", sourced.engine)
+            }
             finally { offline.close() }
             assertEquals(2, calls)
         } finally { http.close() }

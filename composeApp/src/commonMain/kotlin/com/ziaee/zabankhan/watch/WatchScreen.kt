@@ -1,5 +1,8 @@
 package com.ziaee.zabankhan.watch
 
+import com.ziaee.zabankhan.ui.TranslationSourceIcon
+import com.ziaee.zabankhan.translate.ExampleTranslation
+
 import androidx.compose.animation.*
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.*
@@ -103,7 +106,7 @@ import kotlin.time.TimeSource
     val meaningLang = Languages.byCode(settings.meaningLang)?.takeIf { it in listOf(Languages.PERSIAN, Languages.ENGLISH) } ?: Languages.PERSIAN
     val repository = vm.container.translations(settings)
     val translations = remember(identity, lang.code, meaningLang.code, repository) {
-        WatchTranslations(TranslationOverrides(vm.container.cache), lang.code, meaningLang.code) { text -> repository.translateText(text, lang.code, meaningLang.code) }
+        WatchTranslations(TranslationOverrides(vm.container.cache), lang.code, meaningLang.code, translateWithSource = { repository.translateTextWithSource(it, lang.code, meaningLang.code) }) { text -> repository.translateText(text, lang.code, meaningLang.code) }
     }
     var editingTranslation by remember(identity) { mutableStateOf<String?>(null) }
     var exportOpen by remember(identity) { mutableStateOf(false) }
@@ -315,7 +318,7 @@ import kotlin.time.TimeSource
                                 val state = translations.states[sentence.text]
                                 val line = state?.text ?: stringResource(if (state?.failed == true) Res.string.watch_translation_failed else Res.string.watch_translation_loading)
                                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                                    if (state?.corrected == true) Icon(Icons.Default.Edit, stringResource(Res.string.watch_translation_edit), Modifier.padding(end = 4.dp).size(12.dp), tint = MaterialTheme.colorScheme.onSurface.copy(alpha = .65f))
+                                    if (state?.corrected != true) TranslationSourceIcon(state?.provenance)
                                     Text(line, Modifier.weight(1f).pointerInput(sentence.text, state?.failed) {
                                         detectTapGestures(onLongPress = { controller?.pause(); editingTranslation = sentence.text }, onTap = {
                                             if (state?.failed == true) scope.launch { translations.load(sentence.text, retry = true) }

@@ -1,5 +1,8 @@
 package com.ziaee.zabankhan.ui.reader
 
+import com.ziaee.zabankhan.ui.TranslationSourceIcon
+import com.ziaee.zabankhan.translate.ExampleTranslation
+
 import androidx.compose.foundation.Image
 import androidx.compose.ui.text.style.TextAlign
 import org.jetbrains.compose.resources.DrawableResource
@@ -134,6 +137,9 @@ private fun ReferenceDictionaryPane(
     val visibleEntries = (entries ?: words).filterNot { it.id in deletedIds }
     val observedState = dictionarySavedState(visibleEntries, lang, text.id, word, selection.sentence)
     val savedState = if (justSaved != null && justSaved?.id !in deletedIds) observedState.copy(exactEntry = justSaved) else observedState
+    var ownMeaningSource by remember(word, selection.sentence, meaningTarget) { mutableStateOf<ExampleTranslation?>(null) }
+    var optionSources by remember(word, selection.sentence, meaningTarget) { mutableStateOf(emptyMap<String, ExampleTranslation>()) }
+    var meaningEngine by remember(word, selection.sentence, meaningTarget) { mutableStateOf("") }
     var meaningEdited by remember(word, selection.sentence, meaningTarget) { mutableStateOf(false) }
     var alternatives by remember(word, selection.sentence, meaningTarget) { mutableStateOf(emptyList<MeaningOption>()) }
     var meaning by remember(word, selection.sentence, meaningTarget) { mutableStateOf(savedState.exactEntry?.takeIf { it.meaningLang == meaningTarget }?.meaning.orEmpty()) }
@@ -177,13 +183,19 @@ private fun ReferenceDictionaryPane(
         try {
             val exactOwnMatches = ownMatches.filter { normalizeDictionaryQuery(it.entry.word) == normalizeDictionaryQuery(word) }
             val result = if (exactOwnMatches.any { it.meanings.isNotEmpty() }) {
+                ownMeaningSource = exactOwnMatches.firstOrNull { it.meanings.isNotEmpty() }?.translations?.firstOrNull()
                 val senses = exactOwnMatches.map { com.ziaee.zabankhan.translate.MeaningSense(it.entry.pos, it.meanings) }
                 com.ziaee.zabankhan.translate.WordMeaning(senses.first { it.meanings.isNotEmpty() }.meanings.first(), senses, "own-dictionary")
             } else if (selection.sentenceActions) {
-                repository.translateText(word, text.lang, meaningTarget).getOrNull()?.let { com.ziaee.zabankhan.translate.WordMeaning(it, emptyList(), "") }
+                repository.translateTextWithSource(word, text.lang, meaningTarget).getOrNull()?.let { com.ziaee.zabankhan.translate.WordMeaning(it.text, emptyList(), it.engine ?: if (it.source == com.ziaee.zabankhan.translate.ExampleSource.BUNDLED) "bundled" else "override") }
             } else repository.lookupWord(word, selection.sentence, text.lang, meaningTarget).getOrNull()
             if (!meaningEdited && savedState.exactEntry == null) {
-                result?.primary?.let { meaning = it }
+                result?.primary?.let { meaning = it; meaningEngine = result.engine }
+                optionSources = result?.senses.orEmpty().flatMap { sense -> sense.meanings.map { value ->
+                    val engine = sense.engine ?: result?.engine.orEmpty()
+                    value to ExampleTranslation(value, com.ziaee.zabankhan.ui.translationSource(engine), engine = engine)
+                } }.toMap()
+                optionSources = optionSources + exactOwnMatches.flatMap { it.translations }.associateBy { it.text }
                 alternatives = result?.senses.orEmpty().flatMap { sense -> sense.meanings.map { MeaningOption(it, null, sense.pos) } }
                     .filter { it.text.isNotBlank() }.distinctBy { it.text }.take(8)
             }
@@ -301,7 +313,7 @@ private fun ReferenceDictionaryPane(
             val meaningAlternatives: @Composable () -> Unit = {
                 if (alternatives.isNotEmpty()) {
                     Spacer(Modifier.height(6.dp))
-                    MeaningOptionPills(alternatives.take(8), meaning, meaningTarget) { option ->
+                    MeaningOptionPills(alternatives.take(8), meaning, meaningTarget, sourceIcon = { option -> TranslationSourceIcon(optionSources[option.text]) }) { option ->
                         meaning = option.text
                         meaningEdited = true
                         saved = false
@@ -341,6 +353,10 @@ private fun ReferenceDictionaryPane(
                 }
             }
 
+            if (!meaningEdited) {
+                if (meaningEngine == "own-dictionary" && ownMeaningSource != null) TranslationSourceIcon(ownMeaningSource)
+                else TranslationSourceIcon(com.ziaee.zabankhan.ui.translationSource(meaningEngine), meaningEngine)
+            }
             meaningAlternatives()
 
             // One quiet line of details: the list it's filed in, where else it was saved, delete.

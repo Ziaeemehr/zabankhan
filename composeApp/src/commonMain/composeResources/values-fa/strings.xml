@@ -350,4 +350,10 @@
     <string name="pdf_full_dictionary">فرهنگ لغت کامل</string>
     <string name="pdf_translation_engine">موتور ترجمه</string>
     <string name="pdf_vocab_save_failed">ذخیره نشد. دوباره تلاش کنید.</string>
+
+    <string name="translation_source_model">مدل ابری</string>
+    <string name="translation_source_model_named">مدل ابری: %1$s</string>
+    <string name="translation_source_google">مترجم گوگل</string>
+    <string name="translation_source_bundled">ترجمهٔ همراه برنامه</string>
+    <string name="translation_source_dictionary">واژه‌نامهٔ آفلاین</string>
 </resources>
