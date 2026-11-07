@@ -13,7 +13,7 @@ data class ChannelVideo(val videoId: String, val title: String, val published: S
 
 object VideoCatalog {
     fun channels(lang: LanguageSpec): List<VideoChannel> = when (lang.code) {
-        Languages.FRENCH.code -> frenchChannels + extraFrenchChannels
+        Languages.FRENCH.code -> frenchChannels
         Languages.ENGLISH.code -> englishChannels
         else -> emptyList()
     }
@@ -88,68 +88,6 @@ suspend fun fetchChannelVideos(http: HttpClient, channelId: String): List<Channe
     check(response.status.value in 200..299) { "HTTP ${response.status.value}" }
     return parseYoutubeFeed(response.bodyAsText())
 }
-
-private val extraFrenchChannels = listOf(
-    VideoChannel("UCVgW9ZQaGBk6fsiPgE2mYDg", "Français avec Pierre"),
-    VideoChannel("UCFu6uJDqU_6vCIyN9KpMPLg", "Home Language"),
-    VideoChannel("UCByWJsWPztkY3Rta2B62tgg", "Hugoposé"),
-    VideoChannel("UCIMGfEAERXjmWwQeg15BFsg", "Europe 1"),
-    VideoChannel("UCewhc0fvja891XkpIPGRMxQ", "LCI"),
-    VideoChannel("UC9GGzAhhvhJO1hL10-BcgNA", "LeHuffPost"),
-    VideoChannel("UCXKJrYczY2_fJEZgFPGY0HQ", "CNEWS"),
-    VideoChannel("UCT67YOMntJxfRnO_9bXDpvw", "Le Média"),
-    VideoChannel("UC__xRB5L4toU9yYawt_lIKg", "BLAST, Le souffle de l'info"),
-    VideoChannel("UCar0yo-PpeMk51m116826pQ", "Journal l'Humanité"),
-    VideoChannel("UC9hHeywcPBnLglqnQRaNShQ", "Le Fil d'Actu - Officiel"),
-    VideoChannel("UCLmlUMA_bGiMWWgfDwfNDgw", "Info ou Mytho ?"),
-    VideoChannel("UCnf0fDz1vTYW-sl36wbVMbg", "Les Revues du Monde"),
-    VideoChannel("UCpi-4daExRSchtsJzO06rwA", "Quotidien"),
-    VideoChannel("UC50uCdUubc04xXZz7bqv5ng", "Investigation"),
-    VideoChannel("UC7DHcyYJpGiSO0NIE7w_Eug", "100% DOCS - Reportages & Documentaires"),
-    VideoChannel("UC_majyzBb8HZV0wCmU4Z4Ag", "imineo"),
-    VideoChannel("UClhucq0kKFA5tSmk3H7Yz6w", "Le Corps La Maison L'esprit"),
-    VideoChannel("UChG8nxeVTk6jQJyH-_TG7xw", "InPower Podcast"),
-    VideoChannel("UCQfakletOMk9zXVRSHUdyDA", "Solange te parle"),
-    VideoChannel("UCTafEJoRl5myC8A50plIrng", "FabienOlicard"),
-    VideoChannel("UCah8C0gmLkdtvsy0b2jrjrw", "Cyrus North"),
-    VideoChannel("UCI-8QMy9n3I5Pv6mTmXoAXA", "Gaspard G"),
-    VideoChannel("UCHQda5vLxrH0Ff0I0kMq4zw", "Konbini"),
-    VideoChannel("UCmHfCD8c8CmjlyWa8d4GObg", "Clique TV"),
-    VideoChannel("UCAdyNOE80FsFPYlFliyXfwQ", "France tv science & nature"),
-    VideoChannel("UCbdwaLd91oU_tWcHJn9-hdg", "Gauthier Dm - Science"),
-    VideoChannel("UCRhyS_ylPQ5GWBl1lK92ftA", "Léo - TechMaker"),
-    VideoChannel("UCzyN_JSs95aDgDFrfOxagEw", "Food Story"),
-    VideoChannel("UCKq9JxyISqBHDd-fXfV3QtQ", "FastGoodCuisine"),
-    VideoChannel("UCBmGPY1gJ4XnXfek849BjTA", "La Folle Histoire"),
-    VideoChannel("UCCGRtSqLfljpX9mzCYDsQIg", "Questions d'Histoire"),
-    VideoChannel("UCeLnsoEsuM4rWzzCU9RIlPQ", "Notre Histoire"),
-    VideoChannel("UCky8Z5AYEHA55-r2TFNC_KA", "L'étoile Noire"),
-    VideoChannel("UC_yP2DpIgs5Y1uWC0T03Chw", "Joueur Du Grenier"),
-    VideoChannel("UCCMxHHciWRBBouzk-PGzmtQ", "Bazar du Grenier"),
-    VideoChannel("UCoBCHzefW1ZGnGCA_r6spdw", "Benoit Chevalier"),
-    VideoChannel("UCC_r3spMB5i5QKgtdNVO0OQ", "Pierre Croce"),
-    VideoChannel("UC4ii4_aeS8iOFzsHuhJTq2w", "Poisson Fécond"),
-    VideoChannel("UCqfANd8RDXTcQddXMwwgUmA", "Louis-San"),
-    VideoChannel("UCyWqModMQlbIo8274Wh_ZsQ", "Cyprien"),
-    VideoChannel("UCww2zZWg4Cf5xcRKG-ThmXQ", "Norman"),
-    VideoChannel("UCtihF1ZtlYVzoaj_bKLQZ-Q", "Natoo"),
-    VideoChannel("UCWeg2Pkate69NFdBeuRFTAw", "SQUEEZIE"),
-    VideoChannel("UCJruTcTs7Gn2Tk7YC-ENeHQ", "Golden Moustache (M6)"),
-    VideoChannel("UCZ8kV8vuMdDLSerCIFfWnFQ", "Studio Bagel"),
-    VideoChannel("UCoZoRz4-y6r87ptDp4Jk74g", "Palmashow"),
-    VideoChannel("UCPHJfLg1VeNBsfzzTszpmmQ", "Montreux Comedy"),
-    VideoChannel("UCMqzZ17aTG2hKj2mVl7U4MA", "Les Parodie Bros"),
-    VideoChannel("UCvYqgo9dGBPVvaa4paVIhwQ", "Lou! La Série [Officiel]"),
-    VideoChannel("UCv88958LRDfndKV_Y7XmAnA", "Les Kassos - CANAL+"),
-    VideoChannel("UCl0u_YK8kwwZanklN6W-3tg", "Ça commence aujourd'hui - France Télévisions"),
-    VideoChannel("UCeqsLJGWhZXEerY5JWvwLkg", "Le Monde à L'Envers"),
-    VideoChannel("UCgvqvBoSHB1ctlyyhoHrGwQ", "Amixem"),
-    VideoChannel("UC9pxNghOaqpW4FzW74_KS1Q", "Les P'tits z'Amis"),
-    VideoChannel("UCdLdz4Jf5HDBrHv7_1acKiw", "Les Lapins Crétins Invasion"),
-    VideoChannel("UCJ9JIVGOL07BqXp0CoG83fw", "Disney Junior FR"),
-    VideoChannel("UCX2dIyMEQMWy3AQBlq1CYXQ", "TéléCrayon"),
-    VideoChannel("UCH0HvBshlVE7gCoV6as51og", "Madame Récré FR"),
-)
 
 private val frenchChannels = listOf(
     VideoChannel("UCI4xp8qHD1MDErkqxb1dPbA", "innerFrench – YouTube", "B1–B2", d("Hugo talks in clear, natural French about culture, society and how to learn; made for intermediate learners.", "Hugo parle de culture, de société et d'apprentissage dans un français clair et naturel ; pour le niveau intermédiaire.", "هوگو با فرانسوی واضح و طبیعی دربارهٔ فرهنگ، جامعه و روش یادگیری حرف می‌زند؛ برای سطح متوسط.")),
