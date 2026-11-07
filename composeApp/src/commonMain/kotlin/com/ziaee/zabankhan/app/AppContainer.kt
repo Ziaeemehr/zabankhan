@@ -42,6 +42,7 @@ class AppContainer(val database: AppDatabase, val settings: SettingsRepository, 
         override suspend fun get(key: String) = database.cache().get(key)
         override suspend fun put(key: String, value: String) = database.cache().put(CacheEntry(key, value))
     }
+    val ownDictionary by lazy { com.ziaee.zabankhan.dictionary.OwnDictionary(http, cache) }
     private val grammarPreferences = mutableMapOf<String, com.ziaee.zabankhan.grammar.GrammarPrefs>()
     fun grammarPreferences(languageCode: String) = grammarPreferences.getOrPut(languageCode) {
         com.ziaee.zabankhan.grammar.GrammarPrefs(cache, languageCode)

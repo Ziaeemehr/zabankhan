@@ -30,6 +30,7 @@ import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.unit.dp
 import com.ziaee.zabankhan.app.AppViewModel
 import com.ziaee.zabankhan.data.*
+import com.ziaee.zabankhan.dictionary.*
 import com.ziaee.zabankhan.datapack.LanguageDataPacks
 import com.ziaee.zabankhan.lang.*
 import com.ziaee.zabankhan.resources.*
@@ -151,6 +152,16 @@ private fun ReferenceDictionaryPane(
     val url = provider?.urlFor(word)
     var webViewFailed by remember(url) { mutableStateOf(false) }
     val repository = vm.container.translations(settings)
+    var ownMatches by remember(word, lang, meaningTarget) { mutableStateOf(emptyList<DictionaryMeaning>()) }
+    var ownLoaded by remember(word, lang, meaningTarget) { mutableStateOf(false) }
+    LaunchedEffect(word, lang, meaningTarget, repository) {
+        ownLoaded = false
+        ownMatches = vm.container.ownDictionary.lookupOrEmpty(word, lang).take(4).map { entry ->
+            vm.container.ownDictionary.meaningOrEnglish(entry, lang, meaningTarget, repository)
+        }
+        ownLoaded = true
+    }
+
     LaunchedEffect(savedState.exactEntry?.id, meaningTarget) {
         val existing = savedState.exactEntry
         if (existing != null && !meaningEdited) {
@@ -159,12 +170,16 @@ private fun ReferenceDictionaryPane(
             saved = existing.meaningLang == meaningTarget
         }
     }
-    LaunchedEffect(entries != null, word, selection.sentence, meaningTarget, repository, savedState.exactEntry?.id) {
-        if (entries == null || savedState.exactEntry != null || meaningEdited) return@LaunchedEffect
+    LaunchedEffect(entries != null, word, selection.sentence, meaningTarget, repository, savedState.exactEntry?.id, ownLoaded, ownMatches) {
+        if (!ownLoaded || entries == null || savedState.exactEntry != null || meaningEdited) return@LaunchedEffect
         selectedListId = vm.container.cache.get("dictionary:last-list:${lang.code}")?.toLongOrNull()
         autoTranslating = true
         try {
-            val result = if (selection.sentenceActions) {
+            val exactOwnMatches = ownMatches.filter { normalizeDictionaryQuery(it.entry.word) == normalizeDictionaryQuery(word) }
+            val result = if (exactOwnMatches.any { it.meanings.isNotEmpty() }) {
+                val senses = exactOwnMatches.map { com.ziaee.zabankhan.translate.MeaningSense(it.entry.pos, it.meanings) }
+                com.ziaee.zabankhan.translate.WordMeaning(senses.first { it.meanings.isNotEmpty() }.meanings.first(), senses, "own-dictionary")
+            } else if (selection.sentenceActions) {
                 repository.translateText(word, text.lang, meaningTarget).getOrNull()?.let { com.ziaee.zabankhan.translate.WordMeaning(it, emptyList(), "") }
             } else repository.lookupWord(word, selection.sentence, text.lang, meaningTarget).getOrNull()
             if (!meaningEdited && savedState.exactEntry == null) {
@@ -182,6 +197,7 @@ private fun ReferenceDictionaryPane(
       Column(Modifier.fillMaxSize().padding(horizontal = 20.dp)) {
         // Only controls scroll on short screens; the browser owns its bounded viewport.
         Column(Modifier.heightIn(max = controlsMaxHeight).verticalScroll(rememberScrollState())) {
+            OwnDictionaryBlock(ownMatches)
             val focusManager = LocalFocusManager.current
             var draft by remember(word) { mutableStateOf(TextFieldValue(word, TextRange(word.length))) }
             val draftWord = manualDictionaryWord(draft.text)

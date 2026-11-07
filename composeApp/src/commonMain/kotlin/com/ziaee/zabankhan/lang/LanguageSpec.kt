@@ -30,6 +30,7 @@ data class LanguageSpec(
     val grammarSearchStopWords: Set<String> = emptySet(),
     val grammarAlternativeSeparator: String? = null,
     val vocabularyLessonTag: Regex? = null,
+    val ownDictionaryAvailable: Boolean = false,
 )
 
 object Languages {
@@ -51,6 +52,7 @@ object Languages {
         grammarSearchStopWords = setOf("et", "ou", "vs", "la", "le", "les", "de", "des", "du", "un", "une"),
         grammarAlternativeSeparator = " ou ",
         vocabularyLessonTag = Regex("\\s*—\\s*Leçon\\s+(\\d+)\\s*$"),
+        ownDictionaryAvailable = true,
     )
     val ENGLISH = LanguageSpec(
         "en", "English", "English", Script.LATIN, TextDir.LTR, emptyList(), "en-US", "en-US", listOf(

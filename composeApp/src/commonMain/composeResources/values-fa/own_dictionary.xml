@@ -1,0 +1,12 @@
+<resources>
+    <string name="own_dictionary_title">واژه‌نامهٔ زبان‌خوان</string>
+    <string name="own_dictionary_settings">واژه‌نامه — %1$s</string>
+    <string name="own_dictionary_download">دریافت برای استفادهٔ آفلاین</string>
+    <string name="own_dictionary_delete">حذف واژه‌نامهٔ دریافت‌شده</string>
+    <string name="own_dictionary_online">آنلاین (جست‌وجوهای ذخیره‌شده در دسترس‌اند)</string>
+    <string name="own_dictionary_offline">در دسترس به‌صورت آفلاین</string>
+    <string name="own_dictionary_size">حجم ذخیره‌شده: %1$s کیلوبایت</string>
+    <string name="own_dictionary_download_failed">دریافت ناموفق بود. برای ادامه دوباره دریافت را بزنید.</string>
+    <string name="own_dictionary_machine_translation">ترجمهٔ ماشینی</string>
+    <string name="own_dictionary_forms">صورت‌های دیگر</string>
+</resources>

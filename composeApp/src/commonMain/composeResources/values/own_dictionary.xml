@@ -1,0 +1,12 @@
+<resources>
+    <string name="own_dictionary_title">Zabankhan dictionary</string>
+    <string name="own_dictionary_settings">Dictionary — %1$s</string>
+    <string name="own_dictionary_download">Download for offline use</string>
+    <string name="own_dictionary_delete">Delete downloaded dictionary</string>
+    <string name="own_dictionary_online">Online (cached lookups remain available)</string>
+    <string name="own_dictionary_offline">Available offline</string>
+    <string name="own_dictionary_size">Cached size: %1$s KB</string>
+    <string name="own_dictionary_download_failed">Download failed. Tap download to resume.</string>
+    <string name="own_dictionary_machine_translation">Machine translation</string>
+    <string name="own_dictionary_forms">Forms</string>
+</resources>

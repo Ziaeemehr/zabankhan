@@ -34,6 +34,7 @@ import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.unit.dp
 import com.ziaee.zabankhan.app.AppViewModel
 import com.ziaee.zabankhan.data.*
+import com.ziaee.zabankhan.dictionary.*
 import com.ziaee.zabankhan.lang.Languages
 import com.ziaee.zabankhan.resources.*
 import com.ziaee.zabankhan.ui.*
@@ -377,8 +378,18 @@ private data class PdfRange(val page: Int, val first: Int, val last: Int, val wo
         }
     }
     translationSource?.let { source ->
+        val dictionaryLang = requireNotNull(Languages.byCode(text.lang))
+        val dictionaryTranslator = vm.container.translations(settings)
+        var matches by remember(source, translationTarget, dictionaryLang) { mutableStateOf(emptyList<PdfDictionaryMatch>()) }
+        LaunchedEffect(source, translationTarget, dictionaryLang, dictionaryTranslator) {
+            matches = vm.container.ownDictionary.lookupOrEmpty(source.word, dictionaryLang)
+                .filter { dictionaryIdiomMatches(it.word, source.word) }.map { entry ->
+                    val result = vm.container.ownDictionary.meaningOrEnglish(entry, dictionaryLang, translationTarget, dictionaryTranslator)
+                    PdfDictionaryMatch(entry.word, result.meanings.take(4).joinToString("؛ "), result.machineTranslated)
+                }
+        }
         PdfTranslationSheet(vm, settings, text, source, translationTarget,
-            maxHeight = with(density) { viewportHeight.toDp() * .7f }, dictionaryMatches = emptyList(),
+            maxHeight = with(density) { viewportHeight.toDp() * .7f }, dictionaryMatches = matches,
             onListen = { tts.pronounce(source.word, text.lang, settings) },
             onDictionary = { translationSource = null; selection = source },
             dismiss = { translationSource = null })
@@ -586,8 +597,8 @@ private data class PdfRange(val page: Int, val first: Int, val last: Int, val wo
     }
 }
 
-/** Slot for future offline dictionary idiom matches. */
-internal data class PdfDictionaryMatch(val phrase: String, val meaning: String)
+/** Expressions found in the selected text, ready to save with their dictionary meaning. */
+internal data class PdfDictionaryMatch(val phrase: String, val meaning: String, val machineTranslated: Boolean = false)
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
@@ -650,6 +661,29 @@ private fun PdfTranslationSheet(
                     Column(Modifier.padding(12.dp)) {
                         Text(match.phrase, style = contentStyle(match.phrase))
                         Text(match.meaning, style = contentStyle(match.meaning))
+                        if (match.machineTranslated) Icon(Icons.Default.Translate,
+                            stringResource(Res.string.own_dictionary_machine_translation), Modifier.size(16.dp))
+                        var matchSaved by remember(source, target, match) { mutableStateOf(false) }
+                        var matchSaving by remember(source, target, match) { mutableStateOf(false) }
+                        TextButton(enabled = match.meaning.isNotBlank() && !matchSaved && !matchSaving, onClick = {
+                            matchSaving = true
+                            saveFailed = false
+                            vm.action {
+                                try {
+                                    val lang = requireNotNull(Languages.byCode(text.lang))
+                                    val existing = dictionarySavedState(vm.container.vocab.getAll(text.lang), lang,
+                                        text.id, match.phrase, source.sentence).exactEntry
+                                    val listId = existing?.listId ?: vm.container.cache.get("dictionary:last-list:${text.lang}")?.toLongOrNull()
+                                    val entry = existing?.copy(meaning = match.meaning, meaningLang = target)
+                                        ?: VocabEntry(lang = text.lang, textId = text.id, word = match.phrase,
+                                            sentence = source.sentence, meaning = match.meaning, meaningLang = target, listId = listId)
+                                    if (entry.id == 0L) vm.container.vocab.insert(entry) else vm.container.vocab.update(entry)
+                                    matchSaved = true
+                                } catch (cancelled: CancellationException) { throw cancelled }
+                                catch (_: Exception) { saveFailed = true }
+                                finally { matchSaving = false }
+                            }
+                        }) { Text(stringResource(if (matchSaved) Res.string.saved else Res.string.pdf_add_to_leitner)) }
                     }
                 }
             }

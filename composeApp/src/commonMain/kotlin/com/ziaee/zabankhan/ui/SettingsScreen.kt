@@ -209,6 +209,7 @@ fun SettingsScreen(vm: AppViewModel, settings: AppSettings, progress: () -> Unit
 
                             }
                             4 -> {
+                                com.ziaee.zabankhan.dictionary.OwnDictionarySettings(vm, settings)
 
                                 SettingsChoice(stringResource(Res.string.meaning_language), settings.meaningLang,
                                     listOf(Languages.PERSIAN, Languages.ENGLISH).filter { it.code != settings.learningLang }.map { it.code to languageName(it) }) {

@@ -1,0 +1,12 @@
+<resources>
+    <string name="own_dictionary_title">Dictionnaire Zabankhan</string>
+    <string name="own_dictionary_settings">Dictionnaire — %1$s</string>
+    <string name="own_dictionary_download">Télécharger pour utiliser hors ligne</string>
+    <string name="own_dictionary_delete">Supprimer le dictionnaire téléchargé</string>
+    <string name="own_dictionary_online">En ligne (recherches en cache disponibles)</string>
+    <string name="own_dictionary_offline">Disponible hors ligne</string>
+    <string name="own_dictionary_size">Taille en cache : %1$s Ko</string>
+    <string name="own_dictionary_download_failed">Échec du téléchargement. Relancez pour reprendre.</string>
+    <string name="own_dictionary_machine_translation">Traduction automatique</string>
+    <string name="own_dictionary_forms">Formes</string>
+</resources>
