@@ -1,0 +1,15 @@
+<resources>
+    <string name="cloud_sources">Sources de traduction et dictionnaire</string>
+    <string name="cloud_google">Google / dictionnaire automatique</string>
+    <string name="cloud_notice">L’IA en ligne envoie le texte sélectionné au fournisseur et peut être payante. Enregistrez pour activer.</string>
+    <string name="cloud_saved">Paramètres enregistrés</string>
+    <string name="cloud_save_failed">Impossible d’enregistrer la clé API. Réessayez.</string>
+    <string name="cloud_https">Utilisez une URL de base HTTPS sans identifiants, paramètres ni fragment.</string>
+    <string name="cloud_saved_key">Clé enregistrée se terminant par %1$s</string>
+    <string name="cloud_replace">Remplacer la clé</string>
+    <string name="cloud_test">Tester la connexion</string>
+    <string name="cloud_testing">Test en cours…</string>
+    <string name="cloud_connected">Connexion réussie : %1$s</string>
+    <string name="cloud_clear_cache">Vider le cache de traduction</string>
+    <string name="cloud_cache_cleared">Cache de traduction vidé</string>
+</resources>

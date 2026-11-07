@@ -10,6 +10,7 @@ import androidx.compose.ui.text.style.TextAlign
 import org.jetbrains.compose.resources.StringResource
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.ui.draw.clip
@@ -22,7 +23,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.backhandler.BackHandler
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.ui.semantics.semantics
@@ -31,14 +31,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.unit.sp
 import com.ziaee.zabankhan.ui.theme.*
 import androidx.compose.ui.platform.LocalUriHandler
-import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import com.ziaee.zabankhan.app.AppViewModel
 import com.ziaee.zabankhan.data.AppSettings
 import com.ziaee.zabankhan.lang.*
 import com.ziaee.zabankhan.speech.*
 import com.ziaee.zabankhan.resources.*
-import com.ziaee.zabankhan.translate.llm.LlmProvider
 import org.jetbrains.compose.resources.stringResource
 
 @OptIn(ExperimentalLayoutApi::class)
@@ -95,13 +93,8 @@ fun SettingsScreen(vm: AppViewModel, settings: AppSettings, progress: () -> Unit
         "help" -> { HelpGuidesScreen(onOpenGestures = { guideScreen = "gestures" }, onBack = { guideScreen = null }); return }
         "gestures" -> { com.ziaee.zabankhan.ui.reader.GestureGuideScreen(learningLanguage) { guideScreen = "help" }; return }
     }
-    var provider by remember(settings.llmProvider) { mutableStateOf(settings.llmProvider) }
-    var apiKey by remember(settings.llmApiKey) { mutableStateOf("") }
-    var model by remember(settings.llmModel) { mutableStateOf(settings.llmModel) }
-    var customUrl by remember(settings.llmProvider) { mutableStateOf(settings.llmProvider.takeIf { it.startsWith("https://") }.orEmpty()) }
     val tabTitles = listOf(
         Res.string.ed_settings_general,
-        Res.string.ed_settings_appearance,
         Res.string.ed_settings_reading,
         Res.string.ed_settings_speech,
         Res.string.ed_settings_dictionary,
@@ -150,11 +143,14 @@ fun SettingsScreen(vm: AppViewModel, settings: AppSettings, progress: () -> Unit
                                             colors = FilterChipDefaults.filterChipColors(selectedContainerColor = MaterialTheme.colorScheme.primaryContainer, selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer, selectedLeadingIconColor = MaterialTheme.colorScheme.onPrimaryContainer))
                                     }
                                 }
-                                OutlinedButton(onClick = grammar, modifier = Modifier.fillMaxWidth()) { Text(stringResource(Res.string.pack_grammar)) }
-                                if (com.ziaee.zabankhan.datapack.LanguageDataPacks.available(settings.learningLang.orEmpty())) {
-                                    OutlinedButton(onClick = exams, modifier = Modifier.fillMaxWidth()) { Text(stringResource(Res.string.pack_tcf)) }
+                                SettingsChoice(stringResource(Res.string.meaning_language), settings.meaningLang,
+                                    listOf(Languages.PERSIAN, Languages.ENGLISH).filter { it.code != settings.learningLang }.map { it.code to languageName(it) }) {
+                                    vm.action { repository.setMeaningLang(it) }
                                 }
-
+                                StepperSetting(stringResource(Res.string.h2_daily_goal), settings.dailyGoalMinutes, 1, 120) {
+                                    vm.action { repository.setDailyGoalMinutes(it) }
+                                }
+                                com.ziaee.zabankhan.reminder.ReviewReminderSettings(vm, settings)
                             }
                             1 -> {
 
@@ -163,8 +159,10 @@ fun SettingsScreen(vm: AppViewModel, settings: AppSettings, progress: () -> Unit
                                     vm.action { repository.setThemeMode(it) }
                                 }
 
-                            }
-                            2 -> {
+                                OutlinedButton(onClick = grammar, modifier = Modifier.fillMaxWidth()) { Text(stringResource(Res.string.pack_grammar)) }
+                                if (com.ziaee.zabankhan.datapack.LanguageDataPacks.available(settings.learningLang.orEmpty())) {
+                                    OutlinedButton(onClick = exams, modifier = Modifier.fillMaxWidth()) { Text(stringResource(Res.string.pack_tcf)) }
+                                }
 
                                 Text(stringResource(Res.string.reading_background_title), style = MaterialTheme.typography.labelMedium)
                                 ReadingColorGrid(ReadingBackground.entries, settings.readingBackground, ::backgroundSwatch,
@@ -185,7 +183,7 @@ fun SettingsScreen(vm: AppViewModel, settings: AppSettings, progress: () -> Unit
                                 }
 
                             }
-                            3 -> {
+                            2 -> {
 
                                 SettingsChoice(stringResource(Res.string.edge_engine), settings.voiceEngine,
                                     listOf("online" to stringResource(Res.string.edge_online), "device" to stringResource(Res.string.edge_device))) {
@@ -208,46 +206,15 @@ fun SettingsScreen(vm: AppViewModel, settings: AppSettings, progress: () -> Unit
                                 TtsCacheSettings(vm.container, settings, speechSettingsScope, speechSettingsSnackbar)
 
                             }
-                            4 -> {
+                            3 -> {
                                 com.ziaee.zabankhan.dictionary.OwnDictionarySettings(vm, settings)
 
-                                SettingsChoice(stringResource(Res.string.meaning_language), settings.meaningLang,
-                                    listOf(Languages.PERSIAN, Languages.ENGLISH).filter { it.code != settings.learningLang }.map { it.code to languageName(it) }) {
-                                    vm.action { repository.setMeaningLang(it) }
-                                }
-                                Text(stringResource(Res.string.llm_settings), style = MaterialTheme.typography.titleMedium)
-                                SettingsChoice(stringResource(Res.string.provider), provider,
-                                    listOf("" to stringResource(Res.string.disabled)) + LlmProvider.entries.map {
-                                        it.name to if (it == LlmProvider.CUSTOM) stringResource(Res.string.custom) else it.name
-                                    } + if (provider.startsWith("https://")) listOf(provider to stringResource(Res.string.custom)) else emptyList()) {
-                                    provider = it
-                                    model = LlmProvider.entries.firstOrNull { p -> p.name == it }?.defaultModel.orEmpty()
-                                }
-                                val preset = LlmProvider.entries.firstOrNull { it.name == provider }
-                                if (provider.isNotEmpty()) {
-                                    if (provider == LlmProvider.CUSTOM.name || provider.startsWith("https://")) {
-                                        OutlinedTextField(customUrl, { customUrl = it }, label = { Text(stringResource(Res.string.base_url)) }, modifier = Modifier.fillMaxWidth(), singleLine = true)
-                                    } else Text(preset?.baseUrl.orEmpty(), style = MaterialTheme.typography.bodySmall)
-                                    OutlinedTextField(apiKey, { apiKey = it }, label = { Text(stringResource(Res.string.api_key)) }, placeholder = { if (settings.llmApiKey.isNotBlank()) Text(stringResource(Res.string.api_key_saved)) }, visualTransformation = PasswordVisualTransformation(), modifier = Modifier.fillMaxWidth(), singleLine = true)
-                                    OutlinedTextField(model, { model = it }, label = { Text(stringResource(Res.string.model)) }, modifier = Modifier.fillMaxWidth(), singleLine = true)
-                                }
-                                Button( enabled = (provider != LlmProvider.CUSTOM.name && !provider.startsWith("https://")) || customUrl.startsWith("https://"), onClick = { vm.action {
-                                    repository.setLlm(if (provider == LlmProvider.CUSTOM.name || provider.startsWith("https://")) customUrl.trim().trimEnd('/') else provider, apiKey.trim().ifBlank { settings.llmApiKey }, model.trim())
-                                    apiKey = ""
-                                } }) { Text(stringResource(Res.string.save)) }
-                                if (settings.llmApiKey.isNotBlank()) TextButton(onClick = { vm.action {
-                                    repository.setLlm(settings.llmProvider, "", settings.llmModel)
-                                    apiKey = ""
-                                } }) { Text(stringResource(Res.string.api_key_remove)) }
-                                Text(stringResource(Res.string.api_key_storage), style = MaterialTheme.typography.bodySmall)
+                                TranslationEngineSettings(vm.container, settings)
 
                             }
-                            5 -> {
+                            4 -> {
 
                                 TextButton(onClick = progress) { Text(stringResource(Res.string.h2_progress)) }
-                                StepperSetting(stringResource(Res.string.h2_daily_goal), settings.dailyGoalMinutes, 1, 120) {
-                                    vm.action { repository.setDailyGoalMinutes(it) }
-                                }
                                 StepperSetting(stringResource(Res.string.daily_new), settings.dailyNewCards, 0, 100) {
                                     vm.action { repository.setDailyNewCards(it) }
                                 }
@@ -272,17 +239,16 @@ fun SettingsScreen(vm: AppViewModel, settings: AppSettings, progress: () -> Unit
                                 TextButton(onClick = { vm.action { repository.resetReviewIntervals() } }) {
                                     Text(stringResource(Res.string.review_intervals_reset))
                                 }
-                                com.ziaee.zabankhan.reminder.ReviewReminderSettings(vm, settings)
 
                             }
-                            6 -> {
+                            5 -> {
 
                                 com.ziaee.zabankhan.backup.BackupSettings(vm.container)
                                 HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
                                 com.ziaee.zabankhan.backup.FrenchReaderImportSettings(vm.container)
 
                             }
-                            7 -> {
+                            6 -> {
 
                                 TextButton(onClick = { guideScreen = "about" }) { Text(stringResource(Res.string.about_title)) }
                                 TextButton(onClick = { guideScreen = "help" }) { Text(stringResource(Res.string.help_guides_title)) }
@@ -304,11 +270,11 @@ fun SettingsScreen(vm: AppViewModel, settings: AppSettings, progress: () -> Unit
 @Composable
 private fun SettingsTabRow(tabTitles: List<StringResource>, selectedTab: Int, onSelect: (Int) -> Unit) {
     Column(Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 10.dp)) {
-        tabTitles.chunked(3).forEachIndexed { rowIndex, row ->
+        tabTitles.chunked(2).forEachIndexed { rowIndex, row ->
             if (rowIndex > 0) Spacer(Modifier.height(6.dp))
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                 row.forEachIndexed { columnIndex, resource ->
-                    val index = rowIndex * 3 + columnIndex
+                    val index = rowIndex * 2 + columnIndex
                     val selected = selectedTab == index
                     val background by animateColorAsState(
                         if (selected) MaterialTheme.colorScheme.tertiaryContainer else Color.Transparent,
@@ -336,8 +302,7 @@ private fun SettingsTabRow(tabTitles: List<StringResource>, selectedTab: Int, on
                             stringResource(resource),
                             style = MaterialTheme.typography.labelSmall,
                             color = contentColor,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
+                            maxLines = 2,
                             textAlign = TextAlign.Center
                         )
                     }
@@ -355,7 +320,24 @@ internal fun StepperSetting(label: String, value: Int, minimum: Int, maximum: In
         IconButton(onClick = { onChange(settingsStep(value, -1, minimum, maximum)) }, enabled = value > minimum) {
             Text("−", style = MaterialTheme.typography.titleLarge)
         }
-        Text(value.toString(), style = MaterialTheme.typography.bodyMedium)
+        // Typing the number avoids dozens of taps for big jumps (10 -> 100).
+        var draft by remember(value) { mutableStateOf(value.toString()) }
+        androidx.compose.foundation.text.BasicTextField(
+            value = draft,
+            onValueChange = { text ->
+                draft = text.filter { it.isDigit() }.take(6)
+                draft.toIntOrNull()?.takeIf { it in minimum..maximum && it != value }?.let(onChange)
+            },
+            singleLine = true,
+            keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Number),
+            textStyle = MaterialTheme.typography.bodyMedium.copy(color = MaterialTheme.colorScheme.onSurface, textAlign = TextAlign.Center),
+            cursorBrush = androidx.compose.ui.graphics.SolidColor(MaterialTheme.colorScheme.primary),
+            modifier = Modifier.width(56.dp).onFocusChanged { if (!it.isFocused) draft = value.toString() },
+            decorationBox = { inner ->
+                Box(Modifier.border(1.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(8.dp)).padding(vertical = 6.dp),
+                    contentAlignment = Alignment.Center) { inner() }
+            },
+        )
         IconButton(onClick = { onChange(settingsStep(value, 1, minimum, maximum)) }, enabled = value < maximum) {
             Text("+", style = MaterialTheme.typography.titleLarge)
         }

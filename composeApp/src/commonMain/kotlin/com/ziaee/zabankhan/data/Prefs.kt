@@ -1,6 +1,10 @@
 package com.ziaee.zabankhan.data
 
 import com.ziaee.zabankhan.lang.Languages
+import com.ziaee.zabankhan.translate.llm.LlmPrefs
+import com.ziaee.zabankhan.translate.llm.LlmProvider
+import com.ziaee.zabankhan.translate.llm.LlmSecrets
+import com.ziaee.zabankhan.translate.llm.TranslationEngine
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.PreferenceDataStoreFactory
 import androidx.datastore.preferences.core.Preferences
@@ -63,6 +67,7 @@ data class AppSettings(
     val reminderEnabled: Boolean = false,
     val reminderHour: Int = 19,
     val reminderMinute: Int = 0,
+    val cloudModelPrefs: LlmPrefs? = null,
     val llmProvider: String = "",
     val llmApiKey: String = "",
     val llmModel: String = "",
@@ -168,6 +173,16 @@ class SettingsRepository(private val store: DataStore<Preferences>, private val 
             reminderEnabled = p[K.reminderEnabled] ?: false,
             reminderHour = (p[K.reminderHour] ?: 19).coerceIn(0, 23),
             reminderMinute = (p[K.reminderMinute] ?: 0).coerceIn(0, 59),
+            cloudModelPrefs = p[stringPreferencesKey("cloud_provider")]?.let { name ->
+                val provider = LlmProvider.entries.firstOrNull { it.name == name }
+                    ?: LlmProvider.OPENROUTER
+                LlmPrefs(
+                    engine = if (p[K.llmProvider].isNullOrBlank()) TranslationEngine.GOOGLE else TranslationEngine.ONLINE,
+                    onlineProvider = provider,
+                    customBaseUrl = p[stringPreferencesKey("cloud_url")].orEmpty(),
+                    onlineModel = p[stringPreferencesKey("cloud_model")] ?: provider.defaultModel
+                )
+            },
             llmProvider = p[K.llmProvider].orEmpty(),
             // A Keychain/Keystore failure must not take the whole settings flow (and app launch) down.
             llmApiKey = runCatching { secrets.get(LLM_API_KEY) }.getOrNull().orEmpty(),
@@ -276,6 +291,27 @@ class SettingsRepository(private val store: DataStore<Preferences>, private val 
         val voices = runCatching { kotlinx.serialization.json.Json.decodeFromString<Map<String, String>>(it[K.voices] ?: "{}") }.getOrDefault(emptyMap())
         it[K.voices] = kotlinx.serialization.json.Json.encodeToString(if (id == null) voices - lang else voices + (lang to id))
     }
+    /** Provider credentials remain in platform secret storage, including when another source is selected. */
+    suspend fun cloudSecrets(provider: String): LlmSecrets = secretMutex.withLock {
+        val saved = secrets.get("cloud_$provider")
+            ?: if (store.data.first()[K.llmProvider] == provider) secrets.get(LLM_API_KEY) else null
+        LlmSecrets(saved?.let { mapOf(provider to it) }.orEmpty())
+    }
+
+    suspend fun saveCloud(provider: String, key: String, prefs: LlmPrefs) = secretMutex.withLock {
+        if (key.isBlank()) secrets.remove("cloud_$provider") else secrets.set("cloud_$provider", key)
+        if (key.isBlank()) secrets.remove(LLM_API_KEY) else secrets.set(LLM_API_KEY, key)
+        store.edit {
+            it.remove(K.llmKey)
+            it[K.llmProvider] = if (prefs.engine == TranslationEngine.ONLINE) provider else ""
+            it[K.llmModel] = prefs.onlineModel.trim()
+            it[stringPreferencesKey("cloud_provider")] = prefs.onlineProvider.name
+            it[stringPreferencesKey("cloud_url")] = prefs.customBaseUrl.trim()
+            it[stringPreferencesKey("cloud_model")] = prefs.onlineModel.trim()
+        }
+        secretRevision.value += 1
+    }
+
     suspend fun setLlm(provider: String, apiKey: String, model: String) = secretMutex.withLock {
         if (apiKey.isBlank()) secrets.remove(LLM_API_KEY) else secrets.set(LLM_API_KEY, apiKey)
         store.edit {

@@ -162,6 +162,10 @@ interface ActivityDao {
 
 @Dao
 interface CacheDao {
+    // Translation keys are 16-character hexadecimal hashes; retain grammar and other named preferences.
+    @Query("DELETE FROM kv_cache WHERE (length(`key`) = 16 AND `key` NOT GLOB '*[^0-9a-f]*') OR (`key` LIKE 'regenerated-%' AND length(`key`) = 28)")
+    suspend fun clearTranslations()
+
     @Query("SELECT value FROM kv_cache WHERE `key` = :key")
     suspend fun get(key: String): String?
 
