@@ -1,0 +1,9 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+  <string name="pdf_share">Share PDF</string>
+  <string name="pdf_share_failed">Unable to share PDF.</string>
+  <string name="pdf_page_indicator">Page %1$d of %2$d</string>
+  <string name="pdf_page_short">%1$d / %2$d</string>
+  <string name="pdf_translate_sentence">Translate tapped sentence</string>
+  <string name="pdf_recognized_text">Recognized text</string>
+</resources>

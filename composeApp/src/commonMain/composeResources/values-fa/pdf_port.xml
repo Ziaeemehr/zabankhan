@@ -1,0 +1,9 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+  <string name="pdf_share">اشتراک پی‌دی‌اف</string>
+  <string name="pdf_share_failed">اشتراک پی‌دی‌اف ممکن نیست.</string>
+  <string name="pdf_page_indicator">صفحهٔ %1$d از %2$d</string>
+  <string name="pdf_page_short">%1$d / %2$d</string>
+  <string name="pdf_translate_sentence">ترجمهٔ جملهٔ لمس‌شده</string>
+  <string name="pdf_recognized_text">متن شناسایی‌شده</string>
+</resources>

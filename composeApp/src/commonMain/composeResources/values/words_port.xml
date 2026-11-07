@@ -1,0 +1,28 @@
+<resources>
+  <string name="accessibility_hide_meaning">Show or hide meaning</string>
+  <string name="accessibility_play_sentence">Play sentence audio</string>
+  <string name="accessibility_play_word">Play word pronunciation</string>
+  <string name="action_edit">Edit</string>
+  <string name="close">Close</string>
+  <string name="review_tap_to_reveal">Tap the card to reveal</string>
+  <string name="vocab_bulk_delete">Delete selected words</string>
+  <string name="vocab_bulk_move">Move selected words to list</string>
+  <string name="vocab_due_now">Due now: %1$d</string>
+  <string name="vocab_empty_hint">No words saved yet. Tap a word on the Reading screen to open the dictionary.</string>
+  <string name="vocab_mark_known">Learned</string>
+  <string name="vocab_mark_learning">Mark as learning</string>
+  <string name="vocab_move_to_list_title">Move to list</string>
+  <string name="vocab_next_review_in_days">In %1$d days</string>
+  <string name="vocab_next_review_learned">Learned</string>
+  <string name="vocab_next_review_today">Due today</string>
+  <string name="vocab_next_review_tomorrow">Tomorrow</string>
+  <string name="vocab_nothing_due">Nothing to review</string>
+  <string name="vocab_review_start">Review</string>
+  <string name="vocab_screen_title">Saved vocabulary</string>
+  <string name="vocab_search_hint">Search vocabulary</string>
+  <string name="vocab_search_no_results">Nothing found.</string>
+  <string name="vocab_select_all">Select all visible words</string>
+  <string name="vocab_selection_close">Close selection</string>
+  <string name="error_audio_generation">Audio could not be generated.</string>
+  <string name="vocab_open_dictionary">Dictionary</string>
+</resources>

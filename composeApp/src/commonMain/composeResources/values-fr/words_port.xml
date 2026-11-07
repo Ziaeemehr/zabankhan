@@ -1,0 +1,28 @@
+<resources>
+  <string name="accessibility_hide_meaning">Afficher ou masquer le sens</string>
+  <string name="accessibility_play_sentence">Écouter la phrase</string>
+  <string name="accessibility_play_word">Écouter le mot</string>
+  <string name="action_edit">Modifier</string>
+  <string name="close">Fermer</string>
+  <string name="review_tap_to_reveal">Touchez pour révéler le sens</string>
+  <string name="vocab_bulk_delete">Supprimer les mots sélectionnés</string>
+  <string name="vocab_bulk_move">Déplacer les mots sélectionnés vers une liste</string>
+  <string name="vocab_due_now">À réviser maintenant : %1$d</string>
+  <string name="vocab_empty_hint">Aucun mot enregistré. Touchez un mot dans le lecteur pour ouvrir le dictionnaire.</string>
+  <string name="vocab_mark_known">Appris</string>
+  <string name="vocab_mark_learning">Marquer comme en cours</string>
+  <string name="vocab_move_to_list_title">Déplacer vers une liste</string>
+  <string name="vocab_next_review_in_days">Dans %1$d jours</string>
+  <string name="vocab_next_review_learned">Appris</string>
+  <string name="vocab_next_review_today">À réviser aujourd’hui</string>
+  <string name="vocab_next_review_tomorrow">Demain</string>
+  <string name="vocab_nothing_due">Rien à réviser</string>
+  <string name="vocab_review_start">Réviser</string>
+  <string name="vocab_screen_title">Vocabulaire enregistré</string>
+  <string name="vocab_search_hint">Rechercher dans le vocabulaire</string>
+  <string name="vocab_search_no_results">Aucun résultat.</string>
+  <string name="vocab_select_all">Sélectionner tous les mots visibles</string>
+  <string name="vocab_selection_close">Fermer la sélection</string>
+  <string name="error_audio_generation">Impossible de générer l’audio.</string>
+  <string name="vocab_open_dictionary">Dictionnaire</string>
+</resources>
