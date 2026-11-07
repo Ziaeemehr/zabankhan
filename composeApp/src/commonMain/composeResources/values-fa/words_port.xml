@@ -1,0 +1,28 @@
+<resources>
+  <string name="accessibility_hide_meaning">نمایش یا پنهان‌کردن معنی</string>
+  <string name="accessibility_play_sentence">پخش صدای جمله</string>
+  <string name="accessibility_play_word">پخش تلفظ واژه</string>
+  <string name="action_edit">ویرایش</string>
+  <string name="close">بستن</string>
+  <string name="review_tap_to_reveal">برای دیدن معنی روی کارت بزنید</string>
+  <string name="vocab_bulk_delete">حذف واژه‌های انتخاب‌شده</string>
+  <string name="vocab_bulk_move">انتقال واژه‌های انتخاب‌شده به لیست</string>
+  <string name="vocab_due_now">آمادهٔ مرور: %1$d</string>
+  <string name="vocab_empty_hint">هنوز واژه‌ای ذخیره نشده است. در صفحهٔ مطالعه، روی واژه بزنید تا دیکشنری باز شود.</string>
+  <string name="vocab_mark_known">یاد گرفتم</string>
+  <string name="vocab_mark_learning">بازگرداندن به یادگیری</string>
+  <string name="vocab_move_to_list_title">انتقال به لیست</string>
+  <string name="vocab_next_review_in_days">%1$d روز دیگر</string>
+  <string name="vocab_next_review_learned">آموخته‌شده</string>
+  <string name="vocab_next_review_today">مرور امروز</string>
+  <string name="vocab_next_review_tomorrow">فردا</string>
+  <string name="vocab_nothing_due">چیزی برای مرور نیست</string>
+  <string name="vocab_review_start">مرور</string>
+  <string name="vocab_screen_title">لغات ذخیره‌شده</string>
+  <string name="vocab_search_hint">جست‌وجو در لغات</string>
+  <string name="vocab_search_no_results">چیزی پیدا نشد.</string>
+  <string name="vocab_select_all">انتخاب همهٔ واژه‌های نمایش‌داده‌شده</string>
+  <string name="vocab_selection_close">بستن حالت انتخاب</string>
+  <string name="error_audio_generation">صدا تولید نشد.</string>
+  <string name="vocab_open_dictionary">دیکشنری</string>
+</resources>

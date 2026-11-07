@@ -94,7 +94,7 @@ data class AppOpenRequest(val text: String? = null, val review: Boolean = false,
                     composable("grammar") { com.ziaee.zabankhan.grammar.GrammarScreen(prefs) { nav.popBackStack() } }
                     composable("exams") { com.ziaee.zabankhan.datapack.TcfPracticeScreen(prefs.learningLang.orEmpty()) { nav.popBackStack() } }
                     composable("words") { WordsScreen(vm, prefs) { nav.navigate("review") } }
-                    composable("review") { ReviewScreen(container, prefs) }
+                    composable("review") { ReviewScreen(container, prefs, { nav.popBackStack() }, { nav.navigate("settings") }) }
                     composable("settings") { SettingsScreen(vm, prefs, { nav.navigate("statistics") }, { nav.navigate("grammar") }, { nav.navigate("exams") }) }
                     composable("add") { AddTextScreen(vm, prefs, { sharedText = ""; nav.popBackStack() }, { id -> sharedText = ""; nav.navigate("reader/$id") { popUpTo("add") { inclusive = true } } }, initialText = sharedText) }
                     composable("pdf/{id}", arguments = listOf(navArgument("id") { type = NavType.LongType })) {

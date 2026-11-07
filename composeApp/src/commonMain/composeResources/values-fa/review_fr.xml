@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Copied from FrenchReader res/values*/strings.xml (review screen). -->
+<resources>
+    <string name="vocab_review_title">مرور لغات</string>
+    <string name="review_undo">برگرداندن آخرین پاسخ</string>
+    <string name="review_open_settings">تنظیمات مرور</string>
+    <string name="review_pronunciation_practice">تمرین تلفظ</string>
+    <string name="review_today_title">مرور امروز</string>
+    <string name="review_goal_progress">%1$d از %2$d مرور امروز انجام شد</string>
+    <string name="review_streak">روند فعلی: %1$d روز</string>
+    <string name="review_due_count">موعد مرور</string>
+    <string name="review_new_count">جدید</string>
+    <string name="review_minutes_short">%1$d دقیقه</string>
+    <string name="review_estimated_time">زمان تقریبی</string>
+    <string name="review_new_cap_reached">سقف کلمات جدید امروز پر شده — کلمات بیشتری منتظرن، سقف رو در تنظیمات زیاد کنید یا فردا دوباره سر بزنید</string>
+    <string name="review_no_cards_due">در حال حاضر کارتی برای مرور نیست — بعداً دوباره سر بزنید</string>
+    <string name="review_start">شروع مرور</string>
+    <string name="review_box_tap_hint">برای مرور فقط یک جعبه، روی آن بزنید</string>
+    <string name="review_learned_progress">%1$d از %2$d مرور شده</string>
+    <string name="review_learned_start">مرور آموخته‌ها</string>
+    <string name="review_box_label">جعبه %1$d</string>
+    <string name="review_box_details">%1$d کارت • هر %2$d روز • %3$d آماده</string>
+    <string name="review_progress">%1$d از %2$d</string>
+    <string name="vocab_reveal_meaning">نمایش معنی</string>
+    <string name="interval_this_session">همین جلسه</string>
+    <string name="vocab_answer_again">دوباره</string>
+    <string name="vocab_answer_hard">سخت بود</string>
+    <string name="vocab_answer_good">خوب</string>
+    <string name="interval_day">%1$d روز</string>
+    <string name="interval_days">%1$d روز</string>
+    <string name="review_summary_title">مرور تمام شد</string>
+    <string name="review_summary_cards">کارت‌های مرورشده</string>
+    <string name="review_summary_forward">منتقل‌شده به جلو</string>
+    <string name="review_summary_returned">بازگشته به جعبه ۱</string>
+    <string name="review_summary_time">زمان مطالعه</string>
+    <string name="review_summary_next">مرور برنامه‌ریزی‌شده بعدی</string>
+    <string name="review_moved_forward">انتقال به جعبه %1$d</string>
+    <string name="review_returned_box_one">بازگشت به جعبه ۱</string>
+    <string name="review_stayed_box">ماندن در جعبه %1$d</string>
+</resources>

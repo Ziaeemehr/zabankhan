@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Copied from FrenchReader res/values*/strings.xml (review screen). -->
+<resources>
+    <string name="vocab_review_title">Révision du vocabulaire</string>
+    <string name="review_undo">Annuler la dernière réponse</string>
+    <string name="review_open_settings">Réglages de révision</string>
+    <string name="review_pronunciation_practice">Entraînement à la prononciation</string>
+    <string name="review_today_title">Révision du jour</string>
+    <string name="review_goal_progress">%1$d révisions sur %2$d faites aujourd’hui</string>
+    <string name="review_streak">Série actuelle : %1$d jours</string>
+    <string name="review_due_count">À réviser</string>
+    <string name="review_new_count">Nouveaux</string>
+    <string name="review_minutes_short">%1$d min</string>
+    <string name="review_estimated_time">Estimation</string>
+    <string name="review_new_cap_reached">La limite de nouvelles cartes du jour est atteinte — d’autres mots attendent, augmentez la limite dans les Réglages ou revenez demain</string>
+    <string name="review_no_cards_due">Aucune carte à réviser pour l’instant — revenez plus tard</string>
+    <string name="review_start">Commencer la révision</string>
+    <string name="review_box_tap_hint">Touchez une boîte pour ne réviser que ses cartes</string>
+    <string name="review_learned_progress">%1$d sur %2$d révisés</string>
+    <string name="review_learned_start">Réviser les mots appris</string>
+    <string name="review_box_label">Boîte %1$d</string>
+    <string name="review_box_details">%1$d cartes • tous les %2$d jours • %3$d à réviser</string>
+    <string name="review_progress">%1$d sur %2$d</string>
+    <string name="vocab_reveal_meaning">Afficher le sens</string>
+    <string name="interval_this_session">Cette séance</string>
+    <string name="vocab_answer_again">À revoir</string>
+    <string name="vocab_answer_hard">Difficile</string>
+    <string name="vocab_answer_good">Bien</string>
+    <string name="interval_day">%1$d jour</string>
+    <string name="interval_days">%1$d jours</string>
+    <string name="review_summary_title">Séance terminée</string>
+    <string name="review_summary_cards">Cartes révisées</string>
+    <string name="review_summary_forward">Avancées</string>
+    <string name="review_summary_returned">Revenues en boîte 1</string>
+    <string name="review_summary_time">Temps d’étude</string>
+    <string name="review_summary_next">Prochaine révision prévue</string>
+    <string name="review_moved_forward">Avancée en boîte %1$d</string>
+    <string name="review_returned_box_one">Revenue en boîte 1</string>
+    <string name="review_stayed_box">Reste en boîte %1$d</string>
+</resources>

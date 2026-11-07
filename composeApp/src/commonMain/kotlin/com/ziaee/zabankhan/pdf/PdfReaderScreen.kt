@@ -31,7 +31,14 @@ import com.ziaee.zabankhan.lang.Languages
 import com.ziaee.zabankhan.resources.*
 import com.ziaee.zabankhan.ui.*
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Crop
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.*
+import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.layout.LayoutCoordinates
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.window.Popup
+import com.ziaee.zabankhan.speech.*
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.foundation.shape.CircleShape
@@ -45,7 +52,7 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import org.jetbrains.compose.resources.stringResource
 
-private data class PdfRange(val page: Int, val first: Int, val last: Int, val words: List<PdfWord>) {
+private data class PdfRange(val page: Int, val first: Int, val last: Int, val words: List<PdfWord>, val anchor: Rect) {
     val selected get() = words.subList(minOf(first, last), maxOf(first, last) + 1)
     val text get() = selected.joinToString(" ") { it.text }
 }
@@ -121,15 +128,54 @@ private data class PdfRange(val page: Int, val first: Int, val last: Int, val wo
         }
     }
     val clipboard = LocalClipboardManager.current
+    val density = LocalDensity.current
+    val tts = remember { createTts() }
+    DisposableEffect(tts) { onDispose { tts.stop() } }
+    val share = rememberPdfShare()
+    var overflow by remember(path) { mutableStateOf(false) }
+    var lastSentence by remember(path) { mutableStateOf<String?>(null) }
+    var highlightColors by remember(path) { mutableStateOf(false) }
+    LaunchedEffect(list.isScrollInProgress) { if (list.isScrollInProgress) range = null }
     Column(Modifier.fillMaxSize()) {
-        EditorialTopAppBar(text.title, back, subtitle = "\u2066${page + 1} / ${handle.pageCount}\u2069", actions = {
-            FilledIconToggleButton(modifier = Modifier.size(48.dp), checked = areaMode, enabled = !recognizing, onCheckedChange = { areaMode = !areaMode; penMode = false; range = null }) {
-                Icon(Icons.Default.Crop, stringResource(Res.string.pdf_select_area))
+        // Slim bar: the file name added nothing; only the page counter and a few actions remain.
+        Surface(color = MaterialTheme.colorScheme.surface, tonalElevation = 2.dp) {
+            Row(Modifier.fillMaxWidth().statusBarsPadding().height(40.dp).padding(horizontal = 4.dp),
+                verticalAlignment = Alignment.CenterVertically) {
+                IconButton(onClick = back, modifier = Modifier.size(40.dp)) {
+                    Icon(Icons.AutoMirrored.Filled.ArrowBack, stringResource(Res.string.back), Modifier.size(20.dp))
+                }
+                handle.let { pages ->
+                    val indicator = stringResource(Res.string.pdf_page_indicator, (page + 1).coerceAtMost(pages.pageCount), pages.pageCount)
+                    Text(stringResource(Res.string.pdf_page_short, (page + 1).coerceAtMost(pages.pageCount), pages.pageCount),
+                        style = MaterialTheme.typography.labelMedium,
+                        modifier = Modifier.semantics { contentDescription = indicator })
+                }
+                Spacer(Modifier.weight(1f))
+                IconButton(enabled = !recognizing, modifier = Modifier.size(40.dp), onClick = {
+                    areaMode = !areaMode
+                    range = null; penMode = false
+                }) {
+                    Icon(Icons.Default.Gesture, stringResource(Res.string.pdf_select_area), Modifier.size(20.dp),
+                        tint = if (areaMode) MaterialTheme.colorScheme.primary else LocalContentColor.current)
+                }
+                Box {
+                    IconButton(onClick = { overflow = true }, modifier = Modifier.size(40.dp)) { Icon(Icons.Default.MoreVert, stringResource(Res.string.selection_action_more), Modifier.size(20.dp)) }
+                    DropdownMenu(expanded = overflow, onDismissRequest = { overflow = false }) {
+                        DropdownMenuItem(text = { Text(stringResource(Res.string.pdf_share)) }, onClick = {
+                            overflow = false
+                            try { share(path) } catch (cancelled: CancellationException) { throw cancelled } catch (_: Exception) { failed = true }
+                        })
+                        DropdownMenuItem(enabled = lastSentence != null,
+                            text = { Text(stringResource(Res.string.pdf_translate_sentence)) },
+                            onClick = { overflow = false; lastSentence?.let { selection = ReaderSelection(it, it, 0..0, true) } })
+                        DropdownMenuItem(enabled = !recognizing && savedInk != null,
+                            text = { Text(stringResource(Res.string.pdf_pen)) }, onClick = {
+                                overflow = false; penMode = !penMode; areaMode = false; range = null
+                            })
+                    }
+                }
             }
-            FilledIconToggleButton(modifier = Modifier.size(48.dp), checked = penMode, enabled = !recognizing && savedInk != null, onCheckedChange = { penMode = !penMode; areaMode = false; range = null }) {
-                Icon(Icons.Default.Edit, stringResource(Res.string.pdf_pen))
-            }
-        })
+        }
         if (penMode) Surface(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp), shape = MaterialTheme.shapes.large, color = MaterialTheme.colorScheme.surfaceVariant) {
             FlowRow(Modifier.fillMaxWidth().padding(12.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 listOf("primary" to Res.string.highlight_primary, "secondary" to Res.string.highlight_secondary, "tertiary" to Res.string.highlight_tertiary).forEach { (key, label) ->
@@ -154,21 +200,6 @@ private data class PdfRange(val page: Int, val first: Int, val last: Int, val wo
             Text(stringResource(Res.string.pdf_error), Modifier.weight(1f), color = MaterialTheme.colorScheme.error)
             TextButton(onClick = { failed = false }) { Text(stringResource(Res.string.pdf_done)) }
         }
-        range?.takeUnless { selecting }?.let { r ->
-            FlowRow(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                TextButton(onClick = { clipboard.setText(AnnotatedString(r.text)); range = null }) { Text(stringResource(Res.string.pdf_copy)) }
-                TextButton(onClick = { selection = ReaderSelection(r.text, r.text, 0..0, true); range = null }) { Text(stringResource(Res.string.pdf_translate)) }
-                TextButton(onClick = { selection = ReaderSelection(r.text, r.text, 0..0, true); range = null }) { Text(stringResource(Res.string.save_phrase)) }
-                listOf("primary" to Res.string.highlight_primary, "secondary" to Res.string.highlight_secondary, "tertiary" to Res.string.highlight_tertiary).forEach { (key, label) ->
-                    TextButton(onClick = { vm.action {
-                        vm.container.database.pdfHighlights().insert(PdfHighlight(textId = text.id, page = r.page,
-                            startWord = minOf(r.first, r.last), endWord = maxOf(r.first, r.last), colorKey = key))
-                        range = null
-                    } }) { Text(stringResource(label)) }
-                }
-                TextButton(onClick = { range = null }) { Text(stringResource(Res.string.cancel)) }
-            }
-        }
         LazyColumn(state = list, userScrollEnabled = !areaMode, modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             items((0 until handle.pageCount).toList(), key = { it }) { index ->
                 PdfPage(handle, layout, index, areaMode, range?.takeIf { it.page == index }, highlights.filter { it.page == index },
@@ -178,9 +209,10 @@ private data class PdfRange(val page: Int, val first: Int, val last: Int, val wo
                     onError = { failed = true },
                     onTap = { words, word ->
                         range = null
-                        selection = ReaderSelection(pdfLookupWord(word.text, text.lang), sentenceAround(words, words.indexOf(word)), 0..0, false)
+                        lastSentence = sentenceAround(words, words.indexOf(word))
+                        selection = ReaderSelection(pdfLookupWord(word.text, text.lang), lastSentence.orEmpty(), 0..0, false)
                     },
-                    onRange = { first, last, words -> selecting = true; range = PdfRange(index, first, last, words) },
+                    onRange = { first, last, words, anchor -> selecting = true; range = PdfRange(index, first, last, words, anchor) },
                     onRangeEnd = { selecting = false },
                     onScroll = { amount -> scope.launch { list.scrollBy(amount) } },
                     onArea = { image, rect ->
@@ -201,13 +233,47 @@ private data class PdfRange(val page: Int, val first: Int, val last: Int, val wo
             }
         }
     }
+    range?.takeUnless { selecting }?.let { selected ->
+        Popup(popupPositionProvider = SelectionRectPositionProvider(selected.anchor, with(density) { 8.dp.toPx() }),
+            onDismissRequest = { range = null; highlightColors = false }) {
+            Box {
+                SelectionToolbarContent(
+                    onCopy = { clipboard.setText(AnnotatedString(selected.text)); range = null },
+                    onSave = { selection = ReaderSelection(selected.text, selected.text, 0..0, true); range = null },
+                    onListen = { tts.pronounce(selected.text, text.lang, settings); range = null },
+                    onHighlight = { vm.action {
+                        vm.container.database.pdfHighlights().insert(PdfHighlight(textId = text.id, page = selected.page,
+                            startWord = minOf(selected.first, selected.last), endWord = maxOf(selected.first, selected.last), colorKey = "primary"))
+                        range = null
+                    } },
+                    onChooseHighlightColor = { highlightColors = true }, onDeleteHighlight = null,
+                    onMore = { highlightColors = true },
+                    onTranslate = { selection = ReaderSelection(selected.text, selected.text, 0..0, true); range = null },
+                    showReadingActions = true, showListen = true)
+                DropdownMenu(highlightColors, { highlightColors = false }) {
+                    listOf("primary" to Res.string.highlight_primary, "secondary" to Res.string.highlight_secondary,
+                        "tertiary" to Res.string.highlight_tertiary).forEach { (key, label) ->
+                        DropdownMenuItem(text = { Text(stringResource(label)) }, onClick = { vm.action {
+                            vm.container.database.pdfHighlights().insert(PdfHighlight(textId = text.id, page = selected.page,
+                                startWord = minOf(selected.first, selected.last), endWord = maxOf(selected.first, selected.last), colorKey = key))
+                            range = null; highlightColors = false
+                        } })
+                    }
+                    DropdownMenuItem(text = { Text(stringResource(Res.string.cancel)) }, onClick = {
+                        range = null; highlightColors = false
+                    })
+                }
+            }
+        }
+    }
     selection?.let { DictionarySheet(vm, settings, text, it, vocab, emptyList(), dismiss = { selection = null }) }
     areaText?.let { recognized ->
-        ModalBottomSheet(onDismissRequest = { areaText = null }) {
-            Column(Modifier.navigationBarsPadding().verticalScroll(rememberScrollState()).padding(24.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                EditorialSectionHeader(stringResource(Res.string.pdf_area_text))
-                Text(recognized.ifBlank { stringResource(Res.string.pdf_empty) }, modifier = Modifier.fillMaxWidth(), style = contentStyle(recognized))
+        ModalBottomSheet(sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true), onDismissRequest = { areaText = null }) {
+            Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(20.dp).navigationBarsPadding(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text(stringResource(Res.string.pdf_recognized_text), style = MaterialTheme.typography.titleLarge)
+                OutlinedTextField(recognized, { areaText = it }, modifier = Modifier.fillMaxWidth(), textStyle = contentStyle(recognized))
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    TextButton(onClick = { clipboard.setText(AnnotatedString(recognized)) }) { Text(stringResource(Res.string.pdf_copy)) }
                     TextButton(enabled = recognized.isNotBlank(), onClick = { areaText = null; selection = ReaderSelection(recognized, recognized, 0..0, true) }) { Text(stringResource(Res.string.pdf_translate)) }
                     TextButton(enabled = recognized.isNotBlank(), onClick = { vm.action {
                         vm.container.texts.insert(TextDocument(lang = text.lang, title = text.title + " · " + (page + 1), body = recognized))
@@ -223,7 +289,7 @@ private data class PdfRange(val page: Int, val first: Int, val last: Int, val wo
     selection: PdfRange?, highlights: List<PdfHighlight>,
     penMode: Boolean, penColor: String, eraser: Boolean, fingerInk: Boolean,
     ink: List<InkStroke>, onInk: (List<InkStroke>) -> Unit, onError: () -> Unit,
-    onTap: (List<PdfWord>, PdfWord) -> Unit, onRange: (Int, Int, List<PdfWord>) -> Unit, onRangeEnd: () -> Unit, onScroll: (Float) -> Unit,
+    onTap: (List<PdfWord>, PdfWord) -> Unit, onRange: (Int, Int, List<PdfWord>, Rect) -> Unit, onRangeEnd: () -> Unit, onScroll: (Float) -> Unit,
     onArea: (ImageBitmap, PdfRect) -> Unit) {
     val currentInk by rememberUpdatedState(ink)
     val saveInk by rememberUpdatedState(onInk)
@@ -234,6 +300,7 @@ private data class PdfRange(val page: Int, val first: Int, val last: Int, val wo
     var width by remember { mutableIntStateOf(0) }
     var view by remember(handle, index) { mutableStateOf(PdfView(1f, Offset.Zero)) }
     var viewport by remember { mutableStateOf(Size.Zero) }
+    var coordinates by remember { mutableStateOf<LayoutCoordinates?>(null) }
     var selectingWords by remember { mutableStateOf(false) }
     var box by remember(areaMode) { mutableStateOf<PdfRect?>(null) }
 
@@ -258,13 +325,22 @@ private data class PdfRange(val page: Int, val first: Int, val last: Int, val wo
     val secondary = MaterialTheme.colorScheme.secondary
     val tertiary = MaterialTheme.colorScheme.tertiary
     fun normalized(point: Offset) = Offset((point.x / viewport.width).coerceIn(0f, 1f), (point.y / viewport.height).coerceIn(0f, 1f))
+    fun select(first: Int, last: Int) {
+        val layout = coordinates?.takeIf { it.isAttached } ?: return
+        val chosen = words.subList(minOf(first, last), maxOf(first, last) + 1)
+        val topLeft = layout.localToWindow(Offset(chosen.minOf { it.rect.left } * viewport.width,
+            chosen.minOf { it.rect.top } * viewport.height))
+        val bottomRight = layout.localToWindow(Offset(chosen.maxOf { it.rect.right } * viewport.width,
+            chosen.maxOf { it.rect.bottom } * viewport.height))
+        onRange(first, last, words, Rect(topLeft, bottomRight))
+    }
     Box(Modifier.fillMaxWidth().aspectRatio(1f / aspect).onSizeChanged {
         width = it.width; viewport = Size(it.width.toFloat(), it.height.toFloat())
     }.graphicsLayer {
         scaleX = view.zoom; scaleY = view.zoom
         translationX = view.pan.x; translationY = view.pan.y
         transformOrigin = TransformOrigin(0f, 0f)
-    }.background(MaterialTheme.colorScheme.surface)
+    }.onGloballyPositioned { coordinates = it }.background(MaterialTheme.colorScheme.surface)
         .pointerInput(penMode, penColor, eraser, fingerInk, viewport) {
             if (penMode) awaitPointerEventScope {
                 while (true) {
@@ -333,14 +409,14 @@ private data class PdfRange(val page: Int, val first: Int, val last: Int, val wo
                         val first = words.indexOf(word)
                         selectingWords = true
                         anchor = first
-                        onRange(first, first, words)
+                        select(first, first)
                     }
                 },
                 onDrag = { change, _ ->
                     change.consume()
                     val n = normalized(change.position)
                     hitTestWord(words, n.x, n.y, .02f)?.let { word ->
-                        anchor?.let { onRange(it, words.indexOf(word), words) }
+                        anchor?.let { select(it, words.indexOf(word)) }
                     }
                 })
         }
