@@ -10,3 +10,7 @@
 - UI: never use horizontally scrolling menus or chip rows. Options wrap (`FlowRow`) or go in a dropdown.
 - Mixed RTL/LTR: direction follows the content (Persian RTL, French LTR) without flipping the whole screen.
 - Test on the emulator (`fr_test` AVD) with the `.debug` package; never touch `com.ziaee.frenchreader` on any device.
+
+## Codex limits
+- Model `gpt-6-luna`, reasoning effort `low` or `medium` only (set in `.codex/config.toml` and `scripts/codex-run.sh`).
+- Do only the task in the prompt. No commits. Report changed files and test result.

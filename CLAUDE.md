@@ -10,3 +10,11 @@
 - UI: never use horizontally scrolling menus or chip rows. Options wrap (`FlowRow`) or go in a dropdown.
 - Mixed RTL/LTR: direction follows the content (Persian RTL, French LTR) without flipping the whole screen.
 - Test on the emulator (`fr_test` AVD) with the `.debug` package; never touch `com.ziaee.frenchreader` on any device.
+
+## Delegation (master–worker)
+- Lead session (Opus, low effort) plans, delegates, checks results. It does not write large code itself.
+- Routing: lookups → `scout` (haiku); implementation → `coder` (sonnet → Codex luna); unclear failures → `debugger`; finished change → `reviewer`.
+- Give each subagent a self-contained brief (files, goal, done criteria). Never paste chat history into it.
+- Codex only via `scripts/codex-run.sh`: model `gpt-6-luna`, effort `low` by default, `medium` at most.
+- Effort cap: no agent above `medium`. No `opus` subagents and no `high`/`xhigh` effort without the user's explicit OK.
+- The user checks results and requests customizations; run build→test→fix→review cycles without asking between steps. Never commit or push without asking.
