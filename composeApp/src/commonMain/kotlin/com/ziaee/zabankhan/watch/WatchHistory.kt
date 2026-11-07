@@ -29,4 +29,7 @@ class WatchHistory(private val cache: KeyValueCache) {
     suspend fun record(lang: LanguageSpec, entry: RecentVideo) = mutex.withLock {
         cache.put(key(lang), json.encodeToString(updateRecentVideos(read(lang), entry)))
     }
+    suspend fun remove(lang: LanguageSpec, entry: RecentVideo): List<RecentVideo> = mutex.withLock {
+        read(lang).filterNot { it.videoId == entry.videoId && it.path == entry.path }.also { cache.put(key(lang), json.encodeToString(it)) }
+    }
 }

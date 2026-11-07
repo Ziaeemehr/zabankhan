@@ -82,12 +82,13 @@ data class AppOpenRequest(val text: String? = null, val review: Boolean = false,
                 }
             }) { padding ->
                 NavHost(nav, "home", Modifier.padding(padding).consumeWindowInsets(padding)) {
-                    composable("home") { HomeScreen(vm, prefs, { id -> vm.action { val doc = container.texts.getById(id); nav.navigate(if (doc?.pdfPath != null) "pdf/$id" else "reader/$id") } }, { nav.navigate("add") }, { nav.navigate("review") }, { nav.navigate("videos") }, { nav.navigate("statistics") }, { nav.navigate("discover") }, { nav.navigate("grammar") }, { nav.navigate("exams") }, { nav.navigate("settings") }) }
+                    composable("home") { HomeScreen(vm, prefs, { id -> vm.action { val doc = container.texts.getById(id); nav.navigate(if (doc?.pdfPath != null) "pdf/$id" else "reader/$id") } }, { nav.navigate("add") }, { nav.navigate("review") }, { nav.navigate("videos") }, { nav.navigate("statistics") }, { nav.navigate("discover") }, { nav.navigate("grammar") }, { nav.navigate("exams") }, { nav.navigate("settings") }, { nav.navigate("words") { popUpTo("home") { saveState = true }; launchSingleTop = true; restoreState = true } }, { nav.navigate("news") }) { video, path, subs -> nav.navigate(watchRoute(video, path, subs)) } }
                     composable("library") { LibraryScreen(vm, prefs, { id -> vm.action { val doc = container.texts.getById(id); nav.navigate(if (doc?.pdfPath != null) "pdf/$id" else "reader/$id") } }, { nav.navigate("add") }, { nav.navigate("videos") }, { nav.navigate("discover") }) }
                     composable("videos") { VideoPickerScreen(vm, prefs, { nav.popBackStack() }) { video, path, subs -> nav.navigate(watchRoute(video, path, subs)) } }
                     composable("watch?videoId={videoId}&path={path}&subs={subs}", arguments = listOf("videoId", "path", "subs").map { name -> navArgument(name) { type = NavType.StringType; defaultValue = "" } }) { entry ->
                         WatchScreen(vm, prefs, entry.arguments?.read { getString("videoId") }.orEmpty(), entry.arguments?.read { getString("path") }.orEmpty(), entry.arguments?.read { getString("subs") }.orEmpty()) { nav.popBackStack() }
                     }
+                    composable("news") { NewsScreen(vm, prefs, { nav.popBackStack() }) { id -> nav.navigate("reader/$id") } }
                     composable("statistics") { com.ziaee.zabankhan.statistics.StatisticsScreen(vm, prefs) { nav.popBackStack() } }
                     composable("discover") { com.ziaee.zabankhan.discover.DiscoverScreen(vm, prefs, { nav.popBackStack() }, { nav.navigate("reader/$it") }) }
                     composable("grammar") { com.ziaee.zabankhan.grammar.GrammarScreen(prefs) { nav.popBackStack() } }

@@ -323,9 +323,9 @@
     <string name="reader_word_dictionary">Mot en %1$s → dictionnaire</string>
     <string name="shadowing_engine_failed">La reconnaissance vocale a échoué — réessayez</string>
     <string name="shadowing_hold_to_speak">Maintenir pour parler</string>
-    <string name="shadowing_listening">J\'écoute…</string>
+    <string name="shadowing_listening">J'écoute…</string>
     <string name="shadowing_next">Suivant</string>
-    <string name="shadowing_not_heard">Je n\'ai pas compris — réessayez</string>
+    <string name="shadowing_not_heard">Je n'ai pas compris — réessayez</string>
     <string name="shadowing_pace_fast">Un peu rapide (%1$s×)</string>
     <string name="shadowing_pace_good">Bon rythme (%1$s×)</string>
     <string name="shadowing_pace_slow">Un peu lent (%1$s×)</string>
@@ -334,7 +334,7 @@
     <string name="shadowing_replay_mine">Moi</string>
     <string name="shadowing_retry">Réessayer</string>
     <string name="shadowing_score">%1$d / %2$d</string>
-    <string name="shadowing_waiting_for_audio">Préparation de l\'audio…</string>
+    <string name="shadowing_waiting_for_audio">Préparation de l'audio…</string>
     <string name="gesture_kind_drag">Glisser / sélectionner</string>
     <string name="gesture_kind_horizontal_swipe">Balayage horizontal</string>
     <string name="gesture_kind_long_press">Appui long</string>
