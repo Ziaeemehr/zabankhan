@@ -32,4 +32,21 @@
   <string name="batch_a_local_backup_save_failure">Impossible d’enregistrer la sauvegarde</string>
   <string name="batch_a_local_backup_save_success">Sauvegarde enregistrée sur l’appareil</string>
   <string name="batch_a_local_backup_section_title">Sauvegarde locale</string>
+  <string name="batch_a_drive_sync_title">Synchronisation des cartes</string>
+  <string name="batch_a_drive_sync_description">Les cartes, phrases, traductions, listes et progrès de révision se synchronisent via Google Drive. Les PDF et fichiers sources restent sur cet appareil.</string>
+  <string name="batch_a_drive_sync_connect">Connecter Google Drive et synchroniser</string>
+  <string name="batch_a_drive_sync_now">Synchroniser maintenant</string>
+  <string name="batch_a_drive_sync_syncing">Synchronisation des cartes…</string>
+  <string name="batch_a_drive_sync_last">Dernière synchronisation : %1$s</string>
+  <string name="batch_a_drive_sync_never">Pas encore synchronisé</string>
+  <string name="batch_a_drive_sync_success">Cartes synchronisées</string>
+  <string name="batch_a_drive_sync_conflicts">Conflits à résoudre : %1$d</string>
+  <string name="batch_a_drive_sync_conflict_title">Cette carte a été modifiée sur les deux appareils</string>
+  <string name="batch_a_drive_sync_local_version">Sur cet appareil : %1$s</string>
+  <string name="batch_a_drive_sync_cloud_version">Dans Google Drive : %1$s</string>
+  <string name="batch_a_drive_sync_deleted">Supprimée</string>
+  <string name="batch_a_drive_sync_keep_local">Garder cet appareil</string>
+  <string name="batch_a_drive_sync_keep_cloud">Garder Google Drive</string>
+  <string name="batch_a_drive_sync_keep_both">Garder les deux cartes</string>
+  <string name="batch_a_drive_sync_resolved">Conflit résolu et synchronisé</string>
 </resources>

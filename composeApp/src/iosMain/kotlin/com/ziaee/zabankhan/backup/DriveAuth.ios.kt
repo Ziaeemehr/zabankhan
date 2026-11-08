@@ -49,3 +49,4 @@ internal actual suspend fun backgroundDriveAccessToken(): String? = kotlinx.coro
         } }
     }
 }
+internal actual fun driveSyncSupported(): Boolean = true

@@ -55,6 +55,9 @@ object AutoBackup {
         val archive = createLocalBackupLocked(container).toPath()
         try { protect(archive) } finally { fs.delete(archive, mustExist = false) }
     }
+    internal suspend fun protectBeforeSync(container: AppContainer) = backupMutex.withLock {
+        withContext(Dispatchers.IO) { protectCurrentStateLocked(container) }
+    }
     private fun protect(archive: Path) {
         val root = backupPaths().automatic.toPath()
         fs.createDirectories(root)

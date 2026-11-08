@@ -9,17 +9,35 @@ import io.ktor.client.plugins.websocket.WebSockets
 import com.ziaee.zabankhan.speech.*
 import com.ziaee.zabankhan.speech.edge.*
 import com.ziaee.zabankhan.pdf.AppFiles
+import com.ziaee.zabankhan.backup.driveSyncSupported
+import com.ziaee.zabankhan.sync.DriveSyncCoordinator
 import kotlinx.coroutines.*
+import kotlin.uuid.ExperimentalUuidApi
+import kotlin.uuid.Uuid
 
 class AppContainer(val database: AppDatabase, val settings: SettingsRepository, http: HttpClient) {
     private val sourceHttp = http
     val http = http.config { install(WebSockets) }
     private val speechScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
+    val syncDeviceId: String = loadOrCreateSyncDeviceId()
     val ttsCache = TtsCache("${AppFiles.cacheDir}/tts")
     private val tts = SelectedTts(EdgeTts(EdgeTtsClient(this.http), ttsCache, createAudioPlayer(), speechScope), createDeviceTts(), speechScope)
+    val driveSync: DriveSyncCoordinator? by lazy { if (driveSyncSupported()) DriveSyncCoordinator(this) else null }
     init {
         SpeechEngine.current?.stop()
         SpeechEngine.current = tts
+        speechScope.launch {
+            database.sync().setMetadata(SyncMetadataEntry("device_id", syncDeviceId))
+        }
+        driveSync?.let { sync ->
+            speechScope.launch {
+                var previousCount: Int? = null
+                database.sync().observeJournalCount().collect { count ->
+                    if (previousCount != null && count > previousCount!!) sync.onLocalChange()
+                    previousCount = count
+                }
+            }
+        }
         speechScope.launch {
             settings.settings.collect { value ->
                 SpeechEngine.configure(value)
@@ -27,8 +45,17 @@ class AppContainer(val database: AppDatabase, val settings: SettingsRepository, 
             }
         }
     }
+
+    @OptIn(ExperimentalUuidApi::class)
+    private fun loadOrCreateSyncDeviceId(): String {
+        val secrets = createSecretStore()
+        return secrets.get(SYNC_DEVICE_ID) ?: Uuid.random().toString().replace("-", "").also {
+            secrets.set(SYNC_DEVICE_ID, it)
+        }
+    }
     /** Release container-owned background work before replacing it after restore. */
     fun close() {
+        driveSync?.close()
         tts.stop()
         if (SpeechEngine.current === tts) SpeechEngine.current = null
         speechScope.cancel()

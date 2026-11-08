@@ -9,6 +9,12 @@ import androidx.room.Update
 import androidx.room.Transaction
 import androidx.room.Upsert
 import kotlinx.coroutines.flow.Flow
+import kotlinx.serialization.encodeToString
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
+import kotlin.uuid.ExperimentalUuidApi
+import kotlin.uuid.Uuid
 
 @Dao
 interface TextDao {
@@ -84,8 +90,14 @@ interface VocabDao {
     @Query("SELECT * FROM vocab WHERE lang = :lang")
     suspend fun getAll(lang: String): List<VocabEntry>
 
+    @Query("SELECT * FROM vocab")
+    suspend fun allVocab(): List<VocabEntry>
+
     @Query("SELECT * FROM vocab WHERE id = :id")
     suspend fun getById(id: Long): VocabEntry?
+
+    @Query("SELECT * FROM vocab WHERE syncId = :syncId LIMIT 1")
+    suspend fun getBySyncId(syncId: String): VocabEntry?
 
     @Query("SELECT * FROM vocab WHERE lang = :lang AND lower(word) = lower(:word) LIMIT 1")
     suspend fun findByWord(lang: String, word: String): VocabEntry?
@@ -93,29 +105,182 @@ interface VocabDao {
     @Query("SELECT COUNT(*) FROM vocab WHERE lang = :lang AND learned = 0 AND nextReviewAtMs <= :until")
     fun observeDueCount(lang: String, until: Long): Flow<Int>
 
-    @Insert suspend fun insert(entry: VocabEntry): Long
-    @Update suspend fun update(entry: VocabEntry)
-    @Delete suspend fun delete(entry: VocabEntry)
+    @Insert suspend fun insertRaw(entry: VocabEntry): Long
+    @Update suspend fun updateRaw(entry: VocabEntry)
+    @Delete suspend fun deleteRaw(entry: VocabEntry)
+
+    @Query("SELECT * FROM vocab WHERE id IN (:ids)")
+    suspend fun getByIds(ids: List<Long>): List<VocabEntry>
+
+    @Query("SELECT * FROM vocab WHERE listId = :listId")
+    suspend fun getByListId(listId: Long): List<VocabEntry>
+
+    @Insert suspend fun insertListRaw(list: VocabList): Long
+    @Update suspend fun updateListRaw(list: VocabList)
+    @Delete suspend fun deleteListRaw(list: VocabList)
+
+    @Query("SELECT * FROM vocab_lists WHERE id = :id")
+    suspend fun getListById(id: Long): VocabList?
+
+    @Query("SELECT * FROM vocab_lists WHERE syncId = :syncId LIMIT 1")
+    suspend fun getListBySyncId(syncId: String): VocabList?
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun setSyncMetadata(entry: SyncMetadataEntry)
+
+    @Query("SELECT value FROM sync_metadata WHERE `key` = :key")
+    suspend fun getSyncMetadata(key: String): String?
+
+    @Query("DELETE FROM sync_metadata WHERE `key` = :key")
+    suspend fun clearSyncMetadata(key: String)
+
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
+    suspend fun appendSyncJournal(entry: SyncJournalEntry): Long
+
+    @OptIn(ExperimentalUuidApi::class)
+    private suspend fun appendLocalOperation(type: String, syncId: String, baseRevision: Long?, operation: String, payload: String?) {
+        if (getSyncMetadata("suppress_journal") == "1") return
+        val seq = (getSyncMetadata("journal_sequence")?.toLongOrNull() ?: 0L) + 1L
+        setSyncMetadata(SyncMetadataEntry("journal_sequence", seq.toString()))
+        appendSyncJournal(SyncJournalEntry(
+            operationId = Uuid.random().toString().replace("-", ""),
+            deviceId = getSyncMetadata("device_id") ?: "local",
+            sequence = seq,
+            entityType = type,
+            entitySyncId = syncId,
+            baseRevision = baseRevision,
+            operationType = operation,
+            payload = payload,
+        ))
+    }
+
+    private suspend fun cardPayload(entry: VocabEntry): String {
+        val listSyncId = entry.listId?.let { getListById(it)?.syncId }
+        return Json.encodeToString(buildJsonObject {
+        put("syncId", entry.syncId); put("revision", entry.syncRevision); put("lang", entry.lang)
+        put("word", entry.word); put("sentence", entry.sentence); entry.meaning?.let { put("meaning", it) }
+        entry.dictionaryUrl?.let { put("dictionaryUrl", it) }; put("meaningLang", entry.meaningLang)
+        put("listSyncId", listSyncId)
+        put("learned", entry.learned); put("createdAtMs", entry.createdAtMs)
+        put("leitnerBox", entry.leitnerBox); put("nextReviewAtMs", entry.nextReviewAtMs)
+        entry.lastReviewedAtMs?.let { put("lastReviewedAtMs", it) }
+        })
+    }
+
+    private fun listPayload(list: VocabList, revision: Long = list.syncRevision): String = Json.encodeToString(buildJsonObject {
+        put("syncId", list.syncId); put("revision", revision); put("lang", list.lang)
+        put("name", list.name); put("createdAtMs", list.createdAtMs)
+    })
+
+    @Transaction
+    suspend fun insert(entry: VocabEntry): Long {
+        val id = insertRaw(entry)
+        val saved = getById(id) ?: entry.copy(id = id)
+        appendLocalOperation("card", saved.syncId, null, "upsert", cardPayload(saved))
+        return id
+    }
+
+    @Transaction
+    suspend fun update(entry: VocabEntry) {
+        val old = getById(entry.id)
+        val updated = if (old == null) entry else entry.copy(syncId = old.syncId, syncRevision = old.syncRevision + 1)
+        updateRaw(updated)
+        appendLocalOperation("card", updated.syncId, old?.syncRevision, "upsert", cardPayload(updated))
+    }
+
+    @Transaction
+    suspend fun delete(entry: VocabEntry) {
+        val old = getById(entry.id) ?: entry
+        deleteRaw(old)
+        appendLocalOperation("card", old.syncId, old.syncRevision, "delete", null)
+    }
+
+    @Transaction
+    suspend fun deleteIds(ids: List<Long>) {
+        if (ids.isEmpty()) return
+        val rows = getByIds(ids)
+        deleteIdsRaw(ids)
+        rows.forEach { appendLocalOperation("card", it.syncId, it.syncRevision, "delete", null) }
+    }
+
+    @Transaction
+    suspend fun resolveCard(syncId: String, desired: VocabEntry?, baseRevision: Long) {
+        val existing = getBySyncId(syncId)
+        if (desired == null) {
+            if (existing != null) deleteRaw(existing)
+            appendLocalOperation("card", syncId, baseRevision, "resolve_delete", null)
+        } else {
+            val resolved = desired.copy(
+                id = existing?.id ?: 0L,
+                syncId = syncId,
+                syncRevision = baseRevision + 1L,
+                textId = existing?.textId,
+            )
+            if (existing == null) insertRaw(resolved) else updateRaw(resolved)
+            appendLocalOperation("card", syncId, baseRevision, "resolve_upsert", cardPayload(resolved))
+        }
+    }
+
+    @Transaction
+    suspend fun resolveList(syncId: String, desired: VocabList?, baseRevision: Long) {
+        val existing = getListBySyncId(syncId)
+        if (desired == null) {
+            if (existing != null) deleteListRaw(existing)
+            appendLocalOperation("list", syncId, baseRevision, "resolve_delete", null)
+        } else {
+            val resolved = desired.copy(id = existing?.id ?: 0L, syncId = syncId, syncRevision = baseRevision + 1L)
+            if (existing == null) insertListRaw(resolved) else updateListRaw(resolved)
+            appendLocalOperation("list", syncId, baseRevision, "resolve_upsert", listPayload(resolved))
+        }
+    }
 
     @Query("DELETE FROM vocab WHERE id IN (:ids)")
-    suspend fun deleteIds(ids: List<Long>)
+    suspend fun deleteIdsRaw(ids: List<Long>)
 
-    @Query("UPDATE vocab SET listId = :listId WHERE id IN (:ids)")
-    suspend fun moveToList(ids: List<Long>, listId: Long?)
+    @Transaction
+    suspend fun moveToList(ids: List<Long>, listId: Long?) {
+        if (ids.isEmpty()) return
+        val rows = getByIds(ids)
+        rows.forEach { row -> update(row.copy(listId = listId, syncRevision = row.syncRevision + 1)) }
+    }
 
     @Query("SELECT * FROM vocab_lists WHERE lang = :lang ORDER BY name COLLATE NOCASE")
     fun observeLists(lang: String): Flow<List<VocabList>>
 
-    @Insert suspend fun insertList(list: VocabList): Long
+    @Query("SELECT * FROM vocab_lists")
+    suspend fun allLists(): List<VocabList>
 
-    @Query("UPDATE vocab_lists SET name = :name WHERE id = :id")
-    suspend fun renameList(id: Long, name: String)
+    @Transaction
+    suspend fun insertList(list: VocabList): Long {
+        val id = insertListRaw(list)
+        val saved = getListById(id) ?: list.copy(id = id)
+        appendLocalOperation("list", saved.syncId, null, "upsert", listPayload(saved))
+        return id
+    }
+
+    @Transaction
+    suspend fun renameList(id: Long, name: String) {
+        val old = getListById(id) ?: return
+        val updated = old.copy(name = name, syncRevision = old.syncRevision + 1)
+        updateListRaw(updated)
+        appendLocalOperation("list", updated.syncId, old.syncRevision, "upsert", listPayload(updated))
+    }
+
+    @Transaction
+    suspend fun deleteCardsInList(listId: Long) {
+        val rows = getByListId(listId)
+        deleteCardsInListRaw(listId)
+        rows.forEach { appendLocalOperation("card", it.syncId, it.syncRevision, "delete", null) }
+    }
 
     @Query("DELETE FROM vocab WHERE listId = :listId")
-    suspend fun deleteCardsInList(listId: Long)
+    suspend fun deleteCardsInListRaw(listId: Long)
 
-    @Query("UPDATE vocab SET listId = NULL WHERE listId = :listId")
-    suspend fun clearList(listId: Long)
+    @Transaction
+    suspend fun clearList(listId: Long) {
+        val rows = getByListId(listId)
+        rows.forEach { update(it.copy(listId = null, syncRevision = it.syncRevision + 1)) }
+    }
 
     @Transaction
     suspend fun deleteListAndCards(listId: Long, deleteCards: Boolean) {
@@ -123,28 +288,137 @@ interface VocabDao {
         deleteList(listId)
     }
 
-    @Query("DELETE FROM vocab_lists WHERE id = :id")
-    suspend fun deleteList(id: Long)
+    @Transaction
+    suspend fun deleteList(id: Long) {
+        val list = getListById(id) ?: return
+        deleteListRaw(list)
+        appendLocalOperation("list", list.syncId, list.syncRevision, "delete", null)
+    }
 
     @Transaction
     suspend fun recordReview(entry: VocabEntry, log: ReviewLogEntry): Long {
-        update(entry)
-        return insertReviewLog(log)
+        val old = getById(entry.id)
+        val updated = if (old == null) entry else entry.copy(syncId = old.syncId, syncRevision = old.syncRevision + 1)
+        updateRaw(updated)
+        val logId = insertReviewLogRaw(log.copy(scheduleSnapshot = cardPayload(updated)))
+        appendLocalOperation("card", updated.syncId, old?.syncRevision, "review_state", cardPayload(updated))
+        val review = getReviewById(logId) ?: log.copy(id = logId)
+        val reviewPayload = Json.encodeToString(buildJsonObject {
+            put("syncId", review.syncId); put("cardSyncId", updated.syncId); put("lang", review.lang)
+            put("timestampMs", review.timestampMs); put("knew", review.knew)
+            put("boxBefore", review.boxBefore); put("boxAfter", review.boxAfter)
+            review.scheduleSnapshot?.let { put("scheduleSnapshot", it) }
+            put("leitnerBox", updated.leitnerBox); put("nextReviewAtMs", updated.nextReviewAtMs)
+            updated.lastReviewedAtMs?.let { put("lastReviewedAtMs", it) }; put("learned", updated.learned)
+        })
+        appendLocalOperation("review", review.syncId, null, "upsert", reviewPayload)
+        return logId
     }
 
     @Transaction
     suspend fun undoReview(entry: VocabEntry, logId: Long) {
-        update(entry)
-        deleteReviewLog(logId)
+        val old = getById(entry.id)
+        val updated = if (old == null) entry else entry.copy(syncId = old.syncId, syncRevision = old.syncRevision + 1)
+        updateRaw(updated)
+        val removedLog = getReviewById(logId)
+        deleteReviewLogRaw(logId)
+        appendLocalOperation("card", updated.syncId, old?.syncRevision, "review_state", cardPayload(updated))
+        removedLog?.let { appendLocalOperation("review", it.syncId, null, "delete", cardPayload(updated)) }
     }
 
-    @Query("DELETE FROM review_log WHERE id = :id")
-    suspend fun deleteReviewLog(id: Long)
+    @Query("SELECT * FROM review_log WHERE id = :id")
+    suspend fun getReviewById(id: Long): ReviewLogEntry?
 
-    @Insert suspend fun insertReviewLog(entry: ReviewLogEntry): Long
+    @Query("SELECT * FROM review_log WHERE syncId = :syncId LIMIT 1")
+    suspend fun getReviewBySyncId(syncId: String): ReviewLogEntry?
+
+    @Query("SELECT * FROM review_log")
+    suspend fun allReviews(): List<ReviewLogEntry>
+
+    @Query("DELETE FROM review_log WHERE id = :id")
+    suspend fun deleteReviewLogRaw(id: Long)
+
+    @Insert suspend fun insertReviewLogRaw(entry: ReviewLogEntry): Long
+
+    @Update suspend fun updateReviewLogRaw(entry: ReviewLogEntry)
+
+    @Transaction
+    suspend fun seedInitialSyncJournal() {
+        if (getSyncMetadata("initial_sync_seeded") == "1") return
+        allLists().forEach { appendLocalOperation("list", it.syncId, null, "upsert", listPayload(it)) }
+        allVocab().forEach { appendLocalOperation("card", it.syncId, null, "upsert", cardPayload(it)) }
+        allReviews().forEach { review ->
+            val card = getById(review.entryId) ?: return@forEach
+            val payload = Json.encodeToString(buildJsonObject {
+                put("syncId", review.syncId); put("cardSyncId", card.syncId); put("lang", review.lang)
+                put("timestampMs", review.timestampMs); put("knew", review.knew)
+                put("boxBefore", review.boxBefore); put("boxAfter", review.boxAfter)
+                review.scheduleSnapshot?.let { put("scheduleSnapshot", it) }
+            })
+            appendLocalOperation("review", review.syncId, null, "upsert", payload)
+        }
+        setSyncMetadata(SyncMetadataEntry("initial_sync_seeded", "1"))
+    }
 
     @Query("SELECT * FROM review_log WHERE lang = :lang AND timestampMs >= :since ORDER BY timestampMs")
     suspend fun reviewLogSince(lang: String, since: Long): List<ReviewLogEntry>
+}
+
+@Dao
+interface SyncDao {
+    @Query("SELECT COUNT(*) FROM sync_journal")
+    fun observeJournalCount(): Flow<Int>
+
+    @Query("SELECT value FROM sync_metadata WHERE `key` = :key")
+    suspend fun getMetadata(key: String): String?
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun setMetadata(entry: SyncMetadataEntry)
+
+    @Query("UPDATE sync_journal SET deviceId = :deviceId WHERE deviceId = 'local'")
+    suspend fun assignUnattributedOperations(deviceId: String)
+
+    @Query("SELECT * FROM sync_journal WHERE deviceId = :deviceId ORDER BY sequence")
+    suspend fun operationsForDevice(deviceId: String): List<SyncJournalEntry>
+
+    @Query("SELECT * FROM sync_journal ORDER BY deviceId, sequence")
+    suspend fun allOperations(): List<SyncJournalEntry>
+
+    @Query("SELECT MAX(sequence) FROM sync_journal WHERE deviceId = :deviceId")
+    suspend fun latestSequence(deviceId: String): Long?
+
+    @Query("SELECT value FROM sync_metadata WHERE `key` = :key")
+    fun observeMetadata(key: String): Flow<String?>
+
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
+    suspend fun append(entry: SyncJournalEntry): Long
+
+    @Query("SELECT * FROM sync_journal ORDER BY deviceId, sequence")
+    suspend fun allJournalEntries(): List<SyncJournalEntry>
+
+    @Query("SELECT * FROM sync_journal WHERE deviceId = :deviceId ORDER BY sequence")
+    suspend fun journalForDevice(deviceId: String): List<SyncJournalEntry>
+
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
+    suspend fun markApplied(operation: AppliedSyncOperation): Long
+
+    @Query("SELECT EXISTS(SELECT 1 FROM sync_applied_operations WHERE operationId = :operationId)")
+    suspend fun wasApplied(operationId: String): Boolean
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun saveConflict(conflict: SyncConflict)
+
+    @Query("SELECT * FROM sync_conflicts WHERE resolvedAtMs IS NULL ORDER BY createdAtMs")
+    fun observeUnresolvedConflicts(): Flow<List<SyncConflict>>
+
+    @Query("SELECT * FROM sync_conflicts WHERE resolvedAtMs IS NULL ORDER BY createdAtMs")
+    suspend fun unresolvedConflicts(): List<SyncConflict>
+
+    @Query("SELECT * FROM sync_conflicts WHERE conflictId = :conflictId")
+    suspend fun getConflict(conflictId: String): SyncConflict?
+
+    @Query("UPDATE sync_conflicts SET resolvedAtMs = :resolvedAtMs WHERE conflictId = :conflictId")
+    suspend fun markConflictResolved(conflictId: String, resolvedAtMs: Long)
 }
 
 @Dao

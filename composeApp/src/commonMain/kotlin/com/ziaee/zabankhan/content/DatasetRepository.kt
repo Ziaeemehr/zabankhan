@@ -81,6 +81,7 @@ class DatasetRepository(
         val metadata = loadManifest()
         val now = nowMs()
         db.useWriterConnection { connection -> connection.immediateTransaction {
+            db.vocab().withJournalSuppressed {
             val lists = db.vocab().observeLists(language.code).first()
             val listId = lists.firstOrNull { it.name.equals(pack.name, true) }?.id
                 ?: db.vocab().insertList(VocabList(lang = language.code, name = pack.name))
@@ -111,6 +112,7 @@ class DatasetRepository(
                 }
             }
             DatasetInstallResult(added, rows.size - added)
+            }
         } }
     }
 
@@ -120,6 +122,7 @@ class DatasetRepository(
             runCatching { pack to parseDatasetDeck(asset(pack.source, pack.file)) }.getOrNull()
         }.toMap()
         db.useWriterConnection { connection -> connection.immediateTransaction {
+            db.vocab().withJournalSuppressed {
             val lists = db.vocab().observeLists(language.code).first()
             val packs = rowsByPack.map { (pack, rows) ->
                 rows to lists.firstOrNull { it.name.equals(pack.name, ignoreCase = true) }?.id
@@ -130,6 +133,7 @@ class DatasetRepository(
                 ids.chunked(500).forEach { db.vocab().moveToList(it, listId) }
             }
             plan.removed
+            }
         } }
     }
 
@@ -302,6 +306,17 @@ class DatasetRepository(
     private fun manifestUrl(source: DatasetSource) = "https://ziaeemehr.github.io/zabankhan-dict/packs/${source.language}/dataset/manifest.json"
     private fun fileUrl(source: DatasetSource, file: String) = "https://ziaeemehr.github.io/zabankhan-dict/packs/${source.language}/dataset/$file"
     private fun validateDatasetFile(file: String) { require(!file.startsWith('/') && file.split('/').none { it == ".." }) }
+}
+
+private suspend fun <T> VocabDao.withJournalSuppressed(block: suspend () -> T): T {
+    val previous = getSyncMetadata("suppress_journal")
+    setSyncMetadata(SyncMetadataEntry("suppress_journal", "1"))
+    return try {
+        block()
+    } finally {
+        if (previous == null) clearSyncMetadata("suppress_journal")
+        else setSyncMetadata(SyncMetadataEntry("suppress_journal", previous))
+    }
 }
 
 /** Bundled assets are registered only for languages that ship copyrighted/local datasets. */

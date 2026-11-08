@@ -57,9 +57,9 @@
 - Add stable `syncId` fields to vocabulary cards and lists; keep numeric Room IDs for local foreign keys.
 - Migrate all existing rows with unique sync IDs without changing their local IDs or relations.
 
-- [ ] Add stable IDs and journal metadata entities, plus required DAO queries.
-- [ ] Increment Room schema version and add a migration that backfills IDs and initializes metadata; retain all prior migrations and schema export behavior.
-- [ ] Confirm legacy full-backup database restore remains compatible through the migration chain; verify by inspecting the Room migration path and preserving its schema history.
+- [x] Add stable IDs and journal metadata entities, plus required DAO queries.
+- [x] Increment Room schema version and add a migration that backfills IDs and initializes metadata; retain all prior migrations and schema export behavior.
+- [x] Confirm legacy full-backup database restore remains compatible through the migration chain; verify by inspecting the Room migration path and preserving its schema history.
 
 ### Task 2: Journal local card, list, and review mutations
 
@@ -72,9 +72,9 @@
 - Use operation UUIDs for idempotence; use tombstones for deletes and review undo markers rather than deleting shared history.
 - Classify bundled dataset refresh/import paths so they do not accidentally journal destructive replacement of user data; user-initiated imports remain syncable.
 
-- [ ] Audit every write to `VocabEntry`, `VocabList`, and `ReviewLogEntry`, recording whether it represents a user mutation, migration, bundled data, or full restore.
-- [ ] Route user mutations through transactional journal-aware methods; include saved sentence and meaning while excluding local source links such as `textId`.
-- [ ] Ensure card/list delete and review undo append tombstones/markers and preserve relationship identity through sync IDs.
+- [x] Audit every write to `VocabEntry`, `VocabList`, and `ReviewLogEntry`, recording whether it represents a user mutation, migration, bundled data, or full restore.
+- [x] Route user mutations through transactional journal-aware methods; include saved sentence and meaning while excluding local source links such as `textId`.
+- [x] Ensure card/list delete and review undo append tombstones/markers and preserve relationship identity through sync IDs.
 
 ### Task 3: Define per-device Drive journal transport
 
@@ -88,9 +88,9 @@
 - Produce `DriveSyncStore.listDeviceFiles(token)`, `readDeviceFile(token, fileId)`, and `writeDeviceFile(token, deviceId, bytes)` using distinct appData files per device; never overwrite ZIP backup files.
 - Stable device ID survives app restart and app upgrades; it is not an auth token or credential.
 
-- [ ] Add Drive appData file listing/read/update support for sync payloads while preserving current ZIP backup APIs and retention behavior.
-- [ ] Serialize/validate schema and owning account before returning remote operations; reject unsupported newer schemas and account mismatch without applying data.
-- [ ] Keep each device file independent so concurrent uploads cannot overwrite the other device's journal.
+- [x] Add Drive appData file listing/read/update support for sync payloads while preserving current ZIP backup APIs and retention behavior.
+- [x] Serialize/validate schema and owning account before returning remote operations; reject unsupported newer schemas and account mismatch without applying data.
+- [x] Keep each device file independent so concurrent uploads cannot overwrite the other device's journal.
 
 ### Task 4: Implement idempotent merge and conflict handling
 
@@ -106,10 +106,10 @@
 - Apply a single-sided edit; store both conflicting values and base revisions if concurrent edits share the same base; do not silently select a winner.
 - Apply a delete only when its base revision is not superseded by an edit; otherwise surface a conflict.
 
-- [ ] Implement transactional application of downloaded operations and persist the remote cursor only after commit.
-- [ ] Merge review events by operation ID and derive card scheduling state deterministically.
-- [ ] Persist content/delete conflicts without changing the visible card until the user resolves them.
-- [ ] Keep pending local operations until the Drive write is confirmed; retrying the same batch must not duplicate effects.
+- [x] Implement transactional application of downloaded operations and persist the remote cursor only after commit.
+- [x] Merge review events by operation ID and derive card scheduling state deterministically.
+- [x] Persist content/delete conflicts without changing the visible card until the user resolves them.
+- [x] Keep pending local operations until the Drive write is confirmed; retrying the same batch must not duplicate effects.
 
 ### Task 5: Add orchestration, safety snapshots, and lifecycle triggers
 
@@ -126,10 +126,10 @@
 - Sync sequence is download → local safety backup when needed → transactional apply → upload local journal → mark acknowledged operations; no whole-database restore.
 - Network/auth failures preserve pending operations and return actionable status for next foreground/manual attempt.
 
-- [ ] Coordinate sync attempts with a single-flight guard and debounce local writes while online.
-- [ ] Take a local safety snapshot before initial merge and before conflict resolution, reusing existing backup code without uploading credentials.
-- [ ] Wire Android foreground and iOS active-scene triggers to the coordinator; Bazaar must never initialize or call Drive sync.
-- [ ] Preserve existing automatic ZIP backup behavior as a separate flow.
+- [x] Coordinate sync attempts with a single-flight guard and debounce local writes while online.
+- [x] Take a local safety snapshot before initial merge and before conflict resolution, reusing existing backup code without uploading credentials.
+- [x] Wire Android foreground and iOS active-scene triggers to the coordinator; Bazaar must never initialize or call Drive sync.
+- [x] Preserve existing automatic ZIP backup behavior as a separate flow.
 
 ### Task 6: Add settings UI for sync state and conflicts
 
@@ -143,15 +143,15 @@
 - Show sync status, last successful sync, Sync now, actionable error, and unresolved conflicts.
 - Conflict resolution explicitly lets the user keep either version or retain both as distinct cards where valid; resolve action creates a new journal operation.
 
-- [ ] Add the Sync section while keeping existing backup/restore controls intact and clearly separate.
-- [ ] Add localized strings for default, Persian, and French resources; avoid horizontally scrolling menus/chip rows.
-- [ ] Keep sync controls hidden or unavailable in unsupported Bazaar builds while preserving normal backup settings.
+- [x] Add the Sync section while keeping existing backup/restore controls intact and clearly separate.
+- [x] Add localized strings for default, Persian, and French resources; avoid horizontally scrolling menus/chip rows.
+- [x] Keep sync controls hidden or unavailable in unsupported Bazaar builds while preserving normal backup settings.
 
 ### Task 7: Verify compatibility and platform builds
 
 **Files:**
 - Review all changed files and generated Room schema/migration output.
 
-- [ ] With JDK 17, run platform builds: `./gradlew :composeApp:assemblePlayDebug :composeApp:assembleBazaarDebug :composeApp:linkDebugFrameworkIosArm64`.
-- [ ] Inspect the final diff for accidental sync of excluded files/preferences, credentials, PDF data, or platform-specific settings.
-- [ ] Confirm the existing full ZIP backup/restore path and schemas remain intact; do not commit.
+- [x] With JDK 17, run platform builds: `./gradlew :composeApp:assemblePlayDebug :composeApp:assembleBazaarDebug :composeApp:linkDebugFrameworkIosArm64`.
+- [x] Inspect the final diff for accidental sync of excluded files/preferences, credentials, PDF data, or platform-specific settings.
+- [x] Confirm the existing full ZIP backup/restore path and schemas remain intact; do not commit.

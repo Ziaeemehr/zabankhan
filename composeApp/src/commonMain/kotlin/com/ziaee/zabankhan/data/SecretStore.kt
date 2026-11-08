@@ -9,3 +9,4 @@ interface SecretStore {
 
 expect fun createSecretStore(): SecretStore
 internal const val LLM_API_KEY = "llm_api_key"
+internal const val SYNC_DEVICE_ID = "drive_sync_device_id"

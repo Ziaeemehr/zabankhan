@@ -9,3 +9,4 @@ private object UnavailableDrive : DriveAuth {
 @Composable actual fun rememberDriveAuth(): DriveAuth = UnavailableDrive
 
 internal actual suspend fun backgroundDriveAccessToken(): String? = null
+internal actual fun driveSyncSupported(): Boolean = false

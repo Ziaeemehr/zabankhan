@@ -50,6 +50,10 @@ class MainActivity : ComponentActivity() {
         readIntent(intent)
         setContent { App((application as ZabankhanApp).container, request) { request = null } }
     }
+    override fun onResume() {
+        super.onResume()
+        DriveSyncLifecycle.onAppActive((application as ZabankhanApp).container)
+    }
     override fun onStop() {
         super.onStop()
         if (!isChangingConfigurations) AutoBackup.onAppBackgrounded((application as ZabankhanApp).container)

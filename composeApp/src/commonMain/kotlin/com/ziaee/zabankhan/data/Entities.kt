@@ -6,6 +6,11 @@ import androidx.room.Entity
 import androidx.room.Index
 import androidx.room.PrimaryKey
 import kotlin.time.Clock
+import kotlin.uuid.ExperimentalUuidApi
+import kotlin.uuid.Uuid
+
+@OptIn(ExperimentalUuidApi::class)
+private fun newSyncId(): String = Uuid.random().toString().replace("-", "")
 
 fun nowMs(): Long = Clock.System.now().toEpochMilliseconds()
 
@@ -51,7 +56,7 @@ data class LibraryFolder(
 )
 
 /** A saved word or phrase with its sentence, meaning and Leitner state. */
-@Entity(tableName = "vocab", indices = [Index("lang"), Index("nextReviewAtMs")])
+@Entity(tableName = "vocab", indices = [Index("lang"), Index("nextReviewAtMs"), Index("syncId")])
 data class VocabEntry(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
     val lang: String,
@@ -68,18 +73,22 @@ data class VocabEntry(
     val leitnerBox: Int = 1,
     val nextReviewAtMs: Long = nowMs(),
     val lastReviewedAtMs: Long? = null,
+    @ColumnInfo(defaultValue = "''") val syncId: String = newSyncId(),
+    @ColumnInfo(defaultValue = "0") val syncRevision: Long = 0,
 )
 
-@Entity(tableName = "vocab_lists", indices = [Index("lang")])
+@Entity(tableName = "vocab_lists", indices = [Index("lang"), Index("syncId")])
 data class VocabList(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
     val lang: String,
     val name: String,
     val createdAtMs: Long = nowMs(),
+    @ColumnInfo(defaultValue = "''") val syncId: String = newSyncId(),
+    @ColumnInfo(defaultValue = "0") val syncRevision: Long = 0,
 )
 
 /** One row per review answer; never updated. */
-@Entity(tableName = "review_log", indices = [Index("timestampMs")])
+@Entity(tableName = "review_log", indices = [Index("timestampMs"), Index("syncId")])
 data class ReviewLogEntry(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
     val entryId: Long,
@@ -88,6 +97,56 @@ data class ReviewLogEntry(
     val knew: Boolean,
     val boxBefore: Int,
     val boxAfter: Int,
+    @ColumnInfo(defaultValue = "''") val syncId: String = newSyncId(),
+    val scheduleSnapshot: String? = null,
+)
+
+/** Append-only logical changes created by this installation. Payload excludes local source IDs and files. */
+@Entity(
+    tableName = "sync_journal",
+    indices = [Index(value = ["deviceId", "sequence"]), Index(value = ["entityType", "entitySyncId"])],
+)
+data class SyncJournalEntry(
+    @PrimaryKey val operationId: String,
+    val deviceId: String,
+    val sequence: Long,
+    val entityType: String,
+    val entitySyncId: String,
+    val baseRevision: Long?,
+    val operationType: String,
+    val payload: String?,
+    val createdAtMs: Long = nowMs(),
+)
+
+/** Small durable key/value state for local counters and per-device remote cursors. */
+@Entity(tableName = "sync_metadata")
+data class SyncMetadataEntry(
+    @PrimaryKey val key: String,
+    val value: String,
+)
+
+/** Records operations already applied so downloads can be retried safely. */
+@Entity(tableName = "sync_applied_operations", indices = [Index(value = ["deviceId", "sequence"])])
+data class AppliedSyncOperation(
+    @PrimaryKey val operationId: String,
+    val deviceId: String,
+    val sequence: Long,
+)
+
+/** Both sides are retained until the user explicitly resolves a concurrent edit. */
+@Entity(tableName = "sync_conflicts", indices = [Index(value = ["entityType", "entitySyncId"])])
+data class SyncConflict(
+    @PrimaryKey val conflictId: String,
+    val entityType: String,
+    val entitySyncId: String,
+    val localOperationId: String,
+    val remoteOperationId: String,
+    val localPayload: String,
+    val remotePayload: String,
+    @ColumnInfo(defaultValue = "0") val baseRevision: Long = 0,
+    @ColumnInfo(defaultValue = "'upsert'") val remoteOperationType: String = "upsert",
+    val createdAtMs: Long = nowMs(),
+    val resolvedAtMs: Long? = null,
 )
 
 @Entity(tableName = "highlights", indices = [Index("textId")])

@@ -32,4 +32,21 @@
   <string name="batch_a_local_backup_save_failure">Couldn\'t save backup</string>
   <string name="batch_a_local_backup_save_success">Backup saved to device</string>
   <string name="batch_a_local_backup_section_title">Local backup</string>
+  <string name="batch_a_drive_sync_title">Flashcard sync</string>
+  <string name="batch_a_drive_sync_description">Cards, saved sentences, meanings, lists, and review progress sync through Google Drive. PDFs and source files stay on this device.</string>
+  <string name="batch_a_drive_sync_connect">Connect Google Drive and sync</string>
+  <string name="batch_a_drive_sync_now">Sync now</string>
+  <string name="batch_a_drive_sync_syncing">Syncing flashcards…</string>
+  <string name="batch_a_drive_sync_last">Last synced: %1$s</string>
+  <string name="batch_a_drive_sync_never">Not synced yet</string>
+  <string name="batch_a_drive_sync_success">Flashcards synced</string>
+  <string name="batch_a_drive_sync_conflicts">Conflicts to resolve: %1$d</string>
+  <string name="batch_a_drive_sync_conflict_title">This card changed on both devices</string>
+  <string name="batch_a_drive_sync_local_version">On this device: %1$s</string>
+  <string name="batch_a_drive_sync_cloud_version">On Google Drive: %1$s</string>
+  <string name="batch_a_drive_sync_deleted">Deleted</string>
+  <string name="batch_a_drive_sync_keep_local">Keep this device</string>
+  <string name="batch_a_drive_sync_keep_cloud">Keep Google Drive</string>
+  <string name="batch_a_drive_sync_keep_both">Keep both cards</string>
+  <string name="batch_a_drive_sync_resolved">Conflict resolved and synced</string>
 </resources>

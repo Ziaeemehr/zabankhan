@@ -7,6 +7,12 @@ import androidx.room.Transaction
 import com.ziaee.zabankhan.backup.FrenchReaderSnapshot
 import com.ziaee.zabankhan.backup.MigrationSummary
 import com.ziaee.zabankhan.lang.Languages
+import kotlinx.serialization.encodeToString
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
+import kotlin.uuid.ExperimentalUuidApi
+import kotlin.uuid.Uuid
 
 /** Inserts the complete legacy snapshot atomically, preserving relationships after deduplication. */
 @Dao
@@ -24,11 +30,64 @@ abstract class MigrationDao {
     @Query("SELECT COUNT(*) FROM review_log WHERE entryId = :entry AND timestampMs = :time AND knew = :knew AND boxBefore = :before AND boxAfter = :after")
     abstract suspend fun hasReview(entry: Long, time: Long, knew: Boolean, before: Int, after: Int): Int
     @Insert abstract suspend fun insertText(value: TextDocument): Long
-    @Insert abstract suspend fun insertWord(value: VocabEntry): Long
+    @Query("SELECT * FROM vocab WHERE id = :id") abstract suspend fun getWord(id: Long): VocabEntry?
+    @Query("SELECT * FROM vocab_lists WHERE id = :id") abstract suspend fun getList(id: Long): VocabList?
+    @Query("SELECT * FROM review_log WHERE id = :id") abstract suspend fun getReview(id: Long): ReviewLogEntry?
+    @Insert abstract suspend fun insertWordRaw(value: VocabEntry): Long
     @Insert abstract suspend fun insertFolder(value: LibraryFolder): Long
-    @Insert abstract suspend fun insertList(value: VocabList): Long
+    @Insert abstract suspend fun insertListRaw(value: VocabList): Long
     @Insert abstract suspend fun insertHighlight(value: HighlightEntry): Long
-    @Insert abstract suspend fun insertReview(value: ReviewLogEntry): Long
+    @Insert abstract suspend fun insertReviewRaw(value: ReviewLogEntry): Long
+    @Query("SELECT value FROM sync_metadata WHERE `key` = :key") abstract suspend fun getSyncMetadata(key: String): String?
+    @Insert(onConflict = androidx.room.OnConflictStrategy.REPLACE) abstract suspend fun setSyncMetadata(value: SyncMetadataEntry)
+    @Insert(onConflict = androidx.room.OnConflictStrategy.IGNORE) abstract suspend fun appendSyncJournal(value: SyncJournalEntry): Long
+
+    @OptIn(ExperimentalUuidApi::class)
+    private suspend fun recordSync(type: String, syncId: String, baseRevision: Long?, operation: String, payload: String?) {
+        if (getSyncMetadata("suppress_journal") == "1") return
+        val sequence = (getSyncMetadata("journal_sequence")?.toLongOrNull() ?: 0L) + 1L
+        setSyncMetadata(SyncMetadataEntry("journal_sequence", sequence.toString()))
+        appendSyncJournal(SyncJournalEntry(
+            operationId = Uuid.random().toString().replace("-", ""),
+            deviceId = getSyncMetadata("device_id") ?: "local", sequence = sequence,
+            entityType = type, entitySyncId = syncId, baseRevision = baseRevision,
+            operationType = operation, payload = payload,
+        ))
+    }
+
+    private suspend fun recordList(id: Long) {
+        val list = getList(id) ?: return
+        val payload = Json.encodeToString(buildJsonObject {
+            put("syncId", list.syncId); put("revision", list.syncRevision); put("lang", list.lang)
+            put("name", list.name); put("createdAtMs", list.createdAtMs)
+        })
+        recordSync("list", list.syncId, null, "upsert", payload)
+    }
+
+    private suspend fun recordWord(id: Long) {
+        val word = getWord(id) ?: return
+        val listSyncId = word.listId?.let { getList(it)?.syncId }
+        val payload = Json.encodeToString(buildJsonObject {
+            put("syncId", word.syncId); put("revision", word.syncRevision); put("lang", word.lang)
+            put("word", word.word); put("sentence", word.sentence); word.meaning?.let { put("meaning", it) }
+            word.dictionaryUrl?.let { put("dictionaryUrl", it) }; put("meaningLang", word.meaningLang)
+            put("listSyncId", listSyncId); put("learned", word.learned); put("createdAtMs", word.createdAtMs)
+            put("leitnerBox", word.leitnerBox); put("nextReviewAtMs", word.nextReviewAtMs)
+            word.lastReviewedAtMs?.let { put("lastReviewedAtMs", it) }
+        })
+        recordSync("card", word.syncId, null, "upsert", payload)
+    }
+
+    private suspend fun recordReview(id: Long) {
+        val review = getReview(id) ?: return
+        val cardSyncId = getWord(review.entryId)?.syncId ?: return
+        val payload = Json.encodeToString(buildJsonObject {
+            put("syncId", review.syncId); put("cardSyncId", cardSyncId); put("lang", review.lang)
+            put("timestampMs", review.timestampMs); put("knew", review.knew)
+            put("boxBefore", review.boxBefore); put("boxAfter", review.boxAfter)
+        })
+        recordSync("review", review.syncId, null, "upsert", payload)
+    }
 
     @Query("SELECT * FROM library_tags WHERE lang = :lang AND name = :name COLLATE NOCASE LIMIT 1")
     abstract suspend fun findTag(lang: String, name: String): LibraryTag?
@@ -66,7 +125,10 @@ abstract class MigrationDao {
                 pending.remove(old)
             }
         }
-        val lists = snapshot.lists.associate { old -> old.id to (findList(lang, old.name) ?: insertList(old.copy(id = 0))) }
+        val lists = snapshot.lists.associate { old ->
+            val existing = findList(lang, old.name)
+            old.id to (existing ?: insertListRaw(old.copy(id = 0)).also { recordList(it) })
+        }
         var textsAdded = 0
         var wordsAdded = 0
         var skipped = 0
@@ -81,7 +143,7 @@ abstract class MigrationDao {
             val existing = findWord(lang, old.word)
             old.id to if (existing != null) { skipped++; existing } else {
                 wordsAdded++
-                insertWord(old.copy(id = 0, textId = texts[old.textId], listId = lists[old.listId]))
+                insertWordRaw(old.copy(id = 0, textId = texts[old.textId], listId = lists[old.listId])).also { recordWord(it) }
             }
         }
         var highlightsAdded = 0
@@ -93,7 +155,7 @@ abstract class MigrationDao {
         var reviewsAdded = 0
         snapshot.reviews.forEach { old -> words[old.entryId]?.let { id ->
             if (hasReview(id, old.timestampMs, old.knew, old.boxBefore, old.boxAfter) == 0) {
-                insertReview(old.copy(id = 0, entryId = id)); reviewsAdded++
+                insertReviewRaw(old.copy(id = 0, entryId = id)).also { recordReview(it) }; reviewsAdded++
             }
         } }
         var tagsAdded = 0

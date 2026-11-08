@@ -37,7 +37,10 @@ fun installBackupLifecycle(container: () -> AppContainer) { currentContainer = c
 /** Called by the Swift host's scenePhase, on both platforms' equivalent lifecycle boundary. */
 object IosBackupLifecycle {
     fun onScenePhaseChanged(active: Boolean, backgrounded: Boolean) {
-        if (active) backupScope.launch { uploadPendingDriveBackup() }
+        if (active) backupScope.launch {
+            uploadPendingDriveBackup()
+            currentContainer?.invoke()?.driveSync?.syncSilently()
+        }
         if (backgrounded) {
             val container = currentContainer?.invoke() ?: return
             val app = UIApplication.sharedApplication

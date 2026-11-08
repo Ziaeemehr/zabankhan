@@ -9,6 +9,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.ziaee.zabankhan.app.AppContainer
+import com.ziaee.zabankhan.sync.ConflictChoice
+import com.ziaee.zabankhan.sync.DriveSyncCoordinator
+import com.ziaee.zabankhan.data.SyncConflict
 import com.ziaee.zabankhan.files.FileKind
 import com.ziaee.zabankhan.files.rememberFilePicker
 import com.ziaee.zabankhan.resources.*
@@ -17,6 +20,9 @@ import okio.Path
 import okio.Path.Companion.toPath
 import org.jetbrains.compose.resources.stringResource
 import org.jetbrains.compose.resources.getString
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
+import kotlinx.serialization.json.contentOrNull
 import kotlin.time.Clock
 
 /** Backup sections copied from French Reader ui/SettingsScreen.kt. */
@@ -37,9 +43,112 @@ import kotlin.time.Clock
         BackupMethodCard { AutoBackupSection(container, scope, snackbarHostState) }
         BackupMethodCard { LocalBackupSection(container, scope, snackbarHostState) { lastBackupAtMs = it } }
         if (drive.configured) BackupMethodCard { CloudBackupSection(container, scope, snackbarHostState, drive) { lastBackupAtMs = it } }
+        if (drive.configured) container.driveSync?.let { coordinator ->
+            BackupMethodCard { CloudSyncSection(coordinator, scope, snackbarHostState, drive) }
+        }
         SnackbarHost(snackbarHostState)
     }
 }
+
+@Composable
+private fun CloudSyncSection(
+    coordinator: DriveSyncCoordinator,
+    scope: CoroutineScope,
+    snackbarHostState: SnackbarHostState,
+    drive: DriveAuth,
+) {
+    val state by coordinator.state.collectAsState()
+    val busy = state.syncing
+
+    @Composable fun syncButton(action: suspend (String) -> Unit) {
+        OutlinedButton(enabled = !busy, onClick = {
+            scope.launch {
+                try {
+                    val token = drive.accessToken()
+                    if (token != null) {
+                        action(token)
+                        snackbarHostState.showSnackbar(getString(Res.string.batch_a_drive_sync_success))
+                    }
+                } catch (cancelled: CancellationException) { throw cancelled }
+                catch (error: Exception) {
+                    snackbarHostState.showSnackbar(error.message ?: getString(Res.string.batch_a_backup_failure))
+                }
+            }
+        }) { Text(stringResource(Res.string.batch_a_drive_sync_connect)) }
+    }
+
+    Text(stringResource(Res.string.batch_a_drive_sync_title), style = MaterialTheme.typography.titleMedium)
+    Text(stringResource(Res.string.batch_a_drive_sync_description), style = MaterialTheme.typography.bodySmall)
+    Text(
+        stringResource(
+            Res.string.batch_a_drive_sync_last,
+            state.lastSuccessfulSyncMs?.let { formatBackupTimestamp(it) } ?: stringResource(Res.string.batch_a_drive_sync_never),
+        ),
+        style = MaterialTheme.typography.bodySmall,
+    )
+    if (busy) Text(stringResource(Res.string.batch_a_drive_sync_syncing), style = MaterialTheme.typography.bodySmall)
+    if (!state.error.isNullOrBlank()) Text(state.error.orEmpty(), color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+    if (!drive.connected) {
+        syncButton { token -> coordinator.syncNow(token) }
+    } else {
+        Button(enabled = !busy, onClick = {
+            scope.launch {
+                try {
+                    val token = drive.accessToken()
+                    if (token != null) {
+                        coordinator.syncNow(token)
+                        snackbarHostState.showSnackbar(getString(Res.string.batch_a_drive_sync_success))
+                    }
+                } catch (cancelled: CancellationException) { throw cancelled }
+                catch (error: Exception) { snackbarHostState.showSnackbar(error.message ?: getString(Res.string.batch_a_backup_failure)) }
+            }
+        }) { Text(stringResource(Res.string.batch_a_drive_sync_now)) }
+    }
+    if (state.conflicts.isNotEmpty()) {
+        Text(stringResource(Res.string.batch_a_drive_sync_conflicts, state.conflicts.size), style = MaterialTheme.typography.titleSmall)
+        state.conflicts.forEach { conflict ->
+            SyncConflictCard(conflict, busy) { choice ->
+                scope.launch {
+                    try {
+                        val token = drive.accessToken() ?: return@launch
+                        coordinator.resolveConflict(conflict.conflictId, choice, token)
+                        snackbarHostState.showSnackbar(getString(Res.string.batch_a_drive_sync_resolved))
+                    } catch (cancelled: CancellationException) { throw cancelled }
+                    catch (error: Exception) { snackbarHostState.showSnackbar(error.message ?: getString(Res.string.batch_a_backup_failure)) }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun SyncConflictCard(conflict: SyncConflict, busy: Boolean, onResolve: (ConflictChoice) -> Unit) {
+    val local = conflictDisplay(conflict.localPayload).ifBlank { stringResource(Res.string.batch_a_drive_sync_deleted) }
+    val remote = conflictDisplay(conflict.remotePayload).ifBlank { stringResource(Res.string.batch_a_drive_sync_deleted) }
+    Card(Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Text(stringResource(Res.string.batch_a_drive_sync_conflict_title), style = MaterialTheme.typography.titleSmall)
+            Text(stringResource(Res.string.batch_a_drive_sync_local_version, local), style = MaterialTheme.typography.bodySmall)
+            Text(stringResource(Res.string.batch_a_drive_sync_cloud_version, remote), style = MaterialTheme.typography.bodySmall)
+            OutlinedButton(enabled = !busy, onClick = { onResolve(ConflictChoice.KEEP_LOCAL) }) {
+                Text(stringResource(Res.string.batch_a_drive_sync_keep_local))
+            }
+            OutlinedButton(enabled = !busy, onClick = { onResolve(ConflictChoice.KEEP_DRIVE) }) {
+                Text(stringResource(Res.string.batch_a_drive_sync_keep_cloud))
+            }
+            if (conflict.entityType == "card" && conflict.localPayload.isNotBlank() && conflict.remotePayload.isNotBlank()) {
+                TextButton(enabled = !busy, onClick = { onResolve(ConflictChoice.KEEP_BOTH) }) {
+                    Text(stringResource(Res.string.batch_a_drive_sync_keep_both))
+                }
+            }
+        }
+    }
+}
+
+private fun conflictDisplay(payload: String): String = runCatching {
+    val value = kotlinx.serialization.json.Json.parseToJsonElement(payload).jsonObject
+    value["word"]?.jsonPrimitive?.contentOrNull ?: value["name"]?.jsonPrimitive?.contentOrNull.orEmpty()
+}.getOrDefault("")
 @Composable private fun BackupMethodCard(content: @Composable ColumnScope.() -> Unit) {
     Card(Modifier.fillMaxWidth()) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp), content = content)
