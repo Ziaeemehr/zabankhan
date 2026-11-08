@@ -56,5 +56,6 @@ internal class VoskRecognizer : SpeechRecognizer {
     }
     override fun stop() { released?.complete(Unit) }
     override fun replay() { recording?.let(PcmPlayer::play) }
-    override fun clearRecording() { PcmPlayer.stop(); recording = null }
+    override fun stopReplay() { PcmPlayer.stop() }
+    override fun clearRecording() { stopReplay(); recording = null }
 }

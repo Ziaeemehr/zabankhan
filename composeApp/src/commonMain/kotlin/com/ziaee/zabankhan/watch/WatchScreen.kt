@@ -368,19 +368,34 @@ import kotlin.time.TimeSource
                     }
                 }
             }
+            if (shadowIndex != null && selection == null) {
+                val start = shadowIndex ?: sentenceIndex
+                ShadowingPanel(
+                    vm.container, settings, lang, document?.id, sentences.map { it.text }, start,
+                    dismiss = { controller?.pause(); shadowIndex = null },
+                    replay = { index ->
+                        val cue = sentences[index]
+                        replayShadowCue(checkNotNull(controller), cue.startMs, cue.endMs, rate)
+                    },
+                    rate = rate,
+                    onRateChange = { rate = it },
+                    onStep = { next ->
+                        if (next in sentences.indices) {
+                            shadowIndex = next
+                            following = true
+                            controller?.pause()
+                            controller?.seekTo(sentences[next].startMs)
+                        }
+                    },
+                    modifier = Modifier,
+                )
+            }
             if (selection == null) WatchPlaybackBar(playing, sentenceIndex > 0, sentenceIndex < sentences.lastIndex && sentences.isNotEmpty(),
                 previous = { playFromLine(sentenceIndex - 1) }, backward = { skip(-5_000) },
                 playPause = { if (playing) controller?.pause() else { freeze = freeze.resume(); gestureActive = false; following = true; controller?.play() } },
                 forward = { skip(5_000) }, next = { playFromLine(sentenceIndex + 1) })
         }
         SnackbarHost(snackbar, Modifier.align(Alignment.BottomCenter))
-    }
-    shadowIndex?.let { start ->
-        ShadowingPanel(vm.container, settings, lang, document?.id, sentences.map { it.text }, start,
-            dismiss = { controller?.pause(); shadowIndex = null }, autoListen = true, replay = { index ->
-                val cue = sentences[index]
-                replayShadowCue(checkNotNull(controller), cue.startMs, cue.endMs, rate)
-            }, compactControls = true)
     }
     editingTranslation?.let { text ->
         var draft by remember(text) { mutableStateOf(translations.states[text]?.text.orEmpty()) }

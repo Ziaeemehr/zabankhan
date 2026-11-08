@@ -1,27 +1,28 @@
 package com.ziaee.zabankhan.speech
 
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.background
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.VolumeUp
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.text.SpanStyle
-import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import com.ziaee.zabankhan.app.AppContainer
 import com.ziaee.zabankhan.data.*
 import com.ziaee.zabankhan.lang.LanguageSpec
 import com.ziaee.zabankhan.resources.*
 import com.ziaee.zabankhan.ui.*
+import com.ziaee.zabankhan.ui.reader.ShadowingAlignment
 import com.ziaee.zabankhan.ui.theme.*
 import kotlinx.coroutines.*
 import org.jetbrains.compose.resources.stringResource
 import kotlin.time.TimeSource
-import kotlin.math.roundToInt
+import kotlin.coroutines.resume
 
 fun Tts.pronounce(text: String, lang: String, settings: AppSettings, done: () -> Unit = {}) {
     setVoice(settings.ttsVoices[lang]); speak(text, lang, settings.speechRate, done)
@@ -35,112 +36,150 @@ fun Tts.togglePronounce(text: String, lang: String, settings: AppSettings) {
     EditorialIconButton({ tts.togglePronounce(text, lang, settings) }, Icons.AutoMirrored.Filled.VolumeUp, stringResource(Res.string.speech_listen))
 }
 
-/** [replay] supplies video-cue playback instead of TTS, returning its measured duration. */
-@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
+/** Inline video-shadow controls; [replay] plays the selected video cue instead of TTS. */
+@OptIn(ExperimentalLayoutApi::class)
 @Composable fun ShadowingPanel(container: AppContainer, settings: AppSettings, lang: LanguageSpec,
     textId: Long?, sentences: List<String>, startIndex: Int = 0, dismiss: () -> Unit,
-    autoListen: Boolean = false, replay: (suspend (Int) -> Long)? = null, compactControls: Boolean = false) {
+    replay: (suspend (Int) -> Long)? = null, rate: Float = 1f, onRateChange: (Float) -> Unit = {},
+    onStep: (Int) -> Unit = {}, modifier: Modifier = Modifier) {
     val scope = rememberCoroutineScope()
     val tts = remember { createTts() }
     val recognizer = remember { createSpeechRecognizer() }
-    var attempts by remember { mutableStateOf(emptyList<ShadowAttempt>()) }
     var index by remember { mutableIntStateOf(startIndex.coerceIn(0, sentences.lastIndex.coerceAtLeast(0))) }
-    var summary by remember { mutableStateOf(false) }
     var replayJob by remember { mutableStateOf<Job?>(null) }
+    var autoRecord by remember { mutableStateOf(false) }
+    var pendingRecording by remember { mutableStateOf(false) }
+    var speedMenu by remember { mutableStateOf(false) }
+    val currentAutoRecord by rememberUpdatedState(autoRecord)
     val controller = remember { ShadowingController(scope, recognizer, { attempt ->
         container.database.shadowAttempts().insert(attempt)
-        attempts = attempts + attempt
     }) }
     val phase by controller.phase.collectAsState()
     val permission = rememberMicPermission()
     val sentence = sentences.getOrNull(index).orEmpty()
-    fun play() {
+    val speedDescription = stringResource(Res.string.watch_shadow_speed, rate.toString())
+    fun requestRecording() {
+        if (phase == ShadowPhase.Recording) {
+            pendingRecording = false
+            controller.finishRecording()
+        } else if (phase != ShadowPhase.Playing && phase != ShadowPhase.Saving) {
+            if (permission.granted) controller.listen()
+            else { pendingRecording = true; permission.request() }
+        }
+    }
+    fun playOriginal() {
         replayJob?.cancel(); tts.stop()
         replayJob = scope.launch {
             controller.preparePlayback()
-            if (replay != null) {
-                try { controller.played(replay(index)); if (autoListen && permission.granted) controller.listen() }
-                catch (e: CancellationException) { throw e }
-                catch (_: Exception) { controller.playbackFailed() }
-            } else {
-                val started = TimeSource.Monotonic.markNow()
-                tts.pronounce(sentence, lang.code, settings) { controller.played(started.elapsedNow().inWholeMilliseconds) }
-            }
+            try {
+                val duration = if (replay != null) replay(index) else {
+                    val started = TimeSource.Monotonic.markNow()
+                    suspendCancellableCoroutine<Long> { continuation ->
+                        tts.pronounce(sentence, lang.code, settings) {
+                            if (continuation.isActive) continuation.resume(started.elapsedNow().inWholeMilliseconds)
+                        }
+                        continuation.invokeOnCancellation { tts.stop() }
+                    }
+                }
+                controller.played(duration)
+                if (currentAutoRecord) requestRecording()
+            } catch (cancelled: CancellationException) { throw cancelled }
+            catch (_: Exception) { controller.playbackFailed() }
         }
     }
-    LaunchedEffect(index, if (autoListen) permission.granted else true) {
+    LaunchedEffect(index, lang, textId) {
         controller.target(lang, textId, sentence)
-        if (autoListen && !permission.granted) permission.request() else play()
+    }
+    LaunchedEffect(permission.granted, pendingRecording) {
+        if (permission.granted && pendingRecording) {
+            pendingRecording = false
+            controller.listen()
+        }
     }
     DisposableEffect(Unit) { onDispose { replayJob?.cancel(); controller.cancel(); tts.stop() } }
-    fun finish() { replayJob?.cancel(); controller.cancel(); tts.stop(); if (attempts.isEmpty()) dismiss() else summary = true }
-    if (!summary) ModalBottomSheet(onDismissRequest = ::finish, shape = MaterialTheme.shapes.extraLarge) {
-        Column(Modifier.fillMaxWidth().navigationBarsPadding().verticalScroll(rememberScrollState()).padding(24.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-            EditorialTopAppBar(stringResource(Res.string.speech_shadow), ::finish)
-            EditorialCard(containerColor = MaterialTheme.colorScheme.surfaceVariant) {
-                Text(sentence, modifier = Modifier.fillMaxWidth().padding(16.dp), style = editorialStyle(sentence, EditorialRole.ArticleHeadline))
+    Surface(modifier = modifier.fillMaxWidth(), color = MaterialTheme.colorScheme.surfaceVariant,
+        shape = MaterialTheme.shapes.large) {
+        Column(Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 4.dp)) {
+            Row(Modifier.fillMaxWidth(), verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                Text(stringResource(Res.string.speech_shadow), Modifier.weight(1f), style = MaterialTheme.typography.titleSmall)
+                if (!permission.granted) Text(stringResource(Res.string.speech_permission), style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.error, modifier = Modifier.weight(1f))
+                IconButton(onClick = { replayJob?.cancel(); controller.cancel(); tts.stop(); dismiss() }, modifier = Modifier.size(40.dp)) {
+                    Icon(Icons.Default.Close, contentDescription = stringResource(Res.string.accessibility_close))
+                }
             }
-            val result = phase as? ShadowPhase.Result
-            if (result != null) {
-                EditorialSectionHeader(stringResource(Res.string.speech_summary))
-                val matchedColor = MaterialTheme.colorScheme.primary
-                val missedColor = MaterialTheme.colorScheme.error
-                Text(buildAnnotatedString { result.alignment.words.forEach { word ->
-                    pushStyle(SpanStyle(color = if (word.matched) matchedColor else missedColor)); append(word.word); pop(); append(" ")
-                } }, modifier = Modifier.fillMaxWidth(), style = contentStyle(sentence))
-                val score = if (result.alignment.total == 0) 0 else (result.alignment.matched * 100f / result.alignment.total).roundToInt()
-                Text(stringResource(Res.string.speech_score, score))
-                result.pace?.let { Text(stringResource(when (it.rating) { PaceRating.FAST -> Res.string.speech_fast; PaceRating.SLOW -> Res.string.speech_slow; PaceRating.GOOD -> Res.string.speech_good })) }
+            when (val current = phase) {
+                ShadowPhase.Playing -> Text(stringResource(Res.string.speech_listen), style = MaterialTheme.typography.bodySmall)
+                ShadowPhase.Recording -> Text(stringResource(Res.string.shadowing_listening), style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.primary)
+                ShadowPhase.Saving -> Text(stringResource(Res.string.shadowing_recognizing), style = MaterialTheme.typography.bodySmall)
+                is ShadowPhase.Error -> Text(stringResource(if (current.notHeard) Res.string.shadowing_not_heard else Res.string.shadowing_engine_failed),
+                    style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
+                is ShadowPhase.Result -> {
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                        Text(stringResource(Res.string.shadowing_score, current.alignment.matched, current.alignment.total),
+                            style = MaterialTheme.typography.bodySmall)
+                        current.pace?.let { pace ->
+                            Text(stringResource(when (pace.rating) { PaceRating.FAST -> Res.string.shadowing_pace_fast; PaceRating.SLOW -> Res.string.shadowing_pace_slow; PaceRating.GOOD -> Res.string.shadowing_pace_good },
+                                pace.ratio.toString()), style = MaterialTheme.typography.bodySmall)
+                        }
+                    }
+                    ShadowingAlignment(current.alignment)
+                }
+                ShadowPhase.Idle -> Unit
             }
-            if (phase is ShadowPhase.Error) Text(stringResource(if ((phase as ShadowPhase.Error).notHeard) Res.string.speech_not_heard else Res.string.speech_error), color = MaterialTheme.colorScheme.error)
-            if (!permission.granted) Text(stringResource(Res.string.speech_permission))
-            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                if (compactControls) {
-                    IconButton(onClick = ::play, enabled = phase != ShadowPhase.Saving, modifier = Modifier.size(40.dp)) {
-                        Icon(Icons.Default.Replay, contentDescription = stringResource(Res.string.speech_listen))
+            Surface(color = MaterialTheme.colorScheme.surface, shape = MaterialTheme.shapes.medium) {
+                FlowRow(Modifier.fillMaxWidth().padding(horizontal = 2.dp, vertical = 1.dp),
+                    horizontalArrangement = Arrangement.spacedBy(0.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    IconButton(onClick = { if (index > 0) { index--; onStep(index) } }, enabled = index > 0 && phase != ShadowPhase.Recording && phase != ShadowPhase.Saving, modifier = Modifier.size(40.dp)) {
+                        Icon(Icons.Default.SkipPrevious, contentDescription = stringResource(Res.string.watch_shadow_previous))
                     }
-                    IconButton(enabled = phase != ShadowPhase.Playing && phase != ShadowPhase.Saving, onClick = {
-                    if (!permission.granted) permission.request()
-                    else if (phase == ShadowPhase.Recording) recognizer.stop() else controller.listen()
-                    }, modifier = Modifier.size(40.dp)) {
-                        Icon(if (phase == ShadowPhase.Recording) Icons.Default.Stop else Icons.Default.Mic,
-                            contentDescription = stringResource(if (phase == ShadowPhase.Recording) Res.string.speech_stop_mic else Res.string.speech_mic))
+                    IconButton(onClick = ::playOriginal, enabled = phase != ShadowPhase.Recording && phase != ShadowPhase.Saving, modifier = Modifier.size(40.dp)) {
+                        Icon(Icons.Default.PlayArrow, contentDescription = stringResource(Res.string.shadowing_play_original))
                     }
-                    if (phase is ShadowPhase.Result || phase is ShadowPhase.Error) IconButton(onClick = { controller.retry(); play() }, modifier = Modifier.size(40.dp)) {
-                        Icon(Icons.Default.Refresh, contentDescription = stringResource(Res.string.retry))
+                    IconButton(onClick = ::playOriginal, enabled = phase != ShadowPhase.Recording && phase != ShadowPhase.Saving, modifier = Modifier.size(40.dp)) {
+                        Icon(Icons.Default.Replay, contentDescription = stringResource(Res.string.watch_shadow_repeat))
                     }
-                    IconButton(onClick = { if (index < sentences.lastIndex) index++ else finish() }, modifier = Modifier.size(40.dp)) {
+                    IconButton(onClick = { if (index < sentences.lastIndex) { index++; onStep(index) } },
+                        enabled = index < sentences.lastIndex && phase != ShadowPhase.Recording && phase != ShadowPhase.Saving,
+                        modifier = Modifier.size(40.dp)) {
                         Icon(Icons.Default.SkipNext, contentDescription = stringResource(Res.string.speech_next))
                     }
-                    IconButton(onClick = ::finish, modifier = Modifier.size(40.dp)) {
-                        Icon(Icons.Default.CheckCircle, contentDescription = stringResource(Res.string.speech_finish))
+                    Box {
+                        IconButton(onClick = { speedMenu = true }, modifier = Modifier.size(40.dp), enabled = phase != ShadowPhase.Recording) {
+                            Text("${rate}×", style = MaterialTheme.typography.labelSmall,
+                                modifier = Modifier.semantics { contentDescription = speedDescription })
+                        }
+                        DropdownMenu(expanded = speedMenu, onDismissRequest = { speedMenu = false }) {
+                            listOf(.5f, .75f, 1f).forEach { speed -> DropdownMenuItem(
+                                text = { Text("${speed}×") }, onClick = { onRateChange(speed); speedMenu = false }) }
+                        }
                     }
-                } else {
-                    OutlinedButton(onClick = ::play, enabled = phase != ShadowPhase.Saving) { Text(stringResource(Res.string.speech_listen)) }
-                    Button(enabled = phase != ShadowPhase.Playing && phase != ShadowPhase.Saving, onClick = {
-                        if (!permission.granted) permission.request()
-                        else if (phase == ShadowPhase.Recording) recognizer.stop() else controller.listen()
-                    }) { Text(stringResource(if (phase == ShadowPhase.Recording) Res.string.speech_stop_mic else Res.string.speech_mic)) }
-                    if (phase is ShadowPhase.Result || phase is ShadowPhase.Error) TextButton(onClick = { controller.retry(); play() }) { Text(stringResource(Res.string.retry)) }
-                    TextButton(onClick = { if (index < sentences.lastIndex) index++ else finish() }) { Text(stringResource(Res.string.speech_next)) }
-                    TextButton(onClick = ::finish) { Text(stringResource(Res.string.speech_finish)) }
+                    IconToggleButton(checked = autoRecord, onCheckedChange = { autoRecord = it },
+                        enabled = sentences.isNotEmpty(), modifier = Modifier.size(40.dp)) {
+                        Icon(Icons.Default.Autorenew, contentDescription = stringResource(Res.string.watch_shadow_auto_record),
+                            tint = if (autoRecord) MaterialTheme.colorScheme.primary else androidx.compose.material3.LocalContentColor.current)
+                    }
+                    val recording = phase == ShadowPhase.Recording
+                    IconButton(onClick = ::requestRecording,
+                        enabled = phase != ShadowPhase.Playing && phase != ShadowPhase.Saving,
+                        modifier = Modifier.size(40.dp).background(
+                            if (recording) MaterialTheme.colorScheme.errorContainer else MaterialTheme.colorScheme.primaryContainer,
+                            CircleShape)) {
+                        Icon(if (recording) Icons.Default.Stop else Icons.Default.Mic,
+                            contentDescription = stringResource(if (recording) Res.string.watch_shadow_stop else Res.string.watch_shadow_record),
+                            tint = if (recording) MaterialTheme.colorScheme.onErrorContainer else MaterialTheme.colorScheme.onPrimaryContainer)
+                    }
+                    IconButton(onClick = controller::replayMine,
+                        enabled = controller.hasRecording && phase != ShadowPhase.Recording && phase != ShadowPhase.Saving,
+                        modifier = Modifier.size(40.dp)) {
+                        Icon(Icons.Default.Hearing, contentDescription = stringResource(Res.string.shadowing_replay_mine))
+                    }
+                    if (phase is ShadowPhase.Result || phase is ShadowPhase.Error) IconButton(onClick = controller::retry, modifier = Modifier.size(40.dp)) {
+                        Icon(Icons.Default.Refresh, contentDescription = stringResource(Res.string.shadowing_retry))
+                    }
                 }
             }
         }
-    }
-    if (summary) shadowTextSummary(attempts)?.let { value ->
-        AlertDialog(onDismissRequest = dismiss, title = { Text(stringResource(Res.string.speech_summary)) }, text = {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text(stringResource(Res.string.speech_sentences, value.sentences))
-                Text(stringResource(Res.string.speech_score, value.accuracyPercent))
-                value.goodPacePercent?.let { Text(stringResource(Res.string.speech_good_percent, it)) }
-                value.weakest.forEach { weak ->
-                    TextButton(onClick = {
-                        val target = sentences.indexOf(weak.sentence)
-                        if (target >= 0) { summary = false; if (index == target) { controller.retry(); play() } else index = target }
-                    }) { Text("${weak.accuracyPercent}%  ${weak.sentence}", style = contentStyle(weak.sentence)) }
-                }
-            }
-        }, confirmButton = { TextButton(onClick = dismiss) { Text(stringResource(Res.string.speech_finish)) } })
     }
 }

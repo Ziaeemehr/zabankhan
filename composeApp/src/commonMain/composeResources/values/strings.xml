@@ -351,6 +351,13 @@
     <string name="shadowing_retry">Retry</string>
     <string name="shadowing_score">%1$d / %2$d</string>
     <string name="shadowing_waiting_for_audio">Preparing audio…</string>
+    <string name="watch_shadow_previous">Previous sentence</string>
+    <string name="watch_shadow_repeat">Repeat sentence</string>
+    <string name="watch_shadow_speed">Playback speed: %1$s×</string>
+    <string name="watch_shadow_auto_record">Record automatically after playback</string>
+    <string name="watch_shadow_record">Record my pronunciation</string>
+    <string name="watch_shadow_stop">Stop recording</string>
+    <string name="watch_shadow_play_recording">Listen to my recording</string>
     <string name="gesture_kind_drag">Drag / select</string>
     <string name="gesture_kind_horizontal_swipe">Horizontal swipe</string>
     <string name="gesture_kind_long_press">Long-press</string>

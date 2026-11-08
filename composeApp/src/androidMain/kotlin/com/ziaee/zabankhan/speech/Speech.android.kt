@@ -101,7 +101,8 @@ private class AndroidRecognizer : SpeechRecognizer {
     }
     override fun stop() { released?.complete(Unit) }
     override fun replay() { recording?.let(PcmPlayer::play) }
-    override fun clearRecording() { PcmPlayer.stop(); recording = null }
+    override fun stopReplay() { PcmPlayer.stop() }
+    override fun clearRecording() { stopReplay(); recording = null }
 }
 private class SelectedRecognizer : SpeechRecognizer {
     private var current: SpeechRecognizer? = null
@@ -115,6 +116,7 @@ private class SelectedRecognizer : SpeechRecognizer {
     }
     override fun stop() { current?.stop() }
     override fun replay() { current?.replay() }
+    override fun stopReplay() { current?.stopReplay() }
     override fun clearRecording() { current?.clearRecording() }
 }
 actual fun createSpeechRecognizer(): SpeechRecognizer = SelectedRecognizer()

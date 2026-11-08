@@ -42,7 +42,9 @@ class ShadowingController(
     fun playing() { cancel(); mutablePhase.value = ShadowPhase.Playing }
     suspend fun preparePlayback() {
         val previous = job
-        cancel()
+        generation++; job = null; previous?.cancel()
+        recognizer.stop(); recognizer.stopReplay()
+        if (mutablePhase.value == ShadowPhase.Recording || mutablePhase.value == ShadowPhase.Saving) mutablePhase.value = ShadowPhase.Idle
         previous?.join() // native microphone/audio-session teardown must precede new audio
         microphone.withLock { } // a cancelled retry may have been waiting on an older session
         mutablePhase.value = ShadowPhase.Playing

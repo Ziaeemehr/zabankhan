@@ -91,8 +91,9 @@ private class IosRecognizer : SpeechRecognizer {
         AVAudioSession.sharedInstance().setActive(true, error = null)
         replayPlayer = AVAudioPlayer(contentsOfURL = recordingUrl, error = null).also { it.play() }
     }
+    override fun stopReplay() { replayPlayer?.stop(); replayPlayer = null }
     override fun clearRecording() {
-        replayPlayer?.stop(); replayPlayer = null; recorded = false
+        stopReplay(); recorded = false
         NSFileManager.defaultManager.removeItemAtURL(recordingUrl, error = null)
     }
     override suspend fun listenOnce(langCode: String, maxMs: Long): Result<RecognizedSpeech> = withContext(Dispatchers.Main.immediate) {

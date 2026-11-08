@@ -38,6 +38,7 @@ interface SpeechRecognizer {
     fun stop()
     val hasRecording: Boolean get() = false
     fun replay() {}
+    fun stopReplay() {}
     fun clearRecording() {}
 }
 expect fun createSpeechRecognizer(): SpeechRecognizer

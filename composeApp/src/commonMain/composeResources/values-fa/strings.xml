@@ -351,6 +351,13 @@
     <string name="shadowing_retry">دوباره</string>
     <string name="shadowing_score">%1$d / %2$d</string>
     <string name="shadowing_waiting_for_audio">در حال آماده‌سازی صدا…</string>
+    <string name="watch_shadow_previous">جملهٔ قبلی</string>
+    <string name="watch_shadow_repeat">تکرار جمله</string>
+    <string name="watch_shadow_speed">سرعت پخش: %1$s×</string>
+    <string name="watch_shadow_auto_record">ضبط خودکار پس از پخش</string>
+    <string name="watch_shadow_record">ضبط تلفظ من</string>
+    <string name="watch_shadow_stop">توقف ضبط</string>
+    <string name="watch_shadow_play_recording">گوش دادن به صدای ضبط‌شدهٔ من</string>
     <string name="gesture_kind_drag">کشیدن / انتخاب</string>
     <string name="gesture_kind_horizontal_swipe">کشیدن افقی</string>
     <string name="gesture_kind_long_press">لمس طولانی</string>

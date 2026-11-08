@@ -347,6 +347,13 @@
     <string name="shadowing_retry">Réessayer</string>
     <string name="shadowing_score">%1$d / %2$d</string>
     <string name="shadowing_waiting_for_audio">Préparation de l'audio…</string>
+    <string name="watch_shadow_previous">Phrase précédente</string>
+    <string name="watch_shadow_repeat">Répéter la phrase</string>
+    <string name="watch_shadow_speed">Vitesse de lecture : %1$s×</string>
+    <string name="watch_shadow_auto_record">Enregistrer automatiquement après la lecture</string>
+    <string name="watch_shadow_record">Enregistrer ma prononciation</string>
+    <string name="watch_shadow_stop">Arrêter l'enregistrement</string>
+    <string name="watch_shadow_play_recording">Écouter mon enregistrement</string>
     <string name="gesture_kind_drag">Glisser / sélectionner</string>
     <string name="gesture_kind_horizontal_swipe">Balayage horizontal</string>
     <string name="gesture_kind_long_press">Appui long</string>
