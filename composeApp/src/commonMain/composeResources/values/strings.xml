@@ -127,6 +127,12 @@
     <string name="watch_caption_error">Could not load subtitles. You can import SRT / VTT.</string>
     <string name="watch_player_error">Playback error: %1$s</string>
     <string name="watch_no_captions">No subtitles. Choose an SRT / VTT file to tap words.</string>
+    <string name="watch_loading_captions">Loading subtitles…</string>
+    <string name="watch_caption_ready">Subtitles ready</string>
+    <string name="watch_toolbar_subtitles">Subtitles</string>
+    <string name="watch_toolbar_translate">Translate</string>
+    <string name="watch_toolbar_shadow">Shadow</string>
+    <string name="watch_toolbar_export">Export</string>
     <string name="watch_history">Watch history</string>
     <string name="watch_channels">Suggested channels</string>
     <string name="watch_choose_channel">Choose a channel</string>

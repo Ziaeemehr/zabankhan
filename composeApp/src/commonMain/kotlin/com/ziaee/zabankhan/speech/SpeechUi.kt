@@ -5,6 +5,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.VolumeUp
+import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
@@ -38,7 +39,7 @@ fun Tts.togglePronounce(text: String, lang: String, settings: AppSettings) {
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable fun ShadowingPanel(container: AppContainer, settings: AppSettings, lang: LanguageSpec,
     textId: Long?, sentences: List<String>, startIndex: Int = 0, dismiss: () -> Unit,
-    autoListen: Boolean = false, replay: (suspend (Int) -> Long)? = null) {
+    autoListen: Boolean = false, replay: (suspend (Int) -> Long)? = null, compactControls: Boolean = false) {
     val scope = rememberCoroutineScope()
     val tts = remember { createTts() }
     val recognizer = remember { createSpeechRecognizer() }
@@ -94,14 +95,36 @@ fun Tts.togglePronounce(text: String, lang: String, settings: AppSettings) {
             if (phase is ShadowPhase.Error) Text(stringResource(if ((phase as ShadowPhase.Error).notHeard) Res.string.speech_not_heard else Res.string.speech_error), color = MaterialTheme.colorScheme.error)
             if (!permission.granted) Text(stringResource(Res.string.speech_permission))
             FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedButton(onClick = ::play, enabled = phase != ShadowPhase.Saving) { Text(stringResource(Res.string.speech_listen)) }
-                Button(enabled = phase != ShadowPhase.Playing && phase != ShadowPhase.Saving, onClick = {
+                if (compactControls) {
+                    IconButton(onClick = ::play, enabled = phase != ShadowPhase.Saving, modifier = Modifier.size(40.dp)) {
+                        Icon(Icons.Default.Replay, contentDescription = stringResource(Res.string.speech_listen))
+                    }
+                    IconButton(enabled = phase != ShadowPhase.Playing && phase != ShadowPhase.Saving, onClick = {
                     if (!permission.granted) permission.request()
                     else if (phase == ShadowPhase.Recording) recognizer.stop() else controller.listen()
-                }) { Text(stringResource(if (phase == ShadowPhase.Recording) Res.string.speech_stop_mic else Res.string.speech_mic)) }
-                if (phase is ShadowPhase.Result || phase is ShadowPhase.Error) TextButton(onClick = { controller.retry(); play() }) { Text(stringResource(Res.string.retry)) }
-                TextButton(onClick = { if (index < sentences.lastIndex) index++ else finish() }) { Text(stringResource(Res.string.speech_next)) }
-                TextButton(onClick = ::finish) { Text(stringResource(Res.string.speech_finish)) }
+                    }, modifier = Modifier.size(40.dp)) {
+                        Icon(if (phase == ShadowPhase.Recording) Icons.Default.Stop else Icons.Default.Mic,
+                            contentDescription = stringResource(if (phase == ShadowPhase.Recording) Res.string.speech_stop_mic else Res.string.speech_mic))
+                    }
+                    if (phase is ShadowPhase.Result || phase is ShadowPhase.Error) IconButton(onClick = { controller.retry(); play() }, modifier = Modifier.size(40.dp)) {
+                        Icon(Icons.Default.Refresh, contentDescription = stringResource(Res.string.retry))
+                    }
+                    IconButton(onClick = { if (index < sentences.lastIndex) index++ else finish() }, modifier = Modifier.size(40.dp)) {
+                        Icon(Icons.Default.SkipNext, contentDescription = stringResource(Res.string.speech_next))
+                    }
+                    IconButton(onClick = ::finish, modifier = Modifier.size(40.dp)) {
+                        Icon(Icons.Default.CheckCircle, contentDescription = stringResource(Res.string.speech_finish))
+                    }
+                } else {
+                    OutlinedButton(onClick = ::play, enabled = phase != ShadowPhase.Saving) { Text(stringResource(Res.string.speech_listen)) }
+                    Button(enabled = phase != ShadowPhase.Playing && phase != ShadowPhase.Saving, onClick = {
+                        if (!permission.granted) permission.request()
+                        else if (phase == ShadowPhase.Recording) recognizer.stop() else controller.listen()
+                    }) { Text(stringResource(if (phase == ShadowPhase.Recording) Res.string.speech_stop_mic else Res.string.speech_mic)) }
+                    if (phase is ShadowPhase.Result || phase is ShadowPhase.Error) TextButton(onClick = { controller.retry(); play() }) { Text(stringResource(Res.string.retry)) }
+                    TextButton(onClick = { if (index < sentences.lastIndex) index++ else finish() }) { Text(stringResource(Res.string.speech_next)) }
+                    TextButton(onClick = ::finish) { Text(stringResource(Res.string.speech_finish)) }
+                }
             }
         }
     }

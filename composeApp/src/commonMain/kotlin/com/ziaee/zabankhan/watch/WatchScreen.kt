@@ -5,6 +5,7 @@ import com.ziaee.zabankhan.translate.ExampleTranslation
 
 import androidx.compose.animation.*
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.*
 import androidx.compose.foundation.interaction.DragInteraction
 import androidx.compose.foundation.layout.*
@@ -13,6 +14,7 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.foundation.text.InlineTextContent
 import androidx.compose.foundation.text.appendInlineContent
@@ -23,6 +25,7 @@ import androidx.compose.material.icons.filled.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.backhandler.BackHandler
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.drawWithContent
@@ -32,6 +35,8 @@ import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalLayoutDirection
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.*
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.*
@@ -207,53 +212,67 @@ import kotlin.time.TimeSource
         val playerHeight = if (settings.watchCompactPlayer) 96.dp else maxOf(96.dp, minOf(maxWidth * 9f / 16f, maxHeight * .35f))
         val playerWidth = if (settings.watchCompactPlayer) minOf(playerHeight * 16f / 9f, maxWidth * .55f) else minOf(maxWidth, playerHeight * 16f / 9f)
         Column(Modifier.fillMaxSize()) {
-            val controls: @Composable () -> Unit = {
-                IconButton(onClick = { if (selection != null) closeDictionary() else back() }, modifier = Modifier.size(36.dp)) {
-                    Icon(Icons.AutoMirrored.Filled.ArrowBack, stringResource(Res.string.back), Modifier.size(20.dp))
-                }
-                IconButton(onClick = { scope.launch { vm.container.settings.setWatchCompactPlayer(!settings.watchCompactPlayer) } }, modifier = Modifier.size(36.dp)) {
-                    Icon(if (settings.watchCompactPlayer) Icons.Default.Fullscreen else Icons.Default.FullscreenExit,
-                        stringResource(if (settings.watchCompactPlayer) Res.string.watch_full_player else Res.string.watch_compact_player), Modifier.size(20.dp))
-                }
-                IconToggleButton(checked = settings.watchTranslationEnabled,
-                    onCheckedChange = { scope.launch { vm.container.settings.setWatchTranslationEnabled(it) } }, modifier = Modifier.size(36.dp)) {
-                    Icon(Icons.Default.Translate, stringResource(Res.string.watch_translation), Modifier.size(20.dp))
-                }
-                var sizeMenu by remember { mutableStateOf(false) }
-                Box {
-                    IconButton(onClick = { sizeMenu = true }, modifier = Modifier.size(36.dp)) {
-                        Icon(Icons.Default.FormatSize, stringResource(Res.string.watch_subtitle_size), Modifier.size(20.dp))
+            var optionsOpen by remember { mutableStateOf(false) }
+            val title = watchScreenTitle(captions?.title ?: document?.title, path, videoId)
+            Surface(color = MaterialTheme.colorScheme.surface) {
+                Row(Modifier.fillMaxWidth().padding(start = 8.dp, end = 12.dp, top = 4.dp, bottom = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                    IconButton(onClick = { if (selection != null) closeDictionary() else back() }, modifier = Modifier.size(48.dp)) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, stringResource(Res.string.back), Modifier.size(24.dp))
                     }
-                    DropdownMenu(sizeMenu, onDismissRequest = { sizeMenu = false }) {
-                        DropdownMenuItem(text = { Text(stringResource(Res.string.watch_subtitle_size_percent, percent)) }, enabled = false, onClick = {})
-                        fun setSize(size: Int) { scope.launch { vm.container.settings.setWatchSubtitleSizePercent(size) }; following = true; sizeMenu = false }
-                        DropdownMenuItem(text = { Text(stringResource(Res.string.watch_subtitle_smaller)) }, enabled = percent > sizes.first(), onClick = { setSize(sizes.lastOrNull { it < percent } ?: sizes.first()) })
-                        DropdownMenuItem(text = { Text(stringResource(Res.string.watch_subtitle_larger)) }, enabled = percent < sizes.last(), onClick = { setSize(sizes.firstOrNull { it > percent } ?: sizes.last()) })
-                        sizes.forEach { size -> DropdownMenuItem(text = { Text("$size%") }, onClick = { setSize(size) }) }
-                        HorizontalDivider()
-                        listOf(.75f, 1f, 1.25f).forEach { speed -> DropdownMenuItem(text = { Text("${stringResource(Res.string.watch_rate)}: $speed×") }, onClick = { rate = speed; sizeMenu = false }) }
+                    Column(Modifier.weight(1f).padding(horizontal = 8.dp)) {
+                        Text(title, style = MaterialTheme.typography.titleMedium.merge(contentStyle(title)), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        Text(stringResource(if (loading) Res.string.watch_loading_captions else if (cueList.isEmpty()) Res.string.watch_no_captions else Res.string.watch_caption_ready),
+                            style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     }
-                }
-                IconToggleButton(checked = shadowIndex != null, enabled = sentenceIndex >= 0, onCheckedChange = {
-                    if (it) { controller?.pause(); shadowIndex = sentenceIndex } else shadowIndex = null
-                }, modifier = Modifier.size(36.dp)) {
-                    Icon(Icons.Default.RecordVoiceOver, stringResource(Res.string.speech_shadow), Modifier.size(20.dp))
-                }
-                IconButton(onClick = { exportOpen = true }, enabled = cueList.isNotEmpty(), modifier = Modifier.size(36.dp)) {
-                    Icon(Icons.Default.IosShare, stringResource(Res.string.watch_export), Modifier.size(20.dp))
-                }
-                IconButton(onClick = subtitlePicker, enabled = !loading, modifier = Modifier.size(36.dp)) {
-                    Icon(Icons.Default.Subtitles, stringResource(Res.string.watch_add_subtitles), Modifier.size(20.dp))
+                    IconButton(
+                        onClick = { scope.launch { vm.container.settings.setWatchCompactPlayer(!settings.watchCompactPlayer) } },
+                        modifier = Modifier.size(48.dp),
+                    ) {
+                        Icon(
+                            if (settings.watchCompactPlayer) Icons.Default.Fullscreen else Icons.Default.FullscreenExit,
+                            stringResource(if (settings.watchCompactPlayer) Res.string.watch_full_player else Res.string.watch_compact_player),
+                            Modifier.size(24.dp),
+                        )
+                    }
+                    Box {
+                        IconButton(onClick = { optionsOpen = true }, modifier = Modifier.size(48.dp)) {
+                            Icon(Icons.Default.MoreVert, stringResource(Res.string.more_actions), Modifier.size(24.dp))
+                        }
+                        DropdownMenu(optionsOpen, onDismissRequest = { optionsOpen = false }) {
+                            DropdownMenuItem(text = { Text(stringResource(Res.string.watch_subtitle_size_percent, percent).replace("%%", "%")) }, enabled = false, onClick = {})
+                            fun setSize(size: Int) { scope.launch { vm.container.settings.setWatchSubtitleSizePercent(size) }; following = true; optionsOpen = false }
+                            DropdownMenuItem(text = { Text("A−   ${stringResource(Res.string.watch_subtitle_smaller)}") }, enabled = percent > sizes.first(), onClick = { setSize(sizes.lastOrNull { it < percent } ?: sizes.first()) })
+                            DropdownMenuItem(text = { Text("A+   ${stringResource(Res.string.watch_subtitle_larger)}") }, enabled = percent < sizes.last(), onClick = { setSize(sizes.firstOrNull { it > percent } ?: sizes.last()) })
+                            HorizontalDivider()
+                            listOf(.75f, 1f, 1.25f).forEach { speed ->
+                                DropdownMenuItem(text = { Text("${stringResource(Res.string.watch_rate)}: $speed×") }, onClick = { rate = speed; optionsOpen = false })
+                            }
+                        }
+                    }
                 }
             }
-            if (settings.watchCompactPlayer) CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
-                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            if (settings.watchCompactPlayer) {
+                Box(Modifier.fillMaxWidth().padding(vertical = 4.dp), contentAlignment = Alignment.Center) {
                     player(Modifier.size(playerWidth, playerHeight))
-                    FlowRow(Modifier.weight(1f).padding(horizontal = 4.dp)) { controls() }
                 }
             } else {
-                Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) { player(Modifier.size(playerWidth, playerHeight)) }
-                FlowRow(Modifier.fillMaxWidth().padding(horizontal = 4.dp)) { controls() }
+                Box(Modifier.fillMaxWidth().padding(vertical = 4.dp), contentAlignment = Alignment.Center) {
+                    player(Modifier.size(playerWidth, playerHeight).clip(RoundedCornerShape(16.dp)))
+                }
+            }
+            FlowRow(
+                Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 2.dp),
+                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                verticalArrangement = Arrangement.spacedBy(2.dp),
+            ) {
+                    WatchActionButton(Icons.Default.Subtitles, stringResource(Res.string.watch_toolbar_subtitles), false, !loading, subtitlePicker)
+                    WatchActionButton(Icons.Default.Translate, stringResource(Res.string.watch_toolbar_translate), settings.watchTranslationEnabled, true) {
+                        scope.launch { vm.container.settings.setWatchTranslationEnabled(!settings.watchTranslationEnabled) }
+                    }
+                    WatchActionButton(Icons.Default.RecordVoiceOver, stringResource(Res.string.watch_toolbar_shadow), shadowIndex != null, sentenceIndex >= 0) {
+                        if (shadowIndex == null) { controller?.pause(); shadowIndex = sentenceIndex } else shadowIndex = null
+                    }
+                    WatchActionButton(Icons.Default.IosShare, stringResource(Res.string.watch_toolbar_export), false, cueList.isNotEmpty()) { exportOpen = true }
             }
             if (loading) LinearProgressIndicator(Modifier.fillMaxWidth())
             if (failed) Row(Modifier.padding(horizontal = 12.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -304,7 +323,12 @@ import kotlin.time.TimeSource
                             controller?.pause()
                             selection = ReaderSelection(query, sentence.text, offsets[index] until offsets[index] + sentence.text.length, false)
                         }
-                        Column(Modifier.heightIn(max = itemHeight).onSizeChanged { innerHeight = it.height; heights[index] = it.height }.verticalScroll(scroll)) {
+                        Column(
+                            Modifier.fillMaxWidth().heightIn(max = itemHeight)
+                                .then(if (current) Modifier.clip(RoundedCornerShape(16.dp)).background(MaterialTheme.colorScheme.secondaryContainer) else Modifier)
+                                .padding(horizontal = if (current) 12.dp else 4.dp, vertical = if (current) 10.dp else 2.dp)
+                                .onSizeChanged { innerHeight = it.height; heights[index] = it.height }.verticalScroll(scroll)
+                        ) {
                             if (!current) Text(videoTime(sentence.startMs), Modifier.clickable { playFromLine(index) }.padding(vertical = 2.dp),
                                 style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = .6f))
                             TranscriptSentence(sentence.text, lang, highlighter, idiomMatcher, subtitleStyle, current,
@@ -336,10 +360,10 @@ import kotlin.time.TimeSource
                             Row(Modifier.fillMaxWidth().padding(start = 12.dp), verticalAlignment = Alignment.CenterVertically) {
                                 Text(lookup?.sentence.orEmpty(), Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis,
                                     style = MaterialTheme.typography.bodySmall.merge(contentStyle(lookup?.sentence.orEmpty())))
-                                IconButton(onClick = ::closeDictionary) { Icon(Icons.Default.Close, stringResource(Res.string.cancel)) }
+                                IconButton(onClick = ::closeDictionary, modifier = Modifier.size(40.dp)) { Icon(Icons.Default.Close, stringResource(Res.string.cancel)) }
                             }
                             val doc = document
-                            if (lookup != null && doc != null) DictionaryPane(vm, settings, doc, lookup, words, emptyList(), dismiss = ::closeDictionary, modifier = Modifier.weight(1f).fillMaxWidth())
+                            if (lookup != null && doc != null) DictionaryPane(vm, settings, doc, lookup, words, emptyList(), dismiss = ::closeDictionary, modifier = Modifier.weight(1f).fillMaxWidth(), compactControls = true)
                         }
                     }
                 }
@@ -356,7 +380,7 @@ import kotlin.time.TimeSource
             dismiss = { controller?.pause(); shadowIndex = null }, autoListen = true, replay = { index ->
                 val cue = sentences[index]
                 replayShadowCue(checkNotNull(controller), cue.startMs, cue.endMs, rate)
-            })
+            }, compactControls = true)
     }
     editingTranslation?.let { text ->
         var draft by remember(text) { mutableStateOf(translations.states[text]?.text.orEmpty()) }
@@ -386,6 +410,34 @@ import kotlin.time.TimeSource
                 IconButton(onClick = forward, modifier = Modifier.size(48.dp)) { Icon(Icons.Default.Forward5, stringResource(Res.string.ed_seek_forward), Modifier.size(28.dp)) }
                 IconButton(onClick = next, enabled = hasNext, modifier = Modifier.size(48.dp)) { Icon(Icons.Default.SkipNext, stringResource(Res.string.watch_next_sentence), Modifier.size(28.dp)) }
             }
+        }
+    }
+}
+
+internal fun watchScreenTitle(title: String?, path: String, videoId: String): String {
+    title?.trim()?.takeIf { it.isNotEmpty() }?.let { return it }
+    val filename = path.substringAfterLast('/').substringBeforeLast('.')
+    return filename.takeIf { it.isNotBlank() } ?: videoId
+}
+
+@Composable
+private fun WatchActionButton(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    label: String,
+    selected: Boolean,
+    enabled: Boolean,
+    onClick: () -> Unit,
+) {
+    val colors = MaterialTheme.colorScheme
+    Surface(
+        onClick = onClick,
+        enabled = enabled,
+        modifier = Modifier.size(40.dp).semantics { contentDescription = label },
+        shape = RoundedCornerShape(12.dp),
+        color = if (selected) colors.secondaryContainer else Color.Transparent,
+    ) {
+        Box(contentAlignment = Alignment.Center) {
+            Icon(icon, null, tint = if (enabled) colors.onSurfaceVariant else colors.onSurfaceVariant.copy(alpha = .38f), modifier = Modifier.size(20.dp))
         }
     }
 }

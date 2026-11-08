@@ -122,7 +122,7 @@ private fun ReferenceDictionaryPane(
     vm: AppViewModel, settings: AppSettings, text: TextDocument, selection: ReaderSelection,
     words: List<VocabEntry>, highlights: List<HighlightEntry>, dismiss: () -> Unit,
     listen: (() -> Unit)? = null, listenFromHere: (() -> Unit)? = null, shadow: (() -> Unit)? = null,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier, compactControls: Boolean = false
 ) {
     val tts = remember { createTts() }
     val lang = requireNotNull(Languages.byCode(text.lang))
@@ -212,7 +212,7 @@ private fun ReferenceDictionaryPane(
     }
     BoxWithConstraints(modifier.fillMaxWidth().imePadding()) {
       val controlsMaxHeight = if (providers.isEmpty() || selectedDictionarySource == "own") maxHeight else maxHeight * 0.65f
-      Column(Modifier.fillMaxSize().padding(horizontal = 20.dp)) {
+      Column(Modifier.fillMaxSize().padding(horizontal = if (compactControls) 12.dp else 20.dp)) {
         // Only controls scroll on short screens; the browser owns its bounded viewport.
         Column(Modifier.heightIn(max = controlsMaxHeight).verticalScroll(rememberScrollState())) {
             val focusManager = LocalFocusManager.current
@@ -258,7 +258,7 @@ private fun ReferenceDictionaryPane(
             }
             Row(verticalAlignment = Alignment.CenterVertically) {
                 wordField(Modifier.weight(1f))
-                IconButton(onClick = dismiss) {
+                IconButton(onClick = dismiss, modifier = if (compactControls) Modifier.size(40.dp) else Modifier) {
                     Icon(Icons.Default.Close, contentDescription = stringResource(Res.string.accessibility_close))
                 }
             }
@@ -266,14 +266,14 @@ private fun ReferenceDictionaryPane(
                 FlowRow(modifier = Modifier.fillMaxWidth().padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) { wordPills(false) }
             }
             FlowRow(
-                modifier = Modifier.fillMaxWidth().padding(top = 8.dp, bottom = 12.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalArrangement = Arrangement.spacedBy(6.dp)
+                modifier = Modifier.fillMaxWidth().padding(top = if (compactControls) 2.dp else 8.dp, bottom = if (compactControls) 4.dp else 12.dp),
+                horizontalArrangement = Arrangement.spacedBy(if (compactControls) 4.dp else 8.dp),
+                verticalArrangement = Arrangement.spacedBy(if (compactControls) 2.dp else 6.dp)
             ) {
                 TooltipBox(positionProvider = TooltipDefaults.rememberPlainTooltipPositionProvider(),
                     tooltip = { PlainTooltip { Text(stringResource(if (savedState.exactEntry != null) Res.string.accessibility_vocabulary_saved else Res.string.accessibility_save_vocabulary)) } },
                     state = rememberTooltipState()) {
-                    FilledTonalIconButton(onClick = { showWordEditor = !showWordEditor }) {
+                    FilledTonalIconButton(onClick = { showWordEditor = !showWordEditor }, modifier = if (compactControls) Modifier.size(40.dp) else Modifier) {
                         Icon(if (savedState.exactEntry != null) Icons.Default.BookmarkAdded else Icons.Default.BookmarkAdd,
                             contentDescription = stringResource(if (savedState.exactEntry != null) Res.string.accessibility_vocabulary_saved else Res.string.accessibility_save_vocabulary))
                     }
@@ -281,14 +281,14 @@ private fun ReferenceDictionaryPane(
                 TooltipBox(positionProvider = TooltipDefaults.rememberPlainTooltipPositionProvider(),
                     tooltip = { PlainTooltip { Text(stringResource(Res.string.dictionary_edit_word)) } },
                     state = rememberTooltipState()) {
-                    IconButton(onClick = { showWordEditor = !showWordEditor }) {
+                    IconButton(onClick = { showWordEditor = !showWordEditor }, modifier = if (compactControls) Modifier.size(40.dp) else Modifier) {
                         Icon(Icons.Default.Edit, contentDescription = stringResource(Res.string.dictionary_edit_word))
                     }
                 }
                 TooltipBox(positionProvider = TooltipDefaults.rememberPlainTooltipPositionProvider(),
                     tooltip = { PlainTooltip { Text(stringResource(Res.string.accessibility_open_in_browser)) } },
                     state = rememberTooltipState()) {
-                    IconButton(onClick = { provider?.let { uri.openUri(it.urlFor(word)) } }, enabled = provider != null) {
+                    IconButton(onClick = { provider?.let { uri.openUri(it.urlFor(word)) } }, enabled = provider != null, modifier = if (compactControls) Modifier.size(40.dp) else Modifier) {
                         Icon(Icons.Default.OpenInNew, contentDescription = stringResource(Res.string.accessibility_open_in_browser))
                     }
                 }
@@ -296,7 +296,7 @@ private fun ReferenceDictionaryPane(
                     TooltipBox(positionProvider = TooltipDefaults.rememberPlainTooltipPositionProvider(),
                         tooltip = { PlainTooltip { Text(stringResource(Res.string.selection_action_listen)) } },
                         state = rememberTooltipState()) {
-                        IconButton(onClick = speak) { Icon(Icons.Default.VolumeUp, contentDescription = stringResource(Res.string.selection_action_listen)) }
+                        IconButton(onClick = speak, modifier = if (compactControls) Modifier.size(40.dp) else Modifier) { Icon(Icons.Default.VolumeUp, contentDescription = stringResource(Res.string.selection_action_listen)) }
                     }
                 }
             }
@@ -338,7 +338,7 @@ private fun ReferenceDictionaryPane(
                     }
                 }
             }
-            Spacer(Modifier.height(12.dp))
+            Spacer(Modifier.height(if (compactControls) 4.dp else 12.dp))
 
             if (showWordEditor) {
               Row(verticalAlignment = Alignment.CenterVertically) {
@@ -360,7 +360,7 @@ private fun ReferenceDictionaryPane(
                 FilledIconButton(
                     onClick = saveWord,
                     enabled = !saving,
-                    modifier = Modifier.size(48.dp)
+                    modifier = Modifier.size(if (compactControls) 40.dp else 48.dp)
                 ) {
                     Icon(
                         if (saved) Icons.Default.Check else Icons.Default.Save,
@@ -570,9 +570,9 @@ fun DictionarySheet(vm: AppViewModel, settings: AppSettings, text: TextDocument,
 fun DictionaryPane(vm: AppViewModel, settings: AppSettings, text: TextDocument, selection: ReaderSelection,
     words: List<VocabEntry>, highlights: List<HighlightEntry>, dismiss: () -> Unit,
     listen: (() -> Unit)? = null, listenFromHere: (() -> Unit)? = null, shadow: (() -> Unit)? = null,
-    modifier: Modifier = Modifier) {
+    modifier: Modifier = Modifier, compactControls: Boolean = false) {
     ReaderReferenceTheme(settings.uiLang, settings.themeMode) {
-        ReferenceDictionaryPane(vm, settings, text, selection, words, highlights, dismiss, listen, listenFromHere, shadow, modifier)
+        ReferenceDictionaryPane(vm, settings, text, selection, words, highlights, dismiss, listen, listenFromHere, shadow, modifier, compactControls)
     }
 }
 

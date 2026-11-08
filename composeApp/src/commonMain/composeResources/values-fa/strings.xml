@@ -127,6 +127,12 @@
     <string name="watch_caption_error">بارگیری زیرنویس ممکن نشد. می‌توانید SRT / VTT وارد کنید.</string>
     <string name="watch_player_error">خطای پخش: %1$s</string>
     <string name="watch_no_captions">زیرنویس موجود نیست. برای لمس کلمات فایل SRT / VTT انتخاب کنید.</string>
+    <string name="watch_loading_captions">در حال بارگیری زیرنویس…</string>
+    <string name="watch_caption_ready">زیرنویس آماده است</string>
+    <string name="watch_toolbar_subtitles">زیرنویس</string>
+    <string name="watch_toolbar_translate">ترجمه</string>
+    <string name="watch_toolbar_shadow">تقلید</string>
+    <string name="watch_toolbar_export">خروجی</string>
     <string name="watch_history">سابقهٔ تماشا</string>
     <string name="watch_channels">کانال‌های پیشنهادی</string>
     <string name="watch_choose_channel">انتخاب کانال</string>

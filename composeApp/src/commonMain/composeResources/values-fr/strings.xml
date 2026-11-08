@@ -127,6 +127,12 @@
     <string name="watch_caption_error">Impossible de charger les sous-titres. Importez un fichier SRT / VTT.</string>
     <string name="watch_player_error">Erreur de lecture : %1$s</string>
     <string name="watch_no_captions">Aucun sous-titre. Choisissez un fichier SRT / VTT pour toucher les mots.</string>
+    <string name="watch_loading_captions">Chargement des sous-titres…</string>
+    <string name="watch_caption_ready">Sous-titres prêts</string>
+    <string name="watch_toolbar_subtitles">Sous-titres</string>
+    <string name="watch_toolbar_translate">Traduire</string>
+    <string name="watch_toolbar_shadow">Imitation</string>
+    <string name="watch_toolbar_export">Exporter</string>
     <string name="watch_history">Historique de visionnage</string>
     <string name="watch_channels">Chaînes suggérées</string>
     <string name="watch_choose_channel">Choisir une chaîne</string>

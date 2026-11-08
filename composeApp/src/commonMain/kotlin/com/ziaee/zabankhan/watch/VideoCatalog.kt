@@ -4,6 +4,7 @@ import com.ziaee.zabankhan.lang.*
 import io.ktor.client.HttpClient
 import io.ktor.client.request.get
 import io.ktor.client.statement.bodyAsText
+import kotlinx.serialization.json.*
 
 /** Permanent channel IDs keep suggestions valid when a channel renames its handle.
  * [description] is keyed by interface language ("en", "fr", "fa"); [level] is a CEFR range such as "A2–B1". */
@@ -82,11 +83,91 @@ fun parseYoutubeFeed(xml: String): List<ChannelVideo> {
     }.distinctBy { it.videoId }.toList()
 }
 
+/** YouTube's public channel feed can return 404 while the channel page is still available. */
+fun parseYoutubeChannelPage(html: String): List<ChannelVideo> {
+    val marker = "ytInitialData = "
+    val start = html.indexOf(marker)
+    require(start >= 0) { "YouTube channel data not found" }
+    val jsonStart = start + marker.length
+    var depth = 0
+    var inString = false
+    var escaped = false
+    var jsonEnd = -1
+    for (index in jsonStart until html.length) {
+        val char = html[index]
+        if (inString) {
+            if (escaped) escaped = false
+            else if (char == '\\') escaped = true
+            else if (char == '"') inString = false
+        } else when (char) {
+            '"' -> inString = true
+            '{' -> depth++
+            '}' -> {
+                depth--
+                if (depth == 0) { jsonEnd = index + 1; break }
+            }
+        }
+    }
+    require(jsonEnd > jsonStart) { "YouTube channel data is incomplete" }
+    val initialData = Json.parseToJsonElement(html.substring(jsonStart, jsonEnd))
+    val videos = mutableListOf<ChannelVideo>()
+    fun JsonObject.text(key: String): String? = this[key]?.jsonPrimitive?.contentOrNull
+    fun JsonObject?.displayText(): String? = this?.let { text("simpleText") ?: it["content"]?.jsonPrimitive?.contentOrNull
+        ?: it["runs"]?.jsonArray?.joinToString("") { run -> run.jsonObject["text"]?.jsonPrimitive?.contentOrNull.orEmpty() } }
+        ?.takeIf { it.isNotBlank() }
+    fun collect(element: JsonElement) {
+        when (element) {
+            is JsonObject -> {
+                val renderer = element["videoRenderer"]?.jsonObject
+                val lockup = element["lockupViewModel"]?.jsonObject
+                val item = when {
+                    renderer != null -> {
+                        val id = renderer.text("videoId")
+                        val title = renderer["title"]?.jsonObject.displayText()
+                        val published = renderer["publishedTimeText"]?.jsonObject.displayText().orEmpty()
+                        val thumbnail = renderer["thumbnail"]?.jsonObject?.get("thumbnails")?.jsonArray
+                            ?.lastOrNull()?.jsonObject?.text("url")
+                        if (id != null && title != null) ChannelVideo(id, title, published, thumbnail.orEmpty()) else null
+                    }
+                    lockup?.text("contentType") == "LOCKUP_CONTENT_TYPE_VIDEO" -> {
+                        val id = lockup.text("contentId")
+                        val metadata = lockup["metadata"]?.jsonObject?.get("lockupMetadataViewModel")?.jsonObject
+                        val title = metadata?.get("title")?.jsonObject.displayText()
+                        val rows = metadata?.get("metadata")?.jsonObject?.get("contentMetadataViewModel")
+                            ?.jsonObject?.get("metadataRows")?.jsonArray
+                        val published = rows?.lastOrNull()?.jsonObject?.get("metadataParts")?.jsonArray
+                            ?.lastOrNull()?.jsonObject?.get("text")?.jsonObject.displayText().orEmpty()
+                        val thumbnail = lockup["contentImage"]?.jsonObject?.get("thumbnailViewModel")
+                            ?.jsonObject?.get("image")?.jsonObject?.get("sources")?.jsonArray
+                            ?.lastOrNull()?.jsonObject?.text("url")
+                        if (id != null && title != null) ChannelVideo(id, title, published, thumbnail.orEmpty()) else null
+                    }
+                    else -> null
+                }
+                if (item != null && Regex("[A-Za-z0-9_-]{11}").matches(item.videoId)) videos += item
+                else element.values.forEach(::collect)
+            }
+            is JsonArray -> element.forEach(::collect)
+            else -> Unit
+        }
+    }
+    collect(initialData)
+    return videos.distinctBy { it.videoId }
+}
+
 suspend fun fetchChannelVideos(http: HttpClient, channelId: String): List<ChannelVideo> {
     require(Regex("UC[A-Za-z0-9_-]{22}").matches(channelId))
-    val response = http.get("https://www.youtube.com/feeds/videos.xml") { url { parameters.append("channel_id", channelId) } }
+    val feedVideos = try {
+        val response = http.get("https://www.youtube.com/feeds/videos.xml") { url { parameters.append("channel_id", channelId) } }
+        if (response.status.value in 200..299) parseYoutubeFeed(response.bodyAsText()) else emptyList()
+    } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (_: Exception) { emptyList() }
+    if (feedVideos.isNotEmpty()) return feedVideos
+
+    val response = http.get("https://www.youtube.com/channel/$channelId/videos")
     check(response.status.value in 200..299) { "HTTP ${response.status.value}" }
-    return parseYoutubeFeed(response.bodyAsText())
+    val videos = parseYoutubeChannelPage(response.bodyAsText())
+    check(videos.isNotEmpty()) { "No public videos found for this channel" }
+    return videos
 }
 
 private val frenchChannels = listOf(
