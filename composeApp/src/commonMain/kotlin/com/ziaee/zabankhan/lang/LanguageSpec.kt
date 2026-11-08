@@ -31,6 +31,7 @@ data class LanguageSpec(
     val grammarAlternativeSeparator: String? = null,
     val vocabularyLessonTag: Regex? = null,
     val ownDictionaryAvailable: Boolean = false,
+    val dictionaryLeadingArticles: Set<String> = emptySet(),
 )
 
 object Languages {
@@ -38,7 +39,9 @@ object Languages {
         "fr", "French", "Français", Script.LATIN, TextDir.LTR,
         listOf("l'", "d'", "j'", "m'", "t'", "s'", "n'", "c'", "qu'", "jusqu'", "lorsqu'", "puisqu'"),
         "fr-FR", "fr-FR", listOf(
-            DictionaryLink("WordReference", "https://www.wordreference.com/fren/{word}", setOf("en")),
+            // Keep this reference available even when the app's meaning language is Persian;
+            // WordReference still provides a useful French-English entry.
+            DictionaryLink("WordReference", "https://www.wordreference.com/fren/{word}"),
             DictionaryLink("Reverso Conjugaison", "https://conjugator.reverso.net/conjugation-french-verb-{word}.html"),
             DictionaryLink("B-amooz", "https://dic.b-amooz.com/fr/dictionary/w?word={word}", setOf("fa")),
             DictionaryLink("Glosbe", "https://glosbe.com/fr/fa/{word}", setOf("fa")),
@@ -53,6 +56,7 @@ object Languages {
         grammarAlternativeSeparator = " ou ",
         vocabularyLessonTag = Regex("\\s*—\\s*Leçon\\s+(\\d+)\\s*$"),
         ownDictionaryAvailable = true,
+        dictionaryLeadingArticles = setOf("le", "la", "les", "un", "une", "du", "des", "l'"),
     )
     val ENGLISH = LanguageSpec(
         "en", "English", "English", Script.LATIN, TextDir.LTR, emptyList(), "en-US", "en-US", listOf(
@@ -67,6 +71,7 @@ object Languages {
         voicePreview = "Hello! Here is a sample of this natural voice.",
         grammarSearchStopWords = setOf("and", "or", "vs", "the", "a", "an", "of"),
         grammarAlternativeSeparator = " or ",
+        dictionaryLeadingArticles = setOf("the", "a", "an"),
     )
     val PERSIAN = LanguageSpec(
         "fa", "Persian", "فارسی", Script.ARABIC, TextDir.RTL, emptyList(), "fa-IR", "fa-IR", listOf(

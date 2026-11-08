@@ -98,7 +98,13 @@ data class AppOpenRequest(val text: String? = null, val review: Boolean = false,
             Scaffold(snackbarHost = { SnackbarHost(snackbar) }, bottomBar = {
                 if (route in routes) NavigationBar(containerColor = MaterialTheme.colorScheme.surface) {
                     routes.forEachIndexed { i, target -> NavigationBarItem(selected = route == target,
-                        onClick = { nav.navigate(target) { popUpTo("home") { saveState = true }; launchSingleTop = true; restoreState = true } },
+                        onClick = {
+                            if (target == "home" && route != "home") {
+                                if (!nav.popBackStack("home", inclusive = false)) nav.navigate("home") { launchSingleTop = true }
+                            } else {
+                                nav.navigate(target) { popUpTo("home") { saveState = true }; launchSingleTop = true; restoreState = true }
+                            }
+                        },
                         icon = { Icon(icons[i], stringResource(labels[i])) }, label = { EditorialNavigationLabel(stringResource(labels[i])) },
                         colors = NavigationBarItemDefaults.colors(
                             selectedIconColor = MaterialTheme.colorScheme.primary, selectedTextColor = MaterialTheme.colorScheme.primary,
@@ -118,7 +124,11 @@ data class AppOpenRequest(val text: String? = null, val review: Boolean = false,
                     }
                     composable("news") { NewsScreen(vm, prefs, { nav.popBackStack() }) { id -> nav.navigate("reader/$id") } }
                     composable("achievements") { com.ziaee.zabankhan.progress.AchievementsScreen(vm, prefs) { nav.popBackStack() } }
-                    composable("statistics") { com.ziaee.zabankhan.statistics.StatisticsScreen(vm, prefs) { nav.popBackStack() } }
+                    composable("statistics") { com.ziaee.zabankhan.statistics.StatisticsScreen(vm, prefs, { nav.popBackStack() }, { nav.navigate("study-log") }) }
+                    composable("study-log") { com.ziaee.zabankhan.statistics.StudyLogScreen(prefs.learningLang.orEmpty(), { nav.popBackStack() }, { nav.navigate("study-log/entry") }, { id -> nav.navigate("study-log/entry/$id") }, { nav.navigate("study-log/sources") }) }
+                    composable("study-log/entry") { com.ziaee.zabankhan.statistics.StudyLogEntryScreen(prefs.learningLang.orEmpty(), null) { nav.popBackStack() } }
+                    composable("study-log/entry/{id}") { entry -> com.ziaee.zabankhan.statistics.StudyLogEntryScreen(prefs.learningLang.orEmpty(), entry.arguments?.read { getString("id")?.toLongOrNull() }) { nav.popBackStack() } }
+                    composable("study-log/sources") { com.ziaee.zabankhan.statistics.StudySourcesScreen(prefs.learningLang.orEmpty()) { nav.popBackStack() } }
                     composable("discover") { com.ziaee.zabankhan.discover.DiscoverScreen(vm, prefs, { nav.popBackStack() }, { nav.navigate("reader/$it") }) }
                     composable("grammar") { com.ziaee.zabankhan.grammar.GrammarScreen(prefs) { nav.popBackStack() } }
                     composable("exams") { com.ziaee.zabankhan.datapack.TcfPracticeScreen(prefs.learningLang.orEmpty()) { nav.popBackStack() } }

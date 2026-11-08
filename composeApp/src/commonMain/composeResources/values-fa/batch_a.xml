@@ -9,6 +9,9 @@
   <string name="batch_a_backup_choose">انتخاب پشتیبان</string>
   <string name="batch_a_backup_failure">پشتیبان‌گیری ناموفق بود</string>
   <string name="batch_a_backup_never_backed_up">هنوز پشتیبان‌گیری نشده</string>
+  <string name="batch_a_backup_overview_title">از اطلاعاتتان محافظت کنید</string>
+  <string name="batch_a_backup_overview_last">آخرین پشتیبان: %1$s</string>
+  <string name="batch_a_backup_overview_description">پشتیبان‌گیری خودکار را فعال کنید، یک نسخهٔ فایل ذخیره کنید یا در صورت دسترسی از Google Drive استفاده کنید.</string>
   <string name="batch_a_backup_now">پشتیبان‌گیری الان</string>
   <string name="batch_a_backup_pdf_files">پشتیبان از فایل‌های پی‌دی‌اف</string>
   <string name="batch_a_backup_protected_label">نگه‌داشته‌شده پیش از حذف گسترده یا بازیابی</string>

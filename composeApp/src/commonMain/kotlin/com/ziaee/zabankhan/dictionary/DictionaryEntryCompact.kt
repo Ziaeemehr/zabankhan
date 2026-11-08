@@ -36,7 +36,10 @@ import com.ziaee.zabankhan.resources.own_compact_examples
 import com.ziaee.zabankhan.resources.own_compact_expressions
 import com.ziaee.zabankhan.resources.own_compact_conjugation
 import com.ziaee.zabankhan.resources.own_compact_forms
+import com.ziaee.zabankhan.resources.own_frequency_common
+import com.ziaee.zabankhan.resources.own_frequency_very_common
 import com.ziaee.zabankhan.ui.contentStyle
+import com.ziaee.zabankhan.ui.TranslationSourceIcon
 import org.jetbrains.compose.resources.stringResource
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -76,7 +79,7 @@ private fun CompactEntryContents(
     Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
         val posGender = listOf(entry.pos, entry.gender).filter(String::isNotBlank).joinToString(" · ")
         if (posGender.isNotBlank()) Surface(color = MaterialTheme.colorScheme.secondaryContainer, shape = MaterialTheme.shapes.small) { Text(posGender, Modifier.padding(horizontal = 8.dp, vertical = 3.dp), style = MaterialTheme.typography.labelSmall.merge(contentStyle(posGender))) }
-        if (entry.freq > 0) Text("●".repeat(entry.freq.coerceIn(0, 5)), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
+        if (entry.freq > 0) Text(stringResource(if (entry.freq >= 4) Res.string.own_frequency_very_common else Res.string.own_frequency_common), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
     via.firstOrNull()?.let { redirect ->
         val resolution = "${redirect.form} → ${redirect.lemma} · ${redirect.labels.joinToString("; ")}"
@@ -91,6 +94,7 @@ private fun CompactEntryContents(
         Row(verticalAlignment = Alignment.Top) {
             Text("${index + 1}. ", style = MaterialTheme.typography.bodyMedium)
             Text(meaning, Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium.merge(contentStyle(meaning)))
+            meanings.getOrNull(index)?.translation?.let { TranslationSourceIcon(it) }
             OwnDictionarySenseSaveControl(entry, sense, index, meaning, lang, target, vm, textId, sentence, vocabEntries, lists)
         }
     }
@@ -105,6 +109,7 @@ private fun CompactEntryContents(
                 Row(verticalAlignment = Alignment.Top) {
                     Text("${index + 1}. ", style = MaterialTheme.typography.bodyMedium)
                     Text(meaning, Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium.merge(contentStyle(meaning)))
+                    meanings.getOrNull(index)?.translation?.let { TranslationSourceIcon(it) }
                     OwnDictionarySenseSaveControl(entry, sense, index, meaning, lang, target, vm, textId, sentence, vocabEntries, lists)
                 }
             }

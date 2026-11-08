@@ -1,7 +1,6 @@
 package com.ziaee.zabankhan.dictionary
 
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Bookmark
 import androidx.compose.material.icons.filled.VolumeUp
@@ -14,7 +13,6 @@ import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.unit.dp
 import com.ziaee.zabankhan.app.AppViewModel
 import com.ziaee.zabankhan.data.AppSettings
@@ -33,9 +31,16 @@ import org.jetbrains.compose.resources.stringResource
 @OptIn(ExperimentalLayoutApi::class, ExperimentalMaterial3Api::class)
 @Composable
 fun OwnDictionaryBlock(lookup: DictionaryLookup, lang: LanguageSpec, target: String, vm: AppViewModel,
-    textId: Long, sentence: String, speak: (String) -> Unit, onLookup: (String) -> Unit) {
+    textId: Long, sentence: String, speak: (String) -> Unit, onLookup: (String) -> Unit,
+    loading: Boolean = false, failed: Boolean = false) {
     val entries = lookup.entries + lookup.idioms
-    if (entries.isEmpty()) return
+    if (entries.isEmpty()) {
+        val message = when { loading -> Res.string.own_searching; failed -> Res.string.own_search_error; else -> Res.string.own_no_entry }
+        Text(stringResource(message), Modifier.fillMaxWidth().padding(vertical = 12.dp),
+            color = if (failed) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant,
+            style = MaterialTheme.typography.bodySmall)
+        return
+    }
     val vocabEntries by remember(lang.code) { vm.container.vocab.observeAll(lang.code) }.collectAsState(emptyList())
     val lists by remember(lang.code) { vm.container.vocab.observeLists(lang.code) }.collectAsState(emptyList())
     val settings by vm.settings.collectAsState()
@@ -172,10 +177,7 @@ internal fun OwnDictionaryEntryCard(entry: Entry, meanings: List<SenseMeaning>, 
             FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(4.dp), itemVerticalAlignment = Alignment.CenterVertically) {
                 listOf(entry.pos, entry.gender).filter(String::isNotBlank).forEach { DictionaryLabel(it) }
                 if (entry.freq > 0) {
-                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp)) {
-                        Row(horizontalArrangement = Arrangement.spacedBy(3.dp)) { repeat(5) { i -> Surface(Modifier.size(6.dp).clip(CircleShape), color = if (i < entry.freq.coerceIn(0,5)) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant) {} } }
-                        Text(if (entry.freq >= 4) stringResource(Res.string.own_frequency_very_common) else stringResource(Res.string.own_frequency_common), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    }
+                    Text(if (entry.freq >= 4) stringResource(Res.string.own_frequency_very_common) else stringResource(Res.string.own_frequency_common), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
             val shownSenses = entry.senses.take(if (sensesExpanded) entry.senses.size else 3)

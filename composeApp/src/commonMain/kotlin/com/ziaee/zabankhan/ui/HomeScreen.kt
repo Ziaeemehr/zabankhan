@@ -97,7 +97,9 @@ import com.ziaee.zabankhan.watch.WatchHistory
             IconButton(onClick = discover) { Icon(Icons.Default.Search, stringResource(Res.string.h2_find_content)) }
             // French Reader adds texts from its bottom bar; zabankhan's bottom bar has no add slot.
             ImportAddMenu(vm, settings, add, open, watch, discover, openDatasets = datasets, trigger = { onImport, busy ->
-                IconButton(onClick = onImport, enabled = !busy) { Icon(Icons.Default.Add, stringResource(Res.string.add_text)) }
+                FilledIconButton(onClick = onImport, enabled = !busy, modifier = Modifier.size(48.dp)) {
+                    Icon(Icons.Default.Add, stringResource(Res.string.add_text), modifier = Modifier.size(26.dp))
+                }
             })
             IconButton(onClick = openSettings) { Icon(Icons.Default.Settings, stringResource(Res.string.nav_settings)) }
         })

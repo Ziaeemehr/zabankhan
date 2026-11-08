@@ -34,6 +34,25 @@ fun normalizeDictionaryQuery(value: String): String = buildString {
     }
 }.trim().split(Regex("\\s+")).filter(String::isNotEmpty).joinToString(" ")
 
+/** Exact query first, followed by headword candidates with known leading articles removed. */
+fun dictionaryLookupCandidates(value: String, lang: LanguageSpec): List<String> {
+    val normalized = normalizeDictionaryQuery(value)
+    if (normalized.isEmpty()) return emptyList()
+    val candidates = linkedSetOf(normalized)
+    var rest = normalized
+    val articles = lang.dictionaryLeadingArticles.map(::normalizeDictionaryQuery).sortedByDescending { it.length }
+    while (rest.isNotEmpty()) {
+        val article = articles.firstOrNull { token ->
+            if (token.endsWith("'")) rest.startsWith(token)
+            else rest.startsWith("$token ")
+        } ?: break
+        rest = if (article.endsWith("'")) rest.removePrefix(article) else rest.removePrefix("$article ")
+        rest = rest.trim()
+        if (rest.isNotEmpty()) candidates += rest
+    }
+    return candidates.toList()
+}
+
 fun dictionaryShardKey(word: String, split: Set<String> = emptySet()): String {
     val first = normalizeDictionaryQuery(word).substringBefore(' ')
     var width = 2
@@ -207,15 +226,20 @@ class OwnDictionary(private val http: HttpClient, @Suppress("UNUSED_PARAMETER") 
     suspend fun lookup(word: String, lang: LanguageSpec, sentence: String? = null): DictionaryLookup = withContext(Dispatchers.IO) {
         if (!lang.ownDictionaryAvailable || word.isBlank()) return@withContext DictionaryLookup(word, emptyList(), emptyList(), emptyList())
         mutex.withLock {
-            val index = index(lang); val query = normalizeDictionaryQuery(word)
+            val index = index(lang)
             val splitParents = index.split.keys
-            val queryKey = dictionaryShardKey(word, splitParents)
-            val exactShard = if (queryKey in index.shards) safeShard(lang, index, queryKey) else null
-            val exact = exactShard?.entries.orEmpty().filter { normalizeDictionaryQuery(it.word) == query }
-            val redirects = exactShard?.redirects?.entries?.firstOrNull { normalizeDictionaryQuery(it.key) == query }?.value.orEmpty()
-            val resolved = redirects.mapNotNull { redirect ->
+            val candidates = dictionaryLookupCandidates(word, lang)
+            val exact = mutableListOf<Entry>()
+            val redirects = mutableListOf<DictionaryRedirect>()
+            candidates.forEach { query ->
+                val key = dictionaryShardKey(query, splitParents)
+                val queryShard = if (key in index.shards) shard(lang, index, key) else null
+                exact += queryShard?.entries.orEmpty().filter { normalizeDictionaryQuery(it.word) == query }
+                redirects += queryShard?.redirects?.entries?.firstOrNull { normalizeDictionaryQuery(it.key) == query }?.value.orEmpty()
+            }
+            val resolved = redirects.distinctBy { it.entryId to it.pos }.mapNotNull { redirect ->
                 val key = dictionaryShardKey(redirect.lemma, splitParents)
-                val targetShard = if (key in index.shards) safeShard(lang, index, key) else null
+                val targetShard = if (key in index.shards) shard(lang, index, key) else null
                 targetShard?.entries?.firstOrNull { it.id == redirect.entryId && it.pos == redirect.pos }
             }.distinctBy { it.id }
             val bases = (exact + resolved).distinctBy { it.id }
@@ -231,20 +255,23 @@ class OwnDictionary(private val http: HttpClient, @Suppress("UNUSED_PARAMETER") 
     suspend fun search(prefix: String, lang: LanguageSpec, limit: Int = 30): List<Entry> = withContext(Dispatchers.IO) {
         if (!lang.ownDictionaryAvailable || prefix.isBlank() || limit <= 0) return@withContext emptyList()
         mutex.withLock {
-            val index = index(lang); val key = dictionaryShardKey(prefix, index.split.keys)
-            if (key !in index.shards) return@withLock emptyList()
-            val shard = safeShard(lang, index, key) ?: return@withLock emptyList()
-            val query = normalizeDictionaryQuery(prefix)
-            val exact = shard.entries.filter { normalizeDictionaryQuery(it.word) == query }
-            val redirectEntries = shard.redirects.filterKeys { normalizeDictionaryQuery(it) == query }.values.flatten().mapNotNull { redirect ->
-                val lemmaKey = dictionaryShardKey(redirect.lemma, index.split.keys)
-                if (lemmaKey !in index.shards) null else safeShard(lang, index, lemmaKey)?.entries?.firstOrNull { it.id == redirect.entryId && it.pos == redirect.pos }
+            val index = index(lang)
+            val results = dictionaryLookupCandidates(prefix, lang).flatMap { query ->
+                val key = dictionaryShardKey(query, index.split.keys)
+                if (key !in index.shards) return@flatMap emptyList()
+                val shard = shard(lang, index, key)
+                val exact = shard.entries.filter { normalizeDictionaryQuery(it.word) == query }
+                val redirectEntries = shard.redirects.filterKeys { normalizeDictionaryQuery(it) == query }.values.flatten().mapNotNull { redirect ->
+                    val lemmaKey = dictionaryShardKey(redirect.lemma, index.split.keys)
+                    if (lemmaKey !in index.shards) null else shard(lang, index, lemmaKey).entries.firstOrNull { it.id == redirect.entryId && it.pos == redirect.pos }
+                }
+                val redirects = shard.redirects.filterKeys { normalizeDictionaryQuery(it).startsWith(query) }.values.flatten().mapNotNull { redirect ->
+                    val lemmaKey = dictionaryShardKey(redirect.lemma, index.split.keys)
+                    if (lemmaKey !in index.shards) null else shard(lang, index, lemmaKey).entries.firstOrNull { it.id == redirect.entryId && it.pos == redirect.pos }
+                }
+                exact + redirectEntries + redirects + shard.entries.filter { normalizeDictionaryQuery(it.word).startsWith(query) }
             }
-            val redirects = shard.redirects.filterKeys { normalizeDictionaryQuery(it).startsWith(query) }.values.flatten().mapNotNull { redirect ->
-                val lemmaKey = dictionaryShardKey(redirect.lemma, index.split.keys)
-                if (lemmaKey !in index.shards) null else safeShard(lang, index, lemmaKey)?.entries?.firstOrNull { it.id == redirect.entryId && it.pos == redirect.pos }
-            }
-            (exact + redirectEntries + redirects + shard.entries.filter { normalizeDictionaryQuery(it.word).startsWith(query) }).distinctBy { it.id }.sortedBy { it.freq.takeIf { f -> f > 0 }?.let { 6 - it } ?: Int.MAX_VALUE }.take(limit)
+            results.distinctBy { it.id }.sortedBy { it.freq.takeIf { f -> f > 0 }?.let { 6 - it } ?: Int.MAX_VALUE }.take(limit)
         }
     }
     suspend fun senseMeanings(entry: Entry, target: String, translations: TranslationRepository): List<SenseMeaning> = entry.senses.map { sense ->

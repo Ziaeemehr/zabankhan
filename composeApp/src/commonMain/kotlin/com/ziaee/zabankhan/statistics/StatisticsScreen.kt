@@ -1,6 +1,8 @@
 package com.ziaee.zabankhan.statistics
 
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -11,6 +13,8 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.semantics.contentDescription
@@ -23,29 +27,60 @@ import com.ziaee.zabankhan.ui.*
 import kotlinx.coroutines.delay
 import org.jetbrains.compose.resources.stringResource
 import kotlin.math.roundToInt
+import kotlinx.datetime.DateTimeUnit
+import kotlinx.datetime.minus
+import kotlinx.datetime.plus
+import kotlinx.datetime.DayOfWeek
+import kotlinx.datetime.LocalDate
 
-@Composable fun StatisticsScreen(vm: AppViewModel, settings: AppSettings, back: () -> Unit) {
+@Composable fun StatisticsScreen(vm: AppViewModel, settings: AppSettings, back: () -> Unit, openStudyLog: () -> Unit = {}) {
     val lang = requireNotNull(settings.learningLang)
     val rows by remember(lang) { vm.container.database.activity().observe(lang) }.collectAsState(emptyList())
     val words by remember(lang) { vm.container.vocab.observeAll(lang) }.collectAsState(emptyList())
     val texts by remember(lang) { vm.container.texts.observeAll(lang) }.collectAsState(emptyList())
     val attempts by remember(lang) { vm.container.database.shadowAttempts().observe(lang) }.collectAsState(emptyList())
+    val studyVm = rememberStudyLogViewModel(lang)
+    val studyState by studyVm.uiState.collectAsState(initial = StudyLogUiState(lang))
     var today by remember { mutableStateOf(localToday()) }
     var reviews by remember(lang) { mutableStateOf(emptyList<ReviewLogEntry>()) }
     LaunchedEffect(lang) { while (true) { today = localToday(); reviews = vm.container.vocab.reviewLogSince(lang, 0); delay(30_000) } }
     Page {
         EditorialTopAppBar(stringResource(Res.string.h2_progress), back)
+        TextButton(onClick = openStudyLog, modifier = Modifier.fillMaxWidth()) { Text(stringResource(Res.string.study_log_title) + " · " + stringResource(Res.string.study_log_add_time)) }
         EditorialCard {
             Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                EditorialSectionHeader(stringResource(Res.string.h2_streak, activityStreak(rows, today, reviews, attempts)))
-                DailyGoalCard(vm, settings)
+                EditorialSectionHeader(stringResource(Res.string.h2_streak, activityStreak(rows, today, reviews, attempts, manualSessions = studyState.allSessions)))
+                DailyGoalCard(vm, settings, studyState.allSessions)
+            }
+        }
+        val firstDay = DayOfWeek.MONDAY
+        var heatmapYear by remember { mutableIntStateOf(today.year) }
+        val yearStart = LocalDate(heatmapYear, 1, 1)
+        val yearEnd = if (heatmapYear == today.year) today else LocalDate(heatmapYear, 12, 31)
+        val combined = remember(rows, studyState.allSessions, lang, yearStart, yearEnd) {
+            combinedStudyDays(lang, rows, studyState.allSessions, yearStart, yearEnd)
+        }
+        EditorialCard {
+            Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                    EditorialSectionHeader(stringResource(Res.string.study_log_activity))
+                    Row {
+                        TextButton(onClick = { if (heatmapYear > 2000) heatmapYear-- }) { Text("‹") }
+                        Text(heatmapYear.toString(), Modifier.align(Alignment.CenterVertically))
+                        TextButton(enabled = heatmapYear < today.year, onClick = { heatmapYear++ }) { Text("›") }
+                    }
+                }
+                StudyYearHeatmap(combined, heatmapYear, today, firstDay)
+                Text(stringResource(Res.string.study_log_combined_note), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
         listOf(1 to Res.string.h2_today, 7 to Res.string.h2_seven_days, 30 to Res.string.h2_thirty_days).forEach { (days, label) ->
             val minutes = activityMinutes(rows, today, days)
+            val manual = studyState.allSessions.filter { it.date in today.minus(days - 1, DateTimeUnit.DAY).toEpochDays().toLong()..today.toEpochDays().toLong() }.sumOf { it.durationMin }
             EditorialCard {
                 Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     EditorialSectionHeader(stringResource(label))
+                    Text(stringResource(Res.string.study_log_combined_total, (minutes.total + manual).roundToInt()), style = MaterialTheme.typography.titleSmall)
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         PeriodMetric(minutes.reading.roundToInt(), stringResource(Res.string.ed_reading_minutes), Icons.Default.MenuBook, Modifier.weight(1f))
                         PeriodMetric(minutes.listening.roundToInt(), stringResource(Res.string.ed_listening_minutes), Icons.Default.Headphones, Modifier.weight(1f))
@@ -88,12 +123,75 @@ import kotlin.math.roundToInt
     }
 }
 
-@Composable fun DailyGoalCard(vm: AppViewModel, settings: AppSettings) {
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun StudyYearHeatmap(days: List<StudyDayActivity>, year: Int, today: LocalDate, firstDay: DayOfWeek) {
+    var monthView by remember(year) { mutableStateOf(false) }
+    var selectedMonth by remember(year) { mutableIntStateOf(today.monthNumber) }
+    val grid = if (monthView) {
+        val monthDate = LocalDate(year, selectedMonth, 1)
+        studyMonthGrid(days, monthDate, firstDay, today).flatMap { week -> week.chunked(1) }.let { weeks ->
+            // Month cells are rendered as one chronological row, preserving the calendar order.
+            listOf(weeks.flatten())
+        }
+    } else studyYearGrid(days, year, firstDay, today)
+    var selected by remember(year) { mutableStateOf<StudyDayActivity?>(null) }
+    val active = MaterialTheme.colorScheme.primary
+    val empty = MaterialTheme.colorScheme.surfaceVariant
+    val muted = MaterialTheme.colorScheme.surface
+    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            TextButton(onClick = { monthView = false }) { Text(stringResource(Res.string.study_log_year_view)) }
+            TextButton(onClick = { monthView = true }) { Text(stringResource(Res.string.study_log_month_view)) }
+            if (monthView) {
+                TextButton(onClick = { selectedMonth = if (selectedMonth == 1) 12 else selectedMonth - 1 }) { Text("‹") }
+                Text(LocalDate(year, selectedMonth, 1).month.name, Modifier.align(Alignment.CenterVertically))
+                TextButton(onClick = { selectedMonth = if (selectedMonth == 12) 1 else selectedMonth + 1 }) { Text("›") }
+            }
+        }
+        Row {
+            val months = (1..12).map { LocalDate(year, it, 1) }
+            months.forEach { month -> Text(month.month.name.take(1), Modifier.weight(1f), textAlign = TextAlign.Center, style = MaterialTheme.typography.labelSmall) }
+        }
+        androidx.compose.foundation.layout.Box(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState())) {
+            if (monthView) {
+                Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                    grid.firstOrNull().orEmpty().chunked(7).forEach { week ->
+                        Row(horizontalArrangement = Arrangement.spacedBy(3.dp)) { week.forEach { day -> HeatmapCell(day, active, empty, muted) { selected = it } } }
+                    }
+                }
+            } else Row(horizontalArrangement = Arrangement.spacedBy(3.dp)) {
+                grid.forEach { week ->
+                    Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                        week.forEach { day -> HeatmapCell(day, active, empty, muted) { selected = it } }
+                    }
+                }
+            }
+        }
+        selected?.let { day ->
+            Text("${day.date} · ${day.totalMinutes.roundToInt()} ${stringResource(Res.string.study_log_minutes)}", style = MaterialTheme.typography.bodyMedium)
+            Text(stringResource(Res.string.study_log_day_detail, day.automatic.total.roundToInt(), day.manualMinutes), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        } ?: Text(stringResource(Res.string.study_log_heatmap_hint), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    }
+}
+
+@Composable
+private fun HeatmapCell(day: StudyDayActivity?, active: androidx.compose.ui.graphics.Color, empty: androidx.compose.ui.graphics.Color, muted: androidx.compose.ui.graphics.Color, onSelect: (StudyDayActivity) -> Unit) {
+    val intensity = day?.let { (it.totalMinutes / 90.0).coerceIn(0.0, 1.0).toFloat() } ?: 0f
+    Surface(
+        onClick = { day?.let(onSelect) },
+        modifier = Modifier.size(11.dp),
+        shape = MaterialTheme.shapes.extraSmall,
+        color = when { day == null -> muted; intensity <= 0f -> empty; else -> androidx.compose.ui.graphics.lerp(empty, active, .2f + intensity * .8f) },
+    ) {}
+}
+
+@Composable fun DailyGoalCard(vm: AppViewModel, settings: AppSettings, manualSessions: List<StudySession> = emptyList()) {
     val lang = requireNotNull(settings.learningLang)
     val rows by remember(lang) { vm.container.database.activity().observe(lang) }.collectAsState(emptyList())
     var today by remember { mutableStateOf(localToday()) }
     LaunchedEffect(lang) { while (true) { today = localToday(); delay(30_000) } }
-    val minutes = activityMinutes(rows, today, 1).total
+    val minutes = activityMinutes(rows, today, 1).total + manualSessions.filter { it.date == today.toEpochDays().toLong() }.sumOf { it.durationMin }
     val label = stringResource(Res.string.h2_goal_progress, minutes.roundToInt(), settings.dailyGoalMinutes)
     EditorialProgressIndicator((minutes / settings.dailyGoalMinutes.coerceAtLeast(1)).toFloat(), label, Modifier.fillMaxWidth())
 }

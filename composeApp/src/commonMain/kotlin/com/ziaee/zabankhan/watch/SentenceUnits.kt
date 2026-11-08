@@ -12,15 +12,26 @@ data class SentenceUnits(
 }
 
 /**
- * Shadowing and translation use these units; the caption/dictionary timeline stays untouched.
- * [maxMs] bounds joins. An individual longer cue keeps its original timing: splitting it
- * would require word timestamps that imported subtitles do not provide.
+ * Callers choose join bounds for transcript/translation display or shadow practice; the
+ * caption/dictionary timeline stays untouched.
+ * [maxMs] and [maxGapMs] bound joins. An individual longer cue keeps its original timing:
+ * splitting it would require word timestamps that imported subtitles do not provide.
  */
-fun mergeIntoSentences(cues: List<SubtitleCue>, lang: LanguageSpec, maxMs: Long = 12_000): List<SubtitleCue> =
-    mergeSentenceUnits(cues, lang, maxMs).units
+fun mergeIntoSentences(
+    cues: List<SubtitleCue>,
+    lang: LanguageSpec,
+    maxMs: Long = 12_000,
+    maxGapMs: Long = 1_200,
+): List<SubtitleCue> = mergeSentenceUnits(cues, lang, maxMs, maxGapMs).units
 
-fun mergeSentenceUnits(cues: List<SubtitleCue>, lang: LanguageSpec, maxMs: Long = 12_000): SentenceUnits {
+fun mergeSentenceUnits(
+    cues: List<SubtitleCue>,
+    lang: LanguageSpec,
+    maxMs: Long = 12_000,
+    maxGapMs: Long = 1_200,
+): SentenceUnits {
     require(maxMs > 0)
+    require(maxGapMs >= 0)
     val result = mutableListOf<SubtitleCue>()
     var unit: SubtitleCue? = null
     val membership = MutableList(cues.size) { -1 }
@@ -31,7 +42,7 @@ fun mergeSentenceUnits(cues: List<SubtitleCue>, lang: LanguageSpec, maxMs: Long 
         if (text.isEmpty()) continue
         val previous = unit
         if (previous != null && (isSentenceEnd(previous.text, text, lang) ||
-                cue.startMs - previous.endMs > 1200 || maxOf(previous.endMs, cue.endMs) - previous.startMs > maxMs)) {
+                cue.startMs - previous.endMs > maxGapMs || maxOf(previous.endMs, cue.endMs) - previous.startMs > maxMs)) {
             result += previous
             unit = null
         }

@@ -1,10 +1,20 @@
 package com.ziaee.zabankhan.dictionary
 
 import kotlinx.serialization.json.Json
+import com.ziaee.zabankhan.lang.Languages
+import com.ziaee.zabankhan.translate.InMemoryKeyValueCache
+import io.ktor.client.HttpClient
+import io.ktor.client.engine.mock.MockEngine
+import io.ktor.client.engine.mock.respond
+import io.ktor.http.HttpStatusCode
+import kotlinx.coroutines.test.runTest
+import okio.FileSystem
+import kotlin.random.Random
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
+import kotlin.test.assertFails
 
 class OwnDictionaryTest {
     @Test fun splitAwareShardKeysMatchBuilderRule() {
@@ -46,5 +56,48 @@ class OwnDictionaryTest {
     @Test fun idiomsMatchOrderedWords() {
         assertTrue(dictionaryIdiomMatches("prendre soin de", "Il faut prendre grand soin de soi."))
         assertFalse(dictionaryIdiomMatches("prendre soin de", "de soin prendre"))
+    }
+
+    @Test fun dictionaryLookupFallsBackFromLeadingArticleToHeadword() {
+        assertEquals(listOf("le monde", "monde"), dictionaryLookupCandidates("le monde", Languages.FRENCH))
+        assertEquals(listOf("l'homme", "homme"), dictionaryLookupCandidates("l’homme", Languages.FRENCH))
+        assertEquals(listOf("the world", "world"), dictionaryLookupCandidates("the world", Languages.ENGLISH))
+    }
+
+    @Test fun lookupWithLeadingArticleLoadsHeadwordShard() = runTest {
+        val root = FileSystem.SYSTEM_TEMPORARY_DIRECTORY / "dictionary-article-${Random.nextLong()}"
+        val fs = FileSystem.SYSTEM
+        val http = HttpClient(MockEngine { request ->
+            when {
+                request.url.encodedPath.endsWith("/index.json") -> respond("""{"lang":"fr","format":2,"version":1,"entries":1,"persian":1,"shards":["mo"],"split":{},"audio_prefixes":[]}""")
+                request.url.encodedPath.endsWith("/mo.json") -> respond("""{"entries":[[1,"monde","noun",5,"/mɔ̃d/","","",[["world","جهان",[],[],[]]],{},[],[]]],"form_labels":[],"redirects":{},"targets":{}}""")
+                else -> error("Unexpected dictionary request: ${request.url}")
+            }
+        })
+        try {
+            val dictionary = OwnDictionary(http, InMemoryKeyValueCache(), root, fs)
+            assertEquals("monde", dictionary.lookup("le monde", Languages.FRENCH).entries.single().word)
+            assertEquals("monde", dictionary.search("le monde", Languages.FRENCH).single().word)
+        } finally {
+            http.close()
+            fs.deleteRecursively(root, mustExist = false)
+        }
+    }
+
+    @Test fun lookupReportsShardDownloadFailureInsteadOfEmptyResult() = runTest {
+        val root = FileSystem.SYSTEM_TEMPORARY_DIRECTORY / "dictionary-offline-${Random.nextLong()}"
+        val fs = FileSystem.SYSTEM
+        val http = HttpClient(MockEngine { request ->
+            if (request.url.encodedPath.endsWith("/index.json")) {
+                respond("""{"lang":"fr","format":2,"version":1,"entries":1,"persian":1,"shards":["mo"],"split":{},"audio_prefixes":[]}""")
+            } else respond("offline", HttpStatusCode.ServiceUnavailable)
+        })
+        try {
+            val dictionary = OwnDictionary(http, InMemoryKeyValueCache(), root, fs)
+            assertFails { dictionary.lookup("monde", Languages.FRENCH) }
+        } finally {
+            http.close()
+            fs.deleteRecursively(root, mustExist = false)
+        }
     }
 }

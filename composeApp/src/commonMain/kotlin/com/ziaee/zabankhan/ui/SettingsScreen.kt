@@ -31,7 +31,6 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.unit.sp
 import com.ziaee.zabankhan.ui.theme.*
-import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.unit.dp
 import com.ziaee.zabankhan.app.AppViewModel
 import com.ziaee.zabankhan.data.AppSettings
@@ -151,14 +150,8 @@ fun SettingsScreen(vm: AppViewModel, settings: AppSettings, progress: () -> Unit
             kotlinx.coroutines.delay(300)
         }
     }
-    val uri = LocalUriHandler.current
     var guideScreen by remember { mutableStateOf<String?>(null) }
     val learningLanguage = Languages.byCode(settings.learningLang.orEmpty()) ?: Languages.learnable.first()
-    when (guideScreen) {
-        "about" -> { AboutScreen(learningLanguage) { guideScreen = null }; return }
-        "help" -> { HelpGuidesScreen(onOpenGestures = { guideScreen = "gestures" }, onBack = { guideScreen = null }); return }
-        "gestures" -> { com.ziaee.zabankhan.ui.reader.GestureGuideScreen(learningLanguage) { guideScreen = "help" }; return }
-    }
     val tabTitles = listOf(
         Res.string.ed_settings_general,
         Res.string.ed_settings_reading,
@@ -169,6 +162,14 @@ fun SettingsScreen(vm: AppViewModel, settings: AppSettings, progress: () -> Unit
         Res.string.about
     )
     var selectedTab by rememberSaveable { mutableIntStateOf(-1) }
+    when (guideScreen) {
+        "help" -> { HelpGuidesScreen(onOpenGestures = { guideScreen = "gestures" }, onBack = { guideScreen = null }); return }
+        "gestures" -> { com.ziaee.zabankhan.ui.reader.GestureGuideScreen(learningLanguage) { guideScreen = "help" }; return }
+    }
+    if (selectedTab == 6) {
+        AboutScreen(learningLanguage, onBack = { selectedTab = -1 }, onHelp = { guideScreen = "help" })
+        return
+    }
     BackHandler(enabled = selectedTab >= 0) { selectedTab = -1 }
     Scaffold(
         snackbarHost = { SnackbarHost(speechSettingsSnackbar) },
@@ -318,16 +319,6 @@ fun SettingsScreen(vm: AppViewModel, settings: AppSettings, progress: () -> Unit
                                 com.ziaee.zabankhan.backup.BackupSettings(vm.container)
                                 HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
                                 com.ziaee.zabankhan.backup.FrenchReaderImportSettings(vm.container)
-
-                            }
-                            6 -> {
-
-                                TextButton(onClick = { guideScreen = "about" }) { Text(stringResource(Res.string.about_title)) }
-                                TextButton(onClick = { guideScreen = "help" }) { Text(stringResource(Res.string.help_guides_title)) }
-                                Text(stringResource(Res.string.version))
-                                Text(stringResource(Res.string.edge_privacy))
-                                com.ziaee.zabankhan.datapack.DataPackCredits()
-                                TextButton(onClick = { uri.openUri("https://github.com/Ziaeemehr/zabankhan") }) { Text(stringResource(Res.string.github)) }
 
                             }
                         }

@@ -162,16 +162,32 @@ private fun ReferenceDictionaryPane(
     }
     val provider = selectedDictionaryProvider(providers, selectedProviderName)
     var selectedDictionarySource by rememberSaveable(lang.code) { mutableStateOf("own") }
+    var sourceMenuExpanded by remember { mutableStateOf(false) }
     val url = provider?.urlFor(word)
     var webViewFailed by remember(url) { mutableStateOf(false) }
+    val selectSource: (String) -> Unit = { sourceName ->
+        selectedDictionarySource = sourceName
+        if (sourceName != "own") {
+            selectedProviderName = sourceName
+            vm.action { vm.container.settings.setLastDictionaryProvider(lang.code, sourceName) }
+            webViewFailed = false
+        }
+        sourceMenuExpanded = false
+    }
     val repository = vm.container.translations(settings)
     var ownLookup by remember(word, lang, meaningTarget) { mutableStateOf(DictionaryLookup(word, emptyList(), emptyList(), emptyList())) }
     var ownLoaded by remember(word, lang, meaningTarget) { mutableStateOf(false) }
+    var ownLookupFailed by remember(word, lang, meaningTarget) { mutableStateOf(false) }
     LaunchedEffect(word, lang, meaningTarget, repository) {
         ownLoaded = false
-        val lookup = vm.container.ownDictionary.lookupOrEmpty(word, lang, selection.sentence)
-        ownLookup = lookup
-        ownLoaded = true
+        ownLookupFailed = false
+        try {
+            ownLookup = vm.container.ownDictionary.lookup(word, lang, selection.sentence)
+        } catch (cancelled: kotlinx.coroutines.CancellationException) { throw cancelled }
+        catch (_: Exception) {
+            ownLookup = DictionaryLookup(word, emptyList(), emptyList(), emptyList())
+            ownLookupFailed = true
+        } finally { ownLoaded = true }
     }
 
     LaunchedEffect(savedState.exactEntry?.id, meaningTarget) {
@@ -278,11 +294,13 @@ private fun ReferenceDictionaryPane(
                             contentDescription = stringResource(if (savedState.exactEntry != null) Res.string.accessibility_vocabulary_saved else Res.string.accessibility_save_vocabulary))
                     }
                 }
-                TooltipBox(positionProvider = TooltipDefaults.rememberPlainTooltipPositionProvider(),
-                    tooltip = { PlainTooltip { Text(stringResource(Res.string.dictionary_edit_word)) } },
-                    state = rememberTooltipState()) {
-                    IconButton(onClick = { showWordEditor = !showWordEditor }, modifier = if (compactControls) Modifier.size(40.dp) else Modifier) {
-                        Icon(Icons.Default.Edit, contentDescription = stringResource(Res.string.dictionary_edit_word))
+                if (!compactControls) {
+                    TooltipBox(positionProvider = TooltipDefaults.rememberPlainTooltipPositionProvider(),
+                        tooltip = { PlainTooltip { Text(stringResource(Res.string.dictionary_edit_word)) } },
+                        state = rememberTooltipState()) {
+                        IconButton(onClick = { showWordEditor = !showWordEditor }) {
+                            Icon(Icons.Default.Edit, contentDescription = stringResource(Res.string.dictionary_edit_word))
+                        }
                     }
                 }
                 TooltipBox(positionProvider = TooltipDefaults.rememberPlainTooltipPositionProvider(),
@@ -297,6 +315,48 @@ private fun ReferenceDictionaryPane(
                         tooltip = { PlainTooltip { Text(stringResource(Res.string.selection_action_listen)) } },
                         state = rememberTooltipState()) {
                         IconButton(onClick = speak, modifier = if (compactControls) Modifier.size(40.dp) else Modifier) { Icon(Icons.Default.VolumeUp, contentDescription = stringResource(Res.string.selection_action_listen)) }
+                    }
+                }
+                if (compactControls) {
+                    Box {
+                        val currentSourceLabel = if (selectedDictionarySource == "own") {
+                            stringResource(Res.string.dictionary_source_own)
+                        } else selectedDictionarySource
+                        IconButton(
+                            onClick = { sourceMenuExpanded = true },
+                            modifier = Modifier.size(40.dp).semantics { contentDescription = currentSourceLabel }
+                        ) {
+                            Box(Modifier.size(32.dp), contentAlignment = Alignment.Center) {
+                                val sourceIcon = dictionaryProviderIcon(selectedDictionarySource)
+                                if (selectedDictionarySource == "own") {
+                                    Image(painterResource(Res.drawable.about_launcher_logo), contentDescription = null, modifier = Modifier.size(24.dp))
+                                } else if (sourceIcon != null) {
+                                    Image(painterResource(sourceIcon), contentDescription = null, modifier = Modifier.size(24.dp))
+                                } else {
+                                    Icon(Icons.Default.MenuBook, contentDescription = null, modifier = Modifier.size(22.dp))
+                                }
+                                Icon(Icons.Default.ArrowDropDown, contentDescription = null,
+                                    modifier = Modifier.align(Alignment.BottomEnd).size(16.dp))
+                            }
+                        }
+                        DropdownMenu(expanded = sourceMenuExpanded, onDismissRequest = { sourceMenuExpanded = false }) {
+                            DropdownMenuItem(
+                                text = { Text(stringResource(Res.string.dictionary_source_own)) },
+                                leadingIcon = { Image(painterResource(Res.drawable.about_launcher_logo), null, Modifier.size(24.dp)) },
+                                onClick = { selectSource("own") }
+                            )
+                            providers.forEach { item ->
+                                DropdownMenuItem(
+                                    text = { Text(item.name) },
+                                    leadingIcon = {
+                                        val icon = dictionaryProviderIcon(item.name)
+                                        if (icon != null) Image(painterResource(icon), null, Modifier.size(24.dp))
+                                        else Icon(Icons.Default.MenuBook, contentDescription = null)
+                                    },
+                                    onClick = { selectSource(item.name) }
+                                )
+                            }
+                        }
                     }
                 }
             }
@@ -437,36 +497,39 @@ private fun ReferenceDictionaryPane(
                 }
             }
             }
-            FlowRow(
-                modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
-                horizontalArrangement = Arrangement.spacedBy(6.dp),
-                verticalArrangement = Arrangement.spacedBy(6.dp)
-            ) {
-                DictionarySourceButton(
-                    selected = selectedDictionarySource == "own",
-                    label = stringResource(Res.string.dictionary_source_own),
-                    icon = null,
-                    own = true,
-                    onClick = { selectedDictionarySource = "own" }
-                )
-                providers.forEach { item ->
+            if (!compactControls) {
+                FlowRow(
+                    modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
                     DictionarySourceButton(
-                        selected = selectedDictionarySource == item.name,
-                        label = item.name,
-                        icon = dictionaryProviderIcon(item.name),
-                        onClick = {
-                            selectedDictionarySource = item.name
-                            selectedProviderName = item.name
-                            vm.action { vm.container.settings.setLastDictionaryProvider(lang.code, item.name) }
-                            webViewFailed = false
-                        }
+                        selected = selectedDictionarySource == "own",
+                        label = stringResource(Res.string.dictionary_source_own),
+                        icon = null,
+                        own = true,
+                        onClick = { selectedDictionarySource = "own" }
                     )
+                    providers.forEach { item ->
+                        DictionarySourceButton(
+                            selected = selectedDictionarySource == item.name,
+                            label = item.name,
+                            icon = dictionaryProviderIcon(item.name),
+                            onClick = {
+                                selectedDictionarySource = item.name
+                                selectedProviderName = item.name
+                                vm.action { vm.container.settings.setLastDictionaryProvider(lang.code, item.name) }
+                                webViewFailed = false
+                            }
+                        )
+                    }
                 }
             }
             HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
             if (selectedDictionarySource == "own") {
                 OwnDictionaryBlock(ownLookup, lang, meaningTarget, vm, text.id, selection.sentence,
-                    speak = { tts.togglePronounce(it, lang.code, settings) }, onLookup = { currentWord = it })
+                    speak = { tts.togglePronounce(it, lang.code, settings) }, onLookup = { currentWord = it },
+                    loading = !ownLoaded, failed = ownLookupFailed)
             }
 
 

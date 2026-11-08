@@ -9,6 +9,9 @@
   <string name="batch_a_backup_choose">Choose a backup</string>
   <string name="batch_a_backup_failure">Backup failed</string>
   <string name="batch_a_backup_never_backed_up">Never backed up</string>
+  <string name="batch_a_backup_overview_title">Your data, protected</string>
+  <string name="batch_a_backup_overview_last">Most recent backup: %1$s</string>
+  <string name="batch_a_backup_overview_description">Choose automatic protection, save a copy as a file, or use Google Drive when available.</string>
   <string name="batch_a_backup_now">Back up now</string>
   <string name="batch_a_backup_pdf_files">Back up PDF files</string>
   <string name="batch_a_backup_protected_label">Kept before a large deletion or restore</string>

@@ -57,7 +57,7 @@ fun DictionarySearchDialog(vm: AppViewModel, settings: AppSettings, onDismiss: (
                 val current = lookup
                 if (current != null) {
                     Column(Modifier.weight(1f).verticalScroll(rememberScrollState())) {
-                        OwnDictionaryBlock(current, lang, target, vm, 0L, "", { tts.togglePronounce(it, lang.code, settings) }) { word -> query = word; selected = null; lookup = null }
+                        OwnDictionaryBlock(current, lang, target, vm, 0L, "", { tts.togglePronounce(it, lang.code, settings) }, onLookup = { word -> query = word; selected = null; lookup = null })
                     }
                 } else Column(Modifier.weight(1f).verticalScroll(rememberScrollState())) {
                     when {

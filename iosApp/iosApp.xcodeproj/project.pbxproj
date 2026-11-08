@@ -135,6 +135,7 @@
 				297B59D9CE634556D6007C40 /* Sources */,
 				1623B02D10928C8101C1F806 /* Resources */,
 				E99160E501832DB2CECE6CFF /* Embed Foundation Extensions */,
+				4A1E0D650C3B8D4CF0600A2A /* Set Debug app display name */,
 			);
 			buildRules = (
 			);
@@ -247,6 +248,24 @@
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
 			shellScript = "cd \"$SRCROOT/..\"\n./gradlew :composeApp:embedAndSignAppleFrameworkForXcode\n";
+		};
+		4A1E0D650C3B8D4CF0600A2A /* Set Debug app display name */ = {
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+			);
+			name = "Set Debug app display name";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "if [ \"$CONFIGURATION\" != \"Debug\" ]; then exit 0; fi\nresources=\"$TARGET_BUILD_DIR/$UNLOCALIZED_RESOURCES_FOLDER_PATH\"\nmkdir -p \"$resources/en.lproj\" \"$resources/fa.lproj\"\nprintf '\"CFBundleDisplayName\" = \"Zabankhan Dev\";\\n' > \"$resources/en.lproj/InfoPlist.strings\"\nprintf '\"CFBundleDisplayName\" = \"زبان‌خوان Dev\";\\n' > \"$resources/fa.lproj/InfoPlist.strings\"\n";
 		};
 /* End PBXShellScriptBuildPhase section */
 
@@ -457,7 +476,7 @@
 			isa = XCBuildConfiguration;
 			baseConfigurationReference = 0358171E75EC1103200B1879 /* Version.xcconfig */;
 			buildSettings = {
-				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIconDev;
 				CODE_SIGN_ENTITLEMENTS = iosApp/iosApp.entitlements;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				CODE_SIGN_STYLE = Automatic;
@@ -466,6 +485,7 @@
 				ENABLE_USER_SCRIPT_SANDBOXING = NO;
 				FRAMEWORK_SEARCH_PATHS = "$(SRCROOT)/../composeApp/build/xcode-frameworks/$(CONFIGURATION)/$(SDK_NAME)";
 				INFOPLIST_FILE = iosApp/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = "Zabankhan Dev";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
@@ -475,7 +495,7 @@
 					"-framework",
 					ComposeApp,
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = com.ziaee.zabankhan;
+				PRODUCT_BUNDLE_IDENTIFIER = com.ziaee.zabankhan.dev;
 				PRODUCT_NAME = Zabankhan;
 				SDKROOT = iphoneos;
 				TARGETED_DEVICE_FAMILY = "1,2";
@@ -500,7 +520,7 @@
 					"@executable_path/../../Frameworks",
 				);
 				MARKETING_VERSION = "$(APP_VERSION_NAME)";
-				PRODUCT_BUNDLE_IDENTIFIER = com.ziaee.zabankhan.share;
+				PRODUCT_BUNDLE_IDENTIFIER = com.ziaee.zabankhan.dev.share;
 				PRODUCT_NAME = ShareExtension;
 				SDKROOT = iphoneos;
 				SWIFT_VERSION = 5.0;
@@ -521,6 +541,7 @@
 				ENABLE_USER_SCRIPT_SANDBOXING = NO;
 				FRAMEWORK_SEARCH_PATHS = "$(SRCROOT)/../composeApp/build/xcode-frameworks/$(CONFIGURATION)/$(SDK_NAME)";
 				INFOPLIST_FILE = iosApp/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = Zabankhan;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",

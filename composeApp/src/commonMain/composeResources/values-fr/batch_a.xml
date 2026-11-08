@@ -9,6 +9,9 @@
   <string name="batch_a_backup_choose">Choisir une sauvegarde</string>
   <string name="batch_a_backup_failure">Échec de la sauvegarde</string>
   <string name="batch_a_backup_never_backed_up">Aucune sauvegarde</string>
+  <string name="batch_a_backup_overview_title">Protégez vos données</string>
+  <string name="batch_a_backup_overview_last">Sauvegarde la plus récente : %1$s</string>
+  <string name="batch_a_backup_overview_description">Activez la protection automatique, enregistrez un fichier ou utilisez Google Drive si disponible.</string>
   <string name="batch_a_backup_now">Sauvegarder maintenant</string>
   <string name="batch_a_backup_pdf_files">Sauvegarder les fichiers PDF</string>
   <string name="batch_a_backup_protected_label">Conservée avant une suppression importante ou une restauration</string>

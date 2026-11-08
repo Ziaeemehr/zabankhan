@@ -23,11 +23,26 @@ import kotlin.time.Clock
 @Composable fun BackupSettings(container: AppContainer) {
     val scope = rememberCoroutineScope()
     val snackbarHostState = remember { SnackbarHostState() }
-    Column {
-        AutoBackupSection(container, scope, snackbarHostState)
-        LocalBackupSection(container, scope, snackbarHostState)
-        CloudBackupSection(container, scope, snackbarHostState)
+    val drive = rememberDriveAuth()
+    var lastBackupAtMs by remember { mutableStateOf<Long?>(null) }
+    LaunchedEffect(container) { lastBackupAtMs = container.settings.backupPrefs.getLastBackupAtMs() }
+    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)) {
+            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text(stringResource(Res.string.batch_a_backup_overview_title), style = MaterialTheme.typography.titleMedium)
+                Text(stringResource(Res.string.batch_a_backup_overview_last, formatLastBackupLabel(lastBackupAtMs)), style = MaterialTheme.typography.bodyMedium)
+                Text(stringResource(Res.string.batch_a_backup_overview_description), style = MaterialTheme.typography.bodySmall)
+            }
+        }
+        BackupMethodCard { AutoBackupSection(container, scope, snackbarHostState) }
+        BackupMethodCard { LocalBackupSection(container, scope, snackbarHostState) { lastBackupAtMs = it } }
+        if (drive.configured) BackupMethodCard { CloudBackupSection(container, scope, snackbarHostState, drive) { lastBackupAtMs = it } }
         SnackbarHost(snackbarHostState)
+    }
+}
+@Composable private fun BackupMethodCard(content: @Composable ColumnScope.() -> Unit) {
+    Card(Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp), content = content)
     }
 }
 @Composable private fun formatLastBackupLabel(atMs: Long?): String =
@@ -119,7 +134,8 @@ private fun AutoBackupSection(
 private fun LocalBackupSection(
     container: AppContainer,
     scope: kotlinx.coroutines.CoroutineScope,
-    snackbarHostState: SnackbarHostState
+    snackbarHostState: SnackbarHostState,
+    onBackupSaved: (Long) -> Unit
 ) {
     var restoreUri by remember { mutableStateOf<String?>(null) }
     var backUpPdfs by remember { mutableStateOf(true) }
@@ -137,7 +153,9 @@ private fun LocalBackupSection(
     fun exportBackup() { scope.launch {
         try {
             shareBackup(createLocalBackup(container))
-            container.settings.backupPrefs.setLastBackupAtMs(Clock.System.now().toEpochMilliseconds())
+            val savedAt = Clock.System.now().toEpochMilliseconds()
+            container.settings.backupPrefs.setLastBackupAtMs(savedAt)
+            onBackupSaved(savedAt)
             showMessage(getString(Res.string.batch_a_local_backup_save_success))
         } catch (cancelled: CancellationException) { throw cancelled }
         catch (_: Exception) { showMessage(getString(Res.string.batch_a_local_backup_save_failure)) }
@@ -158,7 +176,7 @@ private fun LocalBackupSection(
             scope.launch { container.settings.backupPrefs.setBackUpPdfFiles(it) }
         })
     }
-    OutlinedButton(onClick = {
+    Button(onClick = {
         exportBackup()
     }) {
         Text(stringResource(Res.string.batch_a_local_backup_save))
@@ -195,15 +213,14 @@ private fun LocalBackupSection(
 }
 
 @Composable
-private fun CloudBackupSection(container: AppContainer, scope: CoroutineScope, snackbarHostState: SnackbarHostState) {
-    val drive = rememberDriveAuth()
+private fun CloudBackupSection(container: AppContainer, scope: CoroutineScope, snackbarHostState: SnackbarHostState, drive: DriveAuth, onBackupSaved: (Long) -> Unit) {
     if (!drive.configured) return
     var connected by remember { mutableStateOf(drive.connected) }
     var lastBackupAtMs by remember { mutableStateOf<Long?>(null) }
     var backups by remember { mutableStateOf<List<DriveBackupFile>?>(null) }
     var selected by remember { mutableStateOf<DriveBackupFile?>(null) }
     var busy by remember { mutableStateOf(false) }
-    LaunchedEffect(container) { lastBackupAtMs = container.settings.backupPrefs.getLastBackupAtMs() }
+    LaunchedEffect(container) { lastBackupAtMs = container.settings.backupPrefs.getLastDriveUploadAtMs() }
     fun withDriveAccessToken(action: suspend (String) -> Unit) { scope.launch {
         busy = true
         try { drive.accessToken()?.let { connected = true; action(it) } }
@@ -225,7 +242,7 @@ private fun CloudBackupSection(container: AppContainer, scope: CoroutineScope, s
         }
     } else {
         Text(formatLastBackupLabel(lastBackupAtMs))
-        OutlinedButton(enabled = !busy, onClick = {
+        Button(enabled = !busy, onClick = {
             withDriveAccessToken { token ->
                 val archive = createLocalBackup(container)
                 val bytes = withContext(Dispatchers.IO) { okio.FileSystem.SYSTEM.read(archive.toPath()) { readByteArray() } }
@@ -233,6 +250,7 @@ private fun CloudBackupSection(container: AppContainer, scope: CoroutineScope, s
                 val now = Clock.System.now().toEpochMilliseconds()
                 container.settings.backupPrefs.setLastBackupAtMs(now)
                 lastBackupAtMs = now
+                onBackupSaved(now)
                 snackbarHostState.showSnackbar(getString(Res.string.batch_a_backup_success))
             }
         }) { Text(stringResource(Res.string.batch_a_backup_now)) }

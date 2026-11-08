@@ -28,6 +28,15 @@ targets:
         TARGETED_DEVICE_FAMILY: "1,2"
         DEVELOPMENT_TEAM: 7QZT8T38S4
         CODE_SIGN_STYLE: Automatic
+      configs:
+        Debug:
+          PRODUCT_BUNDLE_IDENTIFIER: com.ziaee.zabankhan.dev
+          INFOPLIST_KEY_CFBundleDisplayName: Zabankhan Dev
+          ASSETCATALOG_COMPILER_APPICON_NAME: AppIconDev
+        Release:
+          PRODUCT_BUNDLE_IDENTIFIER: com.ziaee.zabankhan
+          INFOPLIST_KEY_CFBundleDisplayName: Zabankhan
+          ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
     dependencies:
       - target: ShareExtension
         embed: true
@@ -44,6 +53,14 @@ targets:
         script: |
           cd "$SRCROOT/.."
           ./gradlew :composeApp:embedAndSignAppleFrameworkForXcode
+    postBuildScripts:
+      - name: Set Debug app display name
+        script: |
+          if [ "$CONFIGURATION" != "Debug" ]; then exit 0; fi
+          resources="$TARGET_BUILD_DIR/$UNLOCALIZED_RESOURCES_FOLDER_PATH"
+          mkdir -p "$resources/en.lproj" "$resources/fa.lproj"
+          printf '"CFBundleDisplayName" = "Zabankhan Dev";\n' > "$resources/en.lproj/InfoPlist.strings"
+          printf '"CFBundleDisplayName" = "زبان‌خوان Dev";\n' > "$resources/fa.lproj/InfoPlist.strings"
   ShareExtension:
     type: app-extension
     platform: iOS
@@ -66,6 +83,11 @@ targets:
         TARGETED_DEVICE_FAMILY: "1,2"
         SWIFT_VERSION: "5.0"
         APPLICATION_EXTENSION_API_ONLY: YES
+      configs:
+        Debug:
+          PRODUCT_BUNDLE_IDENTIFIER: com.ziaee.zabankhan.dev.share
+        Release:
+          PRODUCT_BUNDLE_IDENTIFIER: com.ziaee.zabankhan.share
     configFiles:
       Debug: Version.xcconfig
       Release: Version.xcconfig

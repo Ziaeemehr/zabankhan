@@ -80,6 +80,8 @@ import kotlin.time.TimeSource
     val cueList = captions?.cues.orEmpty()
     val merged = remember(cueList, lang) { mergeSentenceUnits(cueList, lang) }
     val sentences = merged.units
+    val shadowUnits = remember(cueList, lang) { mergeSentenceUnits(cueList, lang, maxMs = 60_000, maxGapMs = 2_500) }
+    val shadowSentences = shadowUnits.units
     val offsets = remember(sentences) { transcriptOffsets(sentences) }
     val position by (controller?.positionMs ?: remember { kotlinx.coroutines.flow.MutableStateFlow(0L) }).collectAsState()
     val playing by (controller?.isPlaying ?: remember { kotlinx.coroutines.flow.MutableStateFlow(false) }).collectAsState()
@@ -97,6 +99,7 @@ import kotlin.time.TimeSource
     val shownTime = freeze.cueTimeMs ?: position
     val active = findCueIndex(cueList, shownTime).takeIf { it >= 0 } ?: cueList.indexOfLast { it.endMs <= shownTime }
     val sentenceIndex = merged.unitIndex(active)
+    val shadowSentenceIndex = shadowUnits.unitIndex(active)
     val activeRange = merged.cueTextRanges.getOrNull(active)
     val list = rememberLazyListState()
     val viewport by remember { derivedStateOf { list.layoutInfo.viewportSize.height } }
@@ -269,8 +272,8 @@ import kotlin.time.TimeSource
                     WatchActionButton(Icons.Default.Translate, stringResource(Res.string.watch_toolbar_translate), settings.watchTranslationEnabled, true) {
                         scope.launch { vm.container.settings.setWatchTranslationEnabled(!settings.watchTranslationEnabled) }
                     }
-                    WatchActionButton(Icons.Default.RecordVoiceOver, stringResource(Res.string.watch_toolbar_shadow), shadowIndex != null, sentenceIndex >= 0) {
-                        if (shadowIndex == null) { controller?.pause(); shadowIndex = sentenceIndex } else shadowIndex = null
+                    WatchActionButton(Icons.Default.RecordVoiceOver, stringResource(Res.string.watch_toolbar_shadow), shadowIndex != null, shadowSentenceIndex >= 0) {
+                        if (shadowIndex == null) { controller?.pause(); shadowIndex = shadowSentenceIndex } else shadowIndex = null
                     }
                     WatchActionButton(Icons.Default.IosShare, stringResource(Res.string.watch_toolbar_export), false, cueList.isNotEmpty()) { exportOpen = true }
             }
@@ -369,22 +372,22 @@ import kotlin.time.TimeSource
                 }
             }
             if (shadowIndex != null && selection == null) {
-                val start = shadowIndex ?: sentenceIndex
+                val start = shadowIndex ?: shadowSentenceIndex
                 ShadowingPanel(
-                    vm.container, settings, lang, document?.id, sentences.map { it.text }, start,
+                    vm.container, settings, lang, document?.id, shadowSentences.map { it.text }, start,
                     dismiss = { controller?.pause(); shadowIndex = null },
                     replay = { index ->
-                        val cue = sentences[index]
+                        val cue = shadowSentences[index]
                         replayShadowCue(checkNotNull(controller), cue.startMs, cue.endMs, rate)
                     },
                     rate = rate,
                     onRateChange = { rate = it },
                     onStep = { next ->
-                        if (next in sentences.indices) {
+                        if (next in shadowSentences.indices) {
                             shadowIndex = next
                             following = true
                             controller?.pause()
-                            controller?.seekTo(sentences[next].startMs)
+                            controller?.seekTo(shadowSentences[next].startMs)
                         }
                     },
                     modifier = Modifier,
