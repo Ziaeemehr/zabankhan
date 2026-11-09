@@ -175,10 +175,6 @@ import kotlin.time.TimeSource
     LaunchedEffect(lastTouch, gestureActive) {
         if (lastTouch >= 0 && !gestureActive) { delay(4_000); following = true }
     }
-    LaunchedEffect(sentences, sentenceIndex, settings.watchTranslationEnabled, translations) {
-        // Screen scope: advancing a sentence must not cancel requests the next window still needs; load() dedups.
-        if (settings.watchTranslationEnabled) translationPrefetchWindow(sentences, sentenceIndex).forEach { text -> scope.launch { translations.load(text) } }
-    }
     LaunchedEffect(sentenceIndex, following, gestureActive, viewport, heights[sentenceIndex], percent,
         settings.watchTranslationEnabled, translations.states[sentences.getOrNull(sentenceIndex)?.text], selection) {
         if (following && !gestureActive && selection == null && sentenceIndex in sentences.indices && viewport > 0) {
@@ -270,7 +266,14 @@ import kotlin.time.TimeSource
             ) {
                     WatchActionButton(Icons.Default.Subtitles, stringResource(Res.string.watch_toolbar_subtitles), false, !loading, subtitlePicker)
                     WatchActionButton(Icons.Default.Translate, stringResource(Res.string.watch_toolbar_translate), settings.watchTranslationEnabled, true) {
-                        scope.launch { vm.container.settings.setWatchTranslationEnabled(!settings.watchTranslationEnabled) }
+                        val enable = !settings.watchTranslationEnabled
+                        scope.launch {
+                            vm.container.settings.setWatchTranslationEnabled(enable)
+                            if (enable) sentences.getOrNull(sentenceIndex)?.text?.let { translations.load(it) }
+                        }
+                    }
+                    WatchActionButton(Icons.Default.Cloud, stringResource(Res.string.ai_model_translation), settings.cloudTranslationEnabled, true) {
+                        scope.launch { vm.container.settings.setCloudTranslationEnabled(!settings.cloudTranslationEnabled) }
                     }
                     WatchActionButton(Icons.Default.RecordVoiceOver, stringResource(Res.string.watch_toolbar_shadow), shadowIndex != null, shadowSentenceIndex >= 0) {
                         if (shadowIndex == null) { controller?.pause(); shadowIndex = shadowSentenceIndex } else shadowIndex = null
@@ -343,14 +346,18 @@ import kotlin.time.TimeSource
                                 }))
                             if (current && settings.watchTranslationEnabled) {
                                 val state = translations.states[sentence.text]
-                                val line = state?.text ?: stringResource(if (state?.failed == true) Res.string.watch_translation_failed else Res.string.watch_translation_loading)
                                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                                    if (state?.corrected != true) TranslationSourceIcon(state?.provenance)
-                                    Text(line, Modifier.weight(1f).pointerInput(sentence.text, state?.failed) {
-                                        detectTapGestures(onLongPress = { controller?.pause(); editingTranslation = sentence.text }, onTap = {
-                                            if (state?.failed == true) scope.launch { translations.load(sentence.text, retry = true) }
-                                        })
-                                    }, style = translationStyle.merge(contentStyle(line)), color = MaterialTheme.colorScheme.onSurface.copy(alpha = .65f))
+                                    if (state?.text != null) {
+                                        if (!state.corrected) TranslationSourceIcon(state.provenance)
+                                        Text(state.text, Modifier.weight(1f).pointerInput(sentence.text, state.failed) {
+                                            detectTapGestures(onLongPress = { controller?.pause(); editingTranslation = sentence.text }, onTap = {
+                                                if (state.failed) scope.launch { translations.load(sentence.text, retry = true) }
+                                            })
+                                        }, style = translationStyle.merge(contentStyle(state.text)), color = MaterialTheme.colorScheme.onSurface.copy(alpha = .65f))
+                                    } else TextButton(onClick = { scope.launch { translations.load(sentence.text) } }, enabled = state?.loading != true) {
+                                        Text(stringResource(if (state?.failed == true) Res.string.retry else Res.string.watch_toolbar_translate))
+                                    }
+                                    if (state?.loading == true) CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp)
                                 }
                             }
                         }

@@ -5,21 +5,8 @@ import com.ziaee.zabankhan.translate.TranslationOverrides
 import kotlinx.coroutines.test.runTest
 import kotlin.test.*
 
-class WatchTranslationPrefetchTest {
-    private val units = listOf("one", "two", "three", "four").mapIndexed { i, text -> SubtitleCue(i * 1000L, (i + 1) * 1000L, text) }
-
-    @Test fun windowStartsAtCurrentAndClampsAtEnd() {
-        assertEquals(listOf("two", "three", "four"), translationPrefetchWindow(units, 1))
-        assertEquals(listOf("four"), translationPrefetchWindow(units, 3))
-        assertEquals(emptyList(), translationPrefetchWindow(units, -1))
-        assertEquals(emptyList(), translationPrefetchWindow(units, 4))
-    }
-
-    @Test fun windowDeduplicatesOnlyWithinThreeUnits() {
-        assertEquals(listOf("one", "three"), translationPrefetchWindow(listOf(units[0], units[0], units[2], units[3]), 0))
-    }
-
-    @Test fun correctionPrecedesTranslatorAndAutomaticRestoresIt() = runTest {
+class WatchTranslationsTest {
+    @Test fun correctionPrecedesTranslatorAndRemovingItReloads() = runTest {
         val overrides = TranslationOverrides(InMemoryKeyValueCache())
         overrides.putOverride("one", "source", "target", "corrected")
         var calls = 0

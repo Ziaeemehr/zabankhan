@@ -142,6 +142,7 @@ fun ReadingScreen(vm: AppViewModel, settings: AppSettings, textId: Long, onBack:
     val speaking by playback.isSpeaking.collectAsState()
     val spokenSentence by playback.sentence.collectAsState()
     val currentParagraph by playback.currentParagraph.collectAsState()
+    val speechComplete by playback.isComplete.collectAsState()
     val audioStatus by playback.audioStatus.collectAsState()
     val paragraphAudioStatuses by playback.paragraphAudioStatuses.collectAsState()
     val synthesisProgress by playback.synthesisProgress.collectAsState()
@@ -217,7 +218,7 @@ fun ReadingScreen(vm: AppViewModel, settings: AppSettings, textId: Long, onBack:
     }
     var readingSection by remember(textId, text.body) { mutableIntStateOf(paragraphIndexAt(parts, text.lastOffset)) }
     LaunchedEffect(currentParagraph) { currentParagraph?.let { readingSection = it } }
-    val spokenProgress = if (parts.isEmpty()) 0 to 0 else readingSection + 1 to parts.size
+    val spokenProgress = if (parts.isEmpty()) 0 to 0 else (if (speechComplete) parts.size else readingSection + 1).coerceIn(1, parts.size) to parts.size
     LaunchedEffect(playback) { tts.speakingRange.collect { playback.rangeChanged(it) } }
     LaunchedEffect(playback) { playback.audioStatus.collect { playback.audioStatusChanged(it) } }
     LaunchedEffect(playback, rate, settings.ttsVoices[lang.code]) { playback.configureAudio(rate, settings.ttsVoices[lang.code]) }

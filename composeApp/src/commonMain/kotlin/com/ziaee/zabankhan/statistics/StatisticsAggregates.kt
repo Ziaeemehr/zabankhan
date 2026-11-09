@@ -54,6 +54,8 @@ data class StudyDayActivity(
     val totalMinutes: Double get() = automatic.total + manualMinutes
 }
 
+fun studyActivityIntensity(totalMinutes: Double): Float = (totalMinutes / 90.0).coerceIn(0.0, 1.0).toFloat()
+
 fun combinedStudyDays(
     lang: String,
     rows: List<ActivityLogEntry>,

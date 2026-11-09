@@ -14,6 +14,7 @@
   <string name="batch_a_backup_overview_description">Choose automatic protection, save a copy as a file, or use Google Drive when available.</string>
   <string name="batch_a_backup_now">Back up now</string>
   <string name="batch_a_backup_pdf_files">Back up PDF files</string>
+  <string name="batch_a_backup_pdf_hint">PDFs are excluded by default to keep backups small.</string>
   <string name="batch_a_backup_protected_label">Kept before a large deletion or restore</string>
   <string name="batch_a_backup_restore">Restore</string>
   <string name="batch_a_backup_restore_confirm_message">This replaces all data currently on this device with the selected Google Drive backup. A local safety backup is saved first if there is user data.</string>

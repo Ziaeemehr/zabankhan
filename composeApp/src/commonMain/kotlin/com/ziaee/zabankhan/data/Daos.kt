@@ -490,3 +490,15 @@ interface PdfInkDao {
     @Query("DELETE FROM pdf_ink WHERE textId = :textId AND page = :page")
     suspend fun delete(textId: Long, page: Int)
 }
+
+@Dao
+interface PdfTextNoteDao {
+    @Query("SELECT * FROM pdf_text_notes WHERE textId = :textId AND page = :page AND startWord = :startWord AND endWord = :endWord LIMIT 1")
+    suspend fun find(textId: Long, page: Int, startWord: Int, endWord: Int): PdfTextNote?
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun upsert(note: PdfTextNote)
+
+    @Query("DELETE FROM pdf_text_notes WHERE textId = :textId AND page = :page AND startWord = :startWord AND endWord = :endWord")
+    suspend fun delete(textId: Long, page: Int, startWord: Int, endWord: Int)
+}

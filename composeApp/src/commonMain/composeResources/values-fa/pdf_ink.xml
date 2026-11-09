@@ -1,7 +1,11 @@
 <resources>
     <string name="pdf_pen">قلم</string>
+    <string name="pdf_pen_thickness">ضخامت قلم</string>
     <string name="pdf_pen_eraser">پاک‌کن</string>
     <string name="pdf_pen_undo">واگرد خط</string>
     <string name="pdf_pen_clear">پاک کردن صفحه</string>
     <string name="pdf_pen_finger">کشیدن با انگشت</string>
+    <string name="pdf_note_add">یادداشت برای این بخش</string>
+    <string name="pdf_note_title">یادداشت · صفحهٔ %1$d</string>
+    <string name="pdf_note_hint">برای این بخش یادداشتی بنویسید…</string>
 </resources>

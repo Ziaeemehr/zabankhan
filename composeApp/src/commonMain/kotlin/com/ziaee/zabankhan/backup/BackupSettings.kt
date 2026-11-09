@@ -247,7 +247,7 @@ private fun LocalBackupSection(
     onBackupSaved: (Long) -> Unit
 ) {
     var restoreUri by remember { mutableStateOf<String?>(null) }
-    var backUpPdfs by remember { mutableStateOf(true) }
+    var backUpPdfs by remember { mutableStateOf(false) }
     val pdfBytes by produceState(0L, container) {
         value = withContext(Dispatchers.IO) { pdfSizeBytes() }
     }
@@ -279,6 +279,7 @@ private fun LocalBackupSection(
         Column(Modifier.weight(1f)) {
             Text(stringResource(Res.string.batch_a_backup_pdf_files))
             Text(formatFileSize(pdfBytes), style = MaterialTheme.typography.bodySmall)
+            Text(stringResource(Res.string.batch_a_backup_pdf_hint), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
         Switch(checked = backUpPdfs, onCheckedChange = {
             backUpPdfs = it

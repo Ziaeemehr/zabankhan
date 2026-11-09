@@ -15,6 +15,14 @@ import kotlin.time.Instant
 
 class StudyActivityAggregatesTest {
     @Test
+    fun heatmapIntensityClampsAndScalesAtNinetyMinutes() {
+        assertEquals(0f, studyActivityIntensity(-10.0))
+        assertEquals(.5f, studyActivityIntensity(45.0))
+        assertEquals(1f, studyActivityIntensity(90.0))
+        assertEquals(1f, studyActivityIntensity(120.0))
+    }
+
+    @Test
     fun combinesManualAndAutomaticTimeAndPreservesComponents() {
         val day = LocalDate(2026, 11, 8)
         val activity = ActivityLogEntry(day.toString(), "fr", readingMs = 30 * 60_000L, listeningMs = 15 * 60_000L)

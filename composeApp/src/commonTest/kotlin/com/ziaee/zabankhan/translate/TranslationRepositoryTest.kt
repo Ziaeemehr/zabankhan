@@ -36,6 +36,11 @@ class TranslationRepositoryTest {
             assertEquals("dictionary", cached.primary)
             assertEquals("model-id", cached.engine)
             assertEquals(4, calls)
+            repository.cloudEnabled = false
+            assertEquals("translated", repository.translateText("hello", "en", "fa").getOrThrow())
+            assertEquals(4, calls)
+            assertEquals("alternative", repository.lookupWord("fresh", null, "en", "fa").getOrThrow().primary)
+            assertEquals(4, calls)
         } finally { http.close() }
     }
     @Test fun modelFailureFallsBackAndCacheWorksOffline() = runTest {

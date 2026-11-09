@@ -88,7 +88,7 @@ class AppContainer(val database: AppDatabase, val settings: SettingsRepository, 
             repository = TranslationRepository(http, cache, llm)
             translationConfig = config
         }
-        return requireNotNull(repository)
+        return requireNotNull(repository).also { it.cloudEnabled = settings.cloudTranslationEnabled }
     }
 }
 val LocalAppContainer = staticCompositionLocalOf<AppContainer> { error("AppContainer not provided") }

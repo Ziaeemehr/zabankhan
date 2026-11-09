@@ -68,4 +68,8 @@
     <string name="study_log_year_view">Année</string>
     <string name="study_log_month_view">Mois</string>
     <string name="study_log_combined_total">Total combiné : %1$d min</string>
+    <string name="study_log_weekly_study_time">Temps d’étude · 7 derniers jours (minutes)</string>
+    <string name="study_log_weekly_reviews">Révisions · 7 derniers jours : %1$d</string>
+    <string name="study_month_january">janvier</string><string name="study_month_february">février</string><string name="study_month_march">mars</string><string name="study_month_april">avril</string><string name="study_month_may">mai</string><string name="study_month_june">juin</string><string name="study_month_july">juillet</string><string name="study_month_august">août</string><string name="study_month_september">septembre</string><string name="study_month_october">octobre</string><string name="study_month_november">novembre</string><string name="study_month_december">décembre</string>
+    <string name="study_month_short_january">jan.</string><string name="study_month_short_february">fév.</string><string name="study_month_short_march">mars</string><string name="study_month_short_april">avr.</string><string name="study_month_short_may">mai</string><string name="study_month_short_june">juin</string><string name="study_month_short_july">juil.</string><string name="study_month_short_august">août</string><string name="study_month_short_september">sept.</string><string name="study_month_short_october">oct.</string><string name="study_month_short_november">nov.</string><string name="study_month_short_december">déc.</string>
 </resources>

@@ -286,6 +286,12 @@ private fun ReferenceDictionaryPane(
                 horizontalArrangement = Arrangement.spacedBy(if (compactControls) 4.dp else 8.dp),
                 verticalArrangement = Arrangement.spacedBy(if (compactControls) 2.dp else 6.dp)
             ) {
+                IconToggleButton(checked = settings.cloudTranslationEnabled, onCheckedChange = { enabled ->
+                    vm.action { vm.container.settings.setCloudTranslationEnabled(enabled) }
+                }) {
+                    Icon(if (settings.cloudTranslationEnabled) Icons.Default.Cloud else Icons.Default.CloudOff,
+                        contentDescription = stringResource(Res.string.ai_model_translation))
+                }
                 TooltipBox(positionProvider = TooltipDefaults.rememberPlainTooltipPositionProvider(),
                     tooltip = { PlainTooltip { Text(stringResource(if (savedState.exactEntry != null) Res.string.accessibility_vocabulary_saved else Res.string.accessibility_save_vocabulary)) } },
                     state = rememberTooltipState()) {

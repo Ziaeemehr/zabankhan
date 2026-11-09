@@ -86,6 +86,23 @@ class ReaderPlaybackTest {
         tts.done(); assertEquals("Goodbye.", tts.text)
         tts.done(); assertNull(playback.sentence.value)
     }
+    @Test fun pauseResumeContinuesAtLatestReportedSpeechOffset() {
+        val tts = FakeTts()
+        val playback = ReaderPlayback(tts, listOf(SpokenParagraph("Hello. Goodbye.", 0)), Languages.ENGLISH)
+        playback.start(0, 1f, null)
+        playback.rangeChanged(9..10)
+        playback.pause()
+        playback.resume(0, 1f, null)
+        assertEquals("odbye.", tts.text)
+    }
+    @Test fun playbackMarksDocumentCompleteAfterLastParagraph() {
+        val tts = FakeTts()
+        val playback = ReaderPlayback(tts, listOf(SpokenParagraph("Last line.", 0)), Languages.ENGLISH)
+        playback.start(0, 1f, null)
+        assertFalse(playback.isComplete.value)
+        tts.done()
+        assertTrue(playback.isComplete.value)
+    }
     @Test fun persianNavigationUsesOriginalOffsetsAndEmptyDocumentIsSafe() {
         val tts = FakeTts()
         val body = "سلام. خوبی؟"

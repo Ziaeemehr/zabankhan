@@ -6,6 +6,9 @@ import kotlinx.serialization.json.Json
 
 data class InkCurveSegment(val controlX: Float, val controlY: Float, val endX: Float, val endY: Float)
 
+internal const val PDF_INK_MIN_WIDTH = .0015f
+internal const val PDF_INK_MAX_WIDTH = .012f
+
 /** Quadratic smoothing segments: each interior sample controls a curve ending at the next midpoint. */
 fun inkCurveSegments(points: List<Float>): List<InkCurveSegment> {
     val count = points.size / 2

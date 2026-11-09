@@ -23,6 +23,7 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.FormatColorFill
 import androidx.compose.material.icons.filled.MenuBook
 import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.NoteAdd
 import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.VolumeUp
 import androidx.compose.material.icons.filled.Translate
@@ -142,6 +143,7 @@ fun SelectionToolbarContent(
     onCopy: () -> Unit,
     onSave: () -> Unit,
     onListen: () -> Unit,
+    onNote: (() -> Unit)? = null,
     onHighlight: () -> Unit,
     onChooseHighlightColor: () -> Unit,
     onDeleteHighlight: (() -> Unit)?,
@@ -156,6 +158,7 @@ fun SelectionToolbarContent(
             add(ToolbarItem(Icons.Default.Palette, stringResource(Res.string.highlight_choose_color), onChooseHighlightColor))
             onDeleteHighlight?.let { add(ToolbarItem(Icons.Default.Delete, stringResource(Res.string.highlight_delete), it)) }
         }
+        onNote?.let { add(ToolbarItem(Icons.Default.NoteAdd, stringResource(Res.string.pdf_note_add), it)) }
         add(ToolbarItem(Icons.Default.ContentCopy, stringResource(Res.string.selection_action_copy), onCopy))
         add(ToolbarItem(Icons.Default.BookmarkAdd, stringResource(Res.string.selection_action_save), onSave))
         if (showListen) add(ToolbarItem(Icons.Default.VolumeUp, stringResource(Res.string.selection_action_listen), onListen))

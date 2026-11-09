@@ -24,6 +24,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.TrendingUp
@@ -43,6 +44,7 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDirection
@@ -306,6 +308,7 @@ fun ReviewScreen(container: AppContainer, settings: AppSettings, onBack: () -> U
     val tts = remember { createTts() }
     DisposableEffect(Unit) { onDispose { tts.stop() } }
     var revealedSlot by remember { mutableStateOf<CardSlot?>(null) }
+    var dictionaryWord by remember { mutableStateOf<String?>(null) }
     val permission = rememberMicPermission()
     var pendingPractice by remember { mutableStateOf(false) }
     var showModel by remember { mutableStateOf(false) }
@@ -406,12 +409,23 @@ fun ReviewScreen(container: AppContainer, settings: AppSettings, onBack: () -> U
                                     vm.cancelCardRecording()
                                     tts.togglePronounce(text, sl.entry.lang, settings)
                                 },
-                                onEdit = { editing = sl.entry })
+                                onEdit = { editing = sl.entry },
+                                onLookup = { dictionaryWord = it })
                         }
                     }
                 }
             }
         }
+    }
+    dictionaryWord?.let { word ->
+        val lang = requireNotNull(settings.learningLang)
+        com.ziaee.zabankhan.ui.reader.DictionarySheet(
+            vm = viewModel(key = "review-dictionary:${container.hashCode()}") { com.ziaee.zabankhan.app.AppViewModel(container) },
+            settings = settings,
+            text = TextDocument(id = 0L, lang = lang, title = word, body = word),
+            selection = com.ziaee.zabankhan.ui.reader.ReaderSelection(word, word, 0 until word.length, false),
+            words = emptyList(), highlights = emptyList(), dismiss = { dictionaryWord = null }
+        )
     }
 }
 
@@ -568,6 +582,7 @@ private fun ReviewCard(
     onReveal: () -> Unit,
     onPlay: (String) -> Unit,
     onEdit: () -> Unit,
+    onLookup: (String) -> Unit,
 ) {
     val session = vm.session
     ReviewCardLayout(
@@ -598,6 +613,7 @@ private fun ReviewCard(
                 meaningOptions = if (entry.id == vm.current?.id) vm.meaningOptions else emptyList(),
                 meaningTarget = vm.meaningTarget,
                 onMeaningSelected = { vm.edit(entry.copy(meaning = it)) },
+                onLookup = onLookup,
                 modifier = cardModifier
             )
         },
@@ -675,6 +691,7 @@ internal fun EntryFlashcard(
     meaningOptions: List<MeaningOption> = emptyList(),
     meaningTarget: String = Languages.PERSIAN.code,
     onMeaningSelected: (String) -> Unit = {},
+    onLookup: (String) -> Unit = {},
 ) {
     var appliedMeaning by remember(entry.id, entry.word, entry.sentence, meaningTarget) { mutableStateOf<String?>(null) }
     var previousMeaning by remember(entry.id, entry.word, entry.sentence, meaningTarget) { mutableStateOf<String?>(null) }
@@ -691,7 +708,7 @@ internal fun EntryFlashcard(
             Text(stringResource(Res.string.review_tap_to_reveal), style = MaterialTheme.typography.labelSmall)
         },
         back = {
-            Text(entry.word, style = wordStyle)
+            SelectableCardText(entry.word, wordStyle, onLookup)
             WordAudioButton(interactive, onPlayWord)
             Spacer(Modifier.height(14.dp)); HorizontalDivider(); Spacer(Modifier.height(12.dp))
             IconButton(onClick = onEdit, enabled = interactive) {
@@ -699,11 +716,11 @@ internal fun EntryFlashcard(
             }
             val (meaning, alternatives) = splitMeaning(entry.meaning)
             meaning?.let {
-                Text(it, style = centeredContent(MaterialTheme.typography.titleMedium))
+                SelectableCardText(it, centeredContent(MaterialTheme.typography.titleMedium), onLookup)
                 Spacer(Modifier.height(8.dp))
             }
             alternatives.forEach {
-                Text(it, style = centeredContent(MaterialTheme.typography.bodyMedium), color = MaterialTheme.colorScheme.onSurfaceVariant)
+                SelectableCardText(it, centeredContent(MaterialTheme.typography.bodyMedium), onLookup, MaterialTheme.colorScheme.onSurfaceVariant)
             }
             if (alternatives.isNotEmpty()) Spacer(Modifier.height(8.dp))
             if (revealed && meaningOptions.isNotEmpty()) {
@@ -721,7 +738,7 @@ internal fun EntryFlashcard(
             }
             if (entry.sentence.isNotBlank()) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(entry.sentence, style = centeredContent(LocalTextStyle.current), fontStyle = FontStyle.Italic, modifier = Modifier.weight(1f))
+                    SelectableCardText(entry.sentence, centeredContent(LocalTextStyle.current).copy(fontStyle = FontStyle.Italic), onLookup, modifier = Modifier.weight(1f))
                     IconButton(onClick = onPlaySentence, enabled = interactive) {
                         Icon(Icons.AutoMirrored.Filled.VolumeUp, stringResource(Res.string.accessibility_play_sentence))
                     }
@@ -736,6 +753,23 @@ internal fun EntryFlashcard(
                 }
             }
         }
+    )
+}
+
+@Composable
+private fun SelectableCardText(text: String, style: TextStyle, onLookup: (String) -> Unit, color: Color = MaterialTheme.colorScheme.onSurface, modifier: Modifier = Modifier) {
+    var value by remember(text) { mutableStateOf(TextFieldValue(text)) }
+    BasicTextField(
+        value = value,
+        onValueChange = { changed ->
+            value = changed
+            val range = changed.selection
+            if (!range.collapsed) text.substring(range.min, range.max).trim().takeIf(String::isNotEmpty)?.let(onLookup)
+        },
+        readOnly = true,
+        textStyle = style.copy(color = color),
+        modifier = modifier.fillMaxWidth(),
+        decorationBox = { inner -> Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) { inner() } },
     )
 }
 

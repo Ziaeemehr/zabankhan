@@ -14,11 +14,6 @@ internal data class WatchTranslationState(
     val provenance: com.ziaee.zabankhan.translate.ExampleTranslation? = null,
 )
 
-/** A window is bounded by sentence units, even when adjacent units have identical text. */
-internal fun translationPrefetchWindow(units: List<SubtitleCue>, current: Int): List<String> =
-    if (current !in units.indices) emptyList()
-    else units.drop(current).take(3).map { it.text }.filter { it.isNotBlank() }.distinct()
-
 /** One instance belongs to one source/meaning-language pair. */
 internal class WatchTranslations(
     private val overrides: TranslationOverrides,

@@ -12,7 +12,7 @@ class BackupPrefs(private val store: DataStore<Preferences>) {
         val k = stringPreferencesKey("backup:$key")
         if (value == null) p.remove(k) else p[k] = value
     } }
-    suspend fun backUpPdfFiles() = value("backup_pdfs") != "false"
+    suspend fun backUpPdfFiles() = value("backup_pdfs") == "true"
     suspend fun setBackUpPdfFiles(enabled: Boolean) { store.edit {
         it[stringPreferencesKey("backup:backup_pdfs")] = enabled.toString()
         it[stringPreferencesKey("backup:pdf_backup_changed_at")] = Clock.System.now().toEpochMilliseconds().toString()

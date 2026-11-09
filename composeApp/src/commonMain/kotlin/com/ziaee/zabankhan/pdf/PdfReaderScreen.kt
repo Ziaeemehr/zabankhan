@@ -66,6 +66,7 @@ import com.ziaee.zabankhan.speech.*
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
@@ -89,6 +90,13 @@ private data class PdfRange(val page: Int, val first: Int, val last: Int, val wo
     val selected get() = words.subList(minOf(first, last), maxOf(first, last) + 1)
     val text get() = selected.joinToString(" ") { it.text }
 }
+private data class PdfTextNoteEditor(
+    val page: Int,
+    val startWord: Int,
+    val endWord: Int,
+    val selectedText: String,
+    val body: String,
+)
 @OptIn(ExperimentalLayoutApi::class, ExperimentalMaterial3Api::class)
 @Composable fun PdfReaderScreen(vm: AppViewModel, settings: AppSettings, text: TextDocument, back: () -> Unit) {
     val path = rebasePdfPath(requireNotNull(text.pdfPath), AppFiles.filesDir)
@@ -136,12 +144,48 @@ private data class PdfRange(val page: Int, val first: Int, val last: Int, val wo
     val vocab by remember(text.lang) { vm.container.vocab.observeAll(text.lang) }.collectAsState(emptyList())
     val highlights by remember(text.id) { vm.container.database.pdfHighlights().observeForText(text.id) }.collectAsState(emptyList())
     val inkDao = vm.container.database.pdfInk()
+    val pdfTextNoteDao = vm.container.database.pdfTextNotes()
     val savedInk by remember(text.id) { inkDao.observeForText(text.id) }.collectAsState(initial = null)
     val ink = remember(text.id) { mutableStateMapOf<Int, List<InkStroke>>() }
     fun pageInk(index: Int): List<InkStroke> = ink[index] ?:
         savedInk?.firstOrNull { it.page == index }?.let { decodeInk(it.strokes) }.orEmpty()
     // ViewModel writes survive leaving the reader; the mutex preserves edit order.
     val inkWriteLock = remember(text.id) { Mutex() }
+    val noteWriteLock = remember(text.id) { Mutex() }
+    var noteEditor by remember(path) { mutableStateOf<PdfTextNoteEditor?>(null) }
+    var noteSaveJob by remember(path) { mutableStateOf<Job?>(null) }
+    fun savePdfNote(note: PdfTextNoteEditor) {
+        vm.action {
+            noteWriteLock.withLock {
+                if (note.body.isBlank()) {
+                    pdfTextNoteDao.delete(text.id, note.page, note.startWord, note.endWord)
+                } else {
+                    pdfTextNoteDao.upsert(PdfTextNote(
+                        textId = text.id,
+                        page = note.page,
+                        startWord = note.startWord,
+                        endWord = note.endWord,
+                        selectedText = note.selectedText,
+                        body = note.body,
+                    ))
+                }
+            }
+        }
+    }
+    fun closePdfNote() {
+        noteSaveJob?.cancel()
+        noteEditor?.let(::savePdfNote)
+        noteEditor = null
+    }
+    fun changePdfNoteBody(body: String) {
+        val updated = noteEditor?.copy(body = body) ?: return
+        noteEditor = updated
+        noteSaveJob?.cancel()
+        noteSaveJob = scope.launch {
+            delay(300)
+            savePdfNote(updated)
+        }
+    }
     // Undo follows the page last drawn on, which is not always the centre page.
     var lastInkPage by remember(text.id) { mutableStateOf<Int?>(null) }
     fun saveInk(index: Int, strokes: List<InkStroke>) {
@@ -432,6 +476,21 @@ private data class PdfRange(val page: Int, val first: Int, val last: Int, val wo
                     onCopy = { clipboard.setText(AnnotatedString(selected.text)); range = null },
                     onSave = { selection = ReaderSelection(selected.text, sentence, 0..0, selected.first != selected.last); range = null },
                     onListen = { tts.pronounce(selected.text, text.lang, settings); range = null },
+                    onNote = {
+                        val first = minOf(selected.first, selected.last)
+                        val last = maxOf(selected.first, selected.last)
+                        range = null
+                        scope.launch {
+                            val saved = pdfTextNoteDao.find(text.id, selected.page, first, last)
+                            noteEditor = PdfTextNoteEditor(
+                                page = selected.page,
+                                startWord = first,
+                                endWord = last,
+                                selectedText = selected.text,
+                                body = saved?.body.orEmpty(),
+                            )
+                        }
+                    },
                     onHighlight = { vm.action {
                         vm.container.database.pdfHighlights().insert(PdfHighlight(textId = text.id, page = selected.page,
                             startWord = minOf(selected.first, selected.last), endWord = maxOf(selected.first, selected.last), colorKey = "primary"))
@@ -457,6 +516,43 @@ private data class PdfRange(val page: Int, val first: Int, val last: Int, val wo
                     DropdownMenuItem(text = { Text(stringResource(Res.string.cancel)) }, onClick = {
                         range = null; highlightColors = false
                     })
+                }
+            }
+        }
+    }
+    noteEditor?.let { editor ->
+        ModalBottomSheet(onDismissRequest = ::closePdfNote,
+            sheetMaxWidth = androidx.compose.ui.unit.Dp.Unspecified,
+            sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)) {
+            Column(Modifier.fillMaxWidth().fillMaxHeight(.98f).imePadding().padding(horizontal = 10.dp, vertical = 4.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    Text(stringResource(Res.string.pdf_note_title, editor.page + 1),
+                        Modifier.weight(1f), style = MaterialTheme.typography.titleMedium)
+                    TextButton(onClick = ::closePdfNote) { Text(stringResource(Res.string.pdf_done)) }
+                }
+                Surface(shape = MaterialTheme.shapes.medium, color = MaterialTheme.colorScheme.surfaceContainerLow,
+                    modifier = Modifier.fillMaxWidth()) {
+                    Text(editor.selectedText, Modifier.padding(horizontal = 12.dp, vertical = 9.dp),
+                        style = MaterialTheme.typography.bodyMedium, maxLines = 1,
+                        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+                }
+                Surface(shape = MaterialTheme.shapes.large, color = MaterialTheme.colorScheme.surfaceContainerLow,
+                    modifier = Modifier.fillMaxWidth().weight(1f)) {
+                    androidx.compose.foundation.text.BasicTextField(
+                        value = editor.body,
+                        onValueChange = ::changePdfNoteBody,
+                        modifier = Modifier.fillMaxSize().padding(14.dp),
+                        textStyle = MaterialTheme.typography.bodyLarge.copy(color = MaterialTheme.colorScheme.onSurface),
+                        cursorBrush = androidx.compose.ui.graphics.SolidColor(MaterialTheme.colorScheme.primary),
+                        decorationBox = { innerTextField ->
+                            Box(Modifier.fillMaxSize()) {
+                                if (editor.body.isEmpty()) Text(stringResource(Res.string.pdf_note_hint),
+                                    style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                innerTextField()
+                            }
+                        },
+                    )
                 }
             }
         }
@@ -813,13 +909,8 @@ private fun PdfInkToolbar(
                             }
                         }
                         if (vertical) {
-                            Box(Modifier.width(48.dp).height(156.dp), contentAlignment = Alignment.Center) {
-                                Slider(value = penWidth, onValueChange = onWidth, valueRange = .0025f..0.007f,
-                                    modifier = Modifier.width(148.dp).height(48.dp).graphicsLayer { rotationZ = -90f }
-                                        .semantics { contentDescription = "Pen thickness" })
-                            }
-                        } else Slider(value = penWidth, onValueChange = onWidth, valueRange = .0025f..0.007f,
-                            modifier = Modifier.width(148.dp).semantics { contentDescription = "Pen thickness" })
+                            PdfInkWidthControl(penWidth, vertical = true, onWidth = onWidth)
+                        } else PdfInkWidthControl(penWidth, vertical = false, onWidth = onWidth)
                         IconToggleButton(checked = !eraser && !highlighter, onCheckedChange = { onEraser(false); onHighlighter(false) },
                             modifier = Modifier.size(44.dp).semantics { contentDescription = "Pen" }) { Icon(Icons.Default.Edit, "Pen", Modifier.size(20.dp)) }
                         IconToggleButton(checked = highlighter, onCheckedChange = onHighlighter,
@@ -871,6 +962,55 @@ private fun PdfInkToolbar(
                     verticalArrangement = Arrangement.Center, horizontalArrangement = Arrangement.Center) { toolbarItems() }
             }
         }
+    }
+}
+
+@Composable
+private fun PdfInkWidthControl(value: Float, vertical: Boolean, onWidth: (Float) -> Unit) {
+    val fraction = ((value - PDF_INK_MIN_WIDTH) / (PDF_INK_MAX_WIDTH - PDF_INK_MIN_WIDTH)).coerceIn(0f, 1f)
+    val previewHeight = (2f + fraction * 8f).dp
+    val valueLabel = "${(value * 1000f).toInt() / 10f}%"
+    val description = stringResource(Res.string.pdf_pen_thickness)
+
+    Surface(shape = RoundedCornerShape(18.dp), color = MaterialTheme.colorScheme.surfaceContainerLow) {
+        if (vertical) {
+            Column(Modifier.width(82.dp).padding(8.dp), horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text(description, style = MaterialTheme.typography.labelSmall, maxLines = 1)
+                Text(valueLabel, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
+                Box(Modifier.width(48.dp).height(136.dp), contentAlignment = Alignment.Center) {
+                    Slider(value = value, onValueChange = onWidth, valueRange = PDF_INK_MIN_WIDTH..PDF_INK_MAX_WIDTH,
+                        modifier = Modifier.width(132.dp).height(44.dp).graphicsLayer { rotationZ = -90f }
+                            .semantics { contentDescription = description })
+                }
+                PdfInkWidthPreview(previewHeight, Modifier.width(36.dp))
+            }
+        } else {
+            Column(Modifier.width(196.dp).padding(horizontal = 10.dp, vertical = 8.dp),
+                verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(description, Modifier.weight(1f), style = MaterialTheme.typography.labelSmall, maxLines = 1)
+                    Text(valueLabel, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
+                }
+                Slider(value = value, onValueChange = onWidth, valueRange = PDF_INK_MIN_WIDTH..PDF_INK_MAX_WIDTH,
+                    modifier = Modifier.fillMaxWidth().height(34.dp).semantics { contentDescription = description })
+                PdfInkWidthPreview(previewHeight, Modifier.fillMaxWidth())
+            }
+        }
+    }
+}
+
+@Composable
+private fun PdfInkWidthPreview(thickness: androidx.compose.ui.unit.Dp, modifier: Modifier = Modifier) {
+    val color = MaterialTheme.colorScheme.primary
+    Canvas(modifier.height(18.dp)) {
+        drawLine(
+            color = color,
+            start = Offset(4.dp.toPx(), size.height / 2),
+            end = Offset(size.width - 4.dp.toPx(), size.height / 2),
+            strokeWidth = thickness.toPx(),
+            cap = StrokeCap.Round,
+        )
     }
 }
 

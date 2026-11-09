@@ -13,6 +13,7 @@ data class MeaningSense(val pos: String, val meanings: List<String>, val engine:
 data class WordMeaning(val primary: String, val senses: List<MeaningSense>, val engine: String)
 
 class TranslationRepository(private val http: HttpClient, private val cache: KeyValueCache, private val llm: LlmTranslator?) {
+    var cloudEnabled: Boolean = true
     private val overrides = TranslationOverrides(cache)
     private val translations = TranslationCache(cache)
     private val modelCache = LlmCache(cache)
@@ -42,12 +43,14 @@ class TranslationRepository(private val http: HttpClient, private val cache: Key
         if (TranslationService.baseLanguage(source) == TranslationService.baseLanguage(target)) return@result ExampleTranslation(text, ExampleSource.EDITED)
         if (llm != null) {
             modelCache.get(text, source, target, contextCacheId(llm.cacheId, sentenceContext))?.let { return@result ExampleTranslation(it, ExampleSource.MODEL, engine = llm.cacheId) }
+            if (cloudEnabled) {
             try {
                 val value = llm.translateLines(listOf(text), sentenceContext, null, target, source).single()
                 modelCache.put(text, source, target, contextCacheId(llm.cacheId, sentenceContext), value)
                 return@result ExampleTranslation(value, ExampleSource.MODEL, engine = llm.cacheId)
             } catch (cancelled: CancellationException) { throw cancelled
             } catch (_: Exception) { /* Continue through the free providers. */ }
+            }
         }
         for (engine in engines) translations.get(text, source, target, engine)?.let { return@result ExampleTranslation(it, ExampleSource.GOOGLE, engine = engine) }
         val service = TranslationService(http)
@@ -66,6 +69,7 @@ class TranslationRepository(private val http: HttpClient, private val cache: Key
             modelCache.getMeaning(word, sentence, source, target, llm.cacheId)?.let {
                 return@result WordMeaning(it, listOf(MeaningSense("", listOf(it))), llm.cacheId)
             }
+            if (cloudEnabled) {
             try {
                 val value = llm.meaning(word, sentence, target, source)
                 modelCache.putMeaning(word, sentence, source, target, llm.cacheId, value)
@@ -80,6 +84,7 @@ class TranslationRepository(private val http: HttpClient, private val cache: Key
                 return@result WordMeaning(value, listOf(MeaningSense("", listOf(value))) + extra, llm.cacheId)
             } catch (cancelled: CancellationException) { throw cancelled
             } catch (_: Exception) { /* Continue through the free providers. */ }
+            }
         }
         googleMeaning(word, sentence, source, target)
     }

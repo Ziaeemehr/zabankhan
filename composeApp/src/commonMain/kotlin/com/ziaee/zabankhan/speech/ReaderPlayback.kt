@@ -21,6 +21,8 @@ class ReaderPlayback(private val tts: Tts, private val parts: List<SpokenParagra
     private var mapSpoken = true
     private val paragraph = MutableStateFlow<Int?>(null)
     val currentParagraph: StateFlow<Int?> = paragraph.asStateFlow()
+    private val completion = MutableStateFlow(false)
+    val isComplete: StateFlow<Boolean> = completion.asStateFlow()
     val audioStatus get() = tts.audioStatus
     private val documentProgress = MutableStateFlow<Float?>(null)
     val synthesisProgress: StateFlow<Float?> = documentProgress.asStateFlow()
@@ -86,12 +88,15 @@ class ReaderPlayback(private val tts: Tts, private val parts: List<SpokenParagra
     private var rate = 1f
     private var voiceId: String? = null
     private var pausedOffset: Int? = null
+    private var latestSpokenOffset: Int? = null
     private val sentences = parts.flatMap { part -> splitSentences(part.text, lang).map { part.sourceRange(it) } }
     private val current = MutableStateFlow<IntRange?>(null)
     val sentence: StateFlow<IntRange?> = current.asStateFlow()
     val isSpeaking = tts.isSpeaking
     fun rangeChanged(range: IntRange?) {
         if (range == null || spoken.isEmpty() || index < 0) return
+        latestSpokenOffset = if (mapSpoken) parts.getOrNull(index)?.sourceOffset(spokenStart + range.first)
+            else base + range.first
         val local = sentenceAround(spoken, range.first, lang)
         current.value = if (mapSpoken) parts.getOrNull(index)?.sourceRange((spokenStart + local.first)..(spokenStart + local.last))
             else (base + local.first)..(base + local.last)
@@ -99,12 +104,12 @@ class ReaderPlayback(private val tts: Tts, private val parts: List<SpokenParagra
     private var repeats = 1
     fun start(paragraph: Int, rate: Float, voiceId: String?, repeats: Int = 1) {
         configureAudio(rate, voiceId)
-        stop(); this.voiceId = voiceId; this.rate = rate; this.repeats = repeats.coerceIn(1, 3); tts.setVoice(voiceId)
+        stop(); completion.value = false; this.voiceId = voiceId; this.rate = rate; this.repeats = repeats.coerceIn(1, 3); tts.setVoice(voiceId)
         speakParagraph(paragraph, generation)
     }
     private fun speakParagraph(next: Int, token: Int) {
         if (token != generation) return
-        val part = parts.getOrNull(next) ?: run { current.value = null; index = -1; paragraph.value = null; return }
+        val part = parts.getOrNull(next) ?: run { current.value = null; index = -1; paragraph.value = null; completion.value = true; return }
         if (part.text.isBlank()) { speakParagraph(next + 1, token); return }
         index = next; paragraph.value = next; mapSpoken = true; spokenStart = 0
         if (repeats > 1) { speakSentence(next, splitSentences(part.text, lang), 0, 1, token); return }
@@ -115,22 +120,23 @@ class ReaderPlayback(private val tts: Tts, private val parts: List<SpokenParagra
         parts.getOrNull(next + 1)?.let { tts.prefetch(it.text, lang.code, rate) }
     }
     /** Repeat mode speaks sentence by sentence, each [repeats] times, with the same engine and voice. */
-    private fun speakSentence(paragraph: Int, sentences: List<IntRange>, sentence: Int, round: Int, token: Int) {
+    private fun speakSentence(paragraph: Int, sentences: List<IntRange>, sentence: Int, round: Int, token: Int, startOffset: Int? = null) {
         if (token != generation) return
         val range = sentences.getOrNull(sentence) ?: return speakParagraph(paragraph + 1, token)
         val part = parts[paragraph]
-        base = part.sourceOffset(range.first); spokenStart = range.first; mapSpoken = true; this.paragraph.value = paragraph; spoken = part.text.substring(range)
+        val start = startOffset ?: range.first
+        base = part.sourceOffset(start); spokenStart = start; mapSpoken = true; this.paragraph.value = paragraph; spoken = part.text.substring(start, range.last + 1)
         rangeChanged(0..0)
         tts.speak(spoken, lang.code, rate) {
             completedParagraph(paragraph, token)
-            if (round < repeats) speakSentence(paragraph, sentences, sentence, round + 1, token)
+            if (round < repeats) speakSentence(paragraph, sentences, sentence, round + 1, token, startOffset)
             else speakSentence(paragraph, sentences, sentence + 1, 1, token)
         }
         if (round == 1) sentences.getOrNull(sentence + 1)?.let { tts.prefetch(part.text.substring(it), lang.code, rate) }
     }
     fun sentenceOnly(text: String, offset: Int, rate: Float, voiceId: String?) {
         configureAudio(rate, voiceId)
-        stop(); this.rate = rate; this.voiceId = voiceId; val token = generation; index = 0; paragraph.value = null; mapSpoken = false; base = offset; spoken = text
+        stop(); completion.value = false; this.rate = rate; this.voiceId = voiceId; val token = generation; index = 0; paragraph.value = null; mapSpoken = false; base = offset; spoken = text
         tts.setVoice(voiceId); rangeChanged(0..0)
         tts.speak(text, lang.code, rate) { if (token == generation) { current.value = null; index = -1; paragraph.value = null } }
     }
@@ -148,17 +154,22 @@ class ReaderPlayback(private val tts: Tts, private val parts: List<SpokenParagra
         val at = sentences.indexOfLast { it.first <= offset }.coerceAtLeast(0)
         startAt(sentences[(at + delta).coerceIn(sentences.indices)].first, rate, voiceId, repeats)
     }
-    fun startAt(offset: Int, rate: Float, voiceId: String?, repeats: Int = 1) {
+    fun startAt(offset: Int, rate: Float, voiceId: String?, repeats: Int = 1, resumeFromCurrent: Boolean = false) {
         configureAudio(rate, voiceId)
-        stop(); this.rate = rate; this.voiceId = voiceId; this.repeats = repeats.coerceIn(1, 3); tts.setVoice(voiceId)
+        stop(); completion.value = false; this.rate = rate; this.voiceId = voiceId; this.repeats = repeats.coerceIn(1, 3); tts.setVoice(voiceId)
         val paragraph = parts.indexOfLast { (it.sourceOffsets.firstOrNull() ?: it.offset) <= offset }.coerceAtLeast(0)
         val part = parts.getOrNull(paragraph) ?: return
         val ranges = splitSentences(part.text, lang)
         val sentence = ranges.indexOfLast { part.sourceOffset(it.first) <= offset }.coerceAtLeast(0)
         index = paragraph
-        if (repeats > 1) speakSentence(paragraph, ranges, sentence, 1, generation)
+        val sentenceRange = ranges.getOrNull(sentence) ?: return speakParagraph(paragraph + 1, generation)
+        val localOffset = if (resumeFromCurrent) {
+            (0 until part.text.length).lastOrNull { part.sourceOffset(it) <= offset }
+                ?.coerceAtLeast(sentenceRange.first)?.coerceAtMost(sentenceRange.last + 1) ?: sentenceRange.first
+        } else sentenceRange.first
+        if (repeats > 1) speakSentence(paragraph, ranges, sentence, 1, generation, localOffset)
         else {
-            val start = ranges.getOrNull(sentence)?.first ?: return speakParagraph(paragraph + 1, generation)
+            val start = localOffset
             spokenStart = start; mapSpoken = true; this.paragraph.value = paragraph
             base = part.sourceOffset(start); spoken = part.text.substring(start)
             rangeChanged(0..0)
@@ -169,14 +180,14 @@ class ReaderPlayback(private val tts: Tts, private val parts: List<SpokenParagra
     }
     /** TTS has no portable pause; resume restarts the interrupted sentence. */
     fun pause() {
-        pausedOffset = current.value?.first
+        pausedOffset = latestSpokenOffset ?: current.value?.first
         generation++; index = -1; spoken = ""; tts.stop()
     }
     fun resume(paragraph: Int, rate: Float, voiceId: String?, repeats: Int = 1) {
         val offset = pausedOffset
-        if (offset == null) start(paragraph, rate, voiceId, repeats) else startAt(offset, rate, voiceId, repeats)
+        if (offset == null) start(paragraph, rate, voiceId, repeats) else startAt(offset, rate, voiceId, repeats, resumeFromCurrent = true)
     }
     /** End reader ownership without deleting its persisted offline audio pins. */
     fun close() { stop(); documentOwner?.let { tts.releaseAudioDocument(it) } }
-    fun stop() { generation++; index = -1; paragraph.value = null; spoken = ""; pausedOffset = null; current.value = null; tts.stop() }
+    fun stop() { generation++; index = -1; paragraph.value = null; spoken = ""; pausedOffset = null; latestSpokenOffset = null; current.value = null; completion.value = false; tts.stop() }
 }

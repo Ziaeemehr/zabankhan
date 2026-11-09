@@ -215,6 +215,22 @@ data class PdfInk(
 )
 
 @Entity(
+    tableName = "pdf_text_notes",
+    indices = [Index(value = ["textId", "page", "startWord", "endWord"], unique = true)],
+    foreignKeys = [ForeignKey(entity = TextDocument::class, parentColumns = ["id"],
+        childColumns = ["textId"], onDelete = ForeignKey.CASCADE)],
+)
+data class PdfTextNote(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val textId: Long,
+    val page: Int,
+    val startWord: Int,
+    val endWord: Int,
+    val selectedText: String,
+    val body: String,
+)
+
+@Entity(
     tableName = "library_tags",
     indices = [Index(value = ["lang", "name"], unique = true)]
 )

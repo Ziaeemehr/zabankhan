@@ -1,16 +1,12 @@
 package com.ziaee.zabankhan.statistics
 
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.Alignment
-import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.*
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.semantics.contentDescription
@@ -70,56 +66,48 @@ import kotlinx.datetime.LocalDate
                 Text(stringResource(Res.string.study_log_combined_note), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
-        listOf(1 to Res.string.h2_today, 7 to Res.string.h2_seven_days, 30 to Res.string.h2_thirty_days).forEach { (days, label) ->
-            val minutes = activityMinutes(rows, today, days)
-            val manual = studyState.allSessions.filter { it.date in today.minus(days - 1, DateTimeUnit.DAY).toEpochDays().toLong()..today.toEpochDays().toLong() }.sumOf { it.durationMin }
-            EditorialCard {
-                Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    EditorialSectionHeader(stringResource(label))
-                    Text(stringResource(Res.string.study_log_combined_total, (minutes.total + manual).roundToInt()), style = MaterialTheme.typography.titleSmall)
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        PeriodMetric(minutes.reading.roundToInt(), stringResource(Res.string.ed_reading_minutes), Icons.Default.MenuBook, Modifier.weight(1f))
-                        PeriodMetric(minutes.listening.roundToInt(), stringResource(Res.string.ed_listening_minutes), Icons.Default.Headphones, Modifier.weight(1f))
-                        PeriodMetric(minutes.watching.roundToInt(), stringResource(Res.string.ed_watching_minutes), Icons.Default.PlayCircleOutline, Modifier.weight(1f))
-                    }
-                }
-            }
-        }
-        EditorialSectionHeader(stringResource(Res.string.h2_activity_chart))
         val dates = lastDays(today, 7)
-        val reading = stringResource(Res.string.h2_reading)
-        val listening = stringResource(Res.string.h2_listening)
-        val watching = stringResource(Res.string.h2_watching)
         val dayNames = listOf(Res.string.ed_mon, Res.string.ed_tue, Res.string.ed_wed, Res.string.ed_thu, Res.string.ed_fri, Res.string.ed_sat, Res.string.ed_sun).map { stringResource(it) }
         val labels = dates.map { dayNames[it.dayOfWeek.ordinal] }
-        listOf(reading to { r: ActivityLogEntry -> r.readingMs }, listening to { r: ActivityLogEntry -> r.listeningMs }, watching to { r: ActivityLogEntry -> r.watchingMs }).forEach { (label, value) ->
-            val values = dates.map { day -> rows.filter { it.date == day.toString() }.sumOf(value) / 60_000.0 }
-            EditorialCard {
-                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Text(label, style = MaterialTheme.typography.titleSmall)
-                    BarChart(values, labels, label)
+        EditorialCard {
+            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                    listOf(1 to Res.string.h2_today, 7 to Res.string.h2_seven_days, 30 to Res.string.h2_thirty_days).forEach { (period, label) ->
+                        val start = today.minus(period - 1, DateTimeUnit.DAY).toEpochDays().toLong()
+                        val end = today.toEpochDays().toLong()
+                        val automatic = activityMinutes(rows, today, period).total
+                        val manual = studyState.allSessions.filter { it.date in start..end }.sumOf { it.durationMin }
+                        Column(Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) {
+                            Text((automatic + manual).roundToInt().toString(), style = MaterialTheme.typography.titleMedium)
+                            Text(stringResource(label), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+                        }
+                    }
                 }
+                val studyMinutes = dates.map { day ->
+                    rows.filter { it.date == day.toString() }.sumOf { it.totalMs() } / 60_000.0 +
+                        studyState.allSessions.filter { it.date == day.toEpochDays().toLong() }.sumOf { it.durationMin }
+                }
+                Text(stringResource(Res.string.study_log_weekly_study_time), style = MaterialTheme.typography.titleSmall)
+                BarChart(studyMinutes, labels, stringResource(Res.string.study_log_weekly_study_time))
             }
         }
-        EditorialSectionHeader(stringResource(Res.string.h2_reviews))
         val daily = dailyReviews(reviews, today, 7)
         EditorialCard {
             Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text(stringResource(Res.string.study_log_weekly_reviews, daily.sumOf { it.count }), style = MaterialTheme.typography.titleSmall)
                 BarChart(daily.map { it.count.toDouble() }, labels, stringResource(Res.string.h2_reviews))
-                daily.forEach { Text(stringResource(Res.string.h2_review_day, it.date.toString(), it.count, it.accuracy), style = MaterialTheme.typography.bodySmall) }
             }
         }
         EditorialCard {
             Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Text(stringResource(Res.string.h2_shadow_score, shadowAverage(attempts), attempts.size))
                 Text(stringResource(Res.string.h2_library_counts, texts.size, words.size))
-                (1..5).forEach { box -> Text(stringResource(Res.string.h2_box_count, box, words.count { it.leitnerBox == box })) }
+                val boxSummary = (1..5).map { box -> stringResource(Res.string.h2_box_count, box, words.count { it.leitnerBox == box }) }.joinToString(" · ")
+                Text(boxSummary, style = MaterialTheme.typography.bodySmall)
             }
         }
     }
 }
-
-@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun StudyYearHeatmap(days: List<StudyDayActivity>, year: Int, today: LocalDate, firstDay: DayOfWeek, sessions: List<StudySession>, sources: List<StudySource>) {
     var monthView by remember(year) { mutableStateOf(false) }
@@ -137,7 +125,7 @@ private fun StudyYearHeatmap(days: List<StudyDayActivity>, year: Int, today: Loc
             TextButton(onClick = { monthView = true }) { Text(stringResource(Res.string.study_log_month_view)) }
             if (monthView) {
                 TextButton(enabled = selectedMonth > 1, onClick = { if (selectedMonth > 1) selectedMonth-- }) { Text("‹") }
-                Text(LocalDate(year, selectedMonth, 1).month.name, Modifier.align(Alignment.CenterVertically))
+                Text(stringResource(studyMonthLabelResource(selectedMonth)), Modifier.align(Alignment.CenterVertically))
                 TextButton(enabled = selectedMonth < lastAvailableMonth, onClick = { if (selectedMonth < lastAvailableMonth) selectedMonth++ }) { Text("›") }
             }
         }
@@ -155,7 +143,9 @@ private fun StudyYearHeatmap(days: List<StudyDayActivity>, year: Int, today: Loc
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
                         week.forEach { day ->
                             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                                day?.let { Text(it.date.month.name.take(1), style = MaterialTheme.typography.labelSmall) } ?: Spacer(Modifier.height(14.dp))
+                                val monthLabel = day?.takeIf { it.date.day == 1 }?.let { studyMonthShortLabelResource(it.date.monthNumber) }
+                                if (monthLabel != null) Text(stringResource(monthLabel), style = MaterialTheme.typography.labelSmall)
+                                else Spacer(Modifier.height(14.dp))
                                 HeatmapCell(day, active, empty, muted) { selected = it }
                             }
                         }
@@ -177,14 +167,23 @@ private fun StudyYearHeatmap(days: List<StudyDayActivity>, year: Int, today: Loc
 
 @Composable
 private fun HeatmapCell(day: StudyDayActivity?, active: androidx.compose.ui.graphics.Color, empty: androidx.compose.ui.graphics.Color, muted: androidx.compose.ui.graphics.Color, modifier: Modifier = Modifier, onSelect: (StudyDayActivity) -> Unit) {
-    val intensity = day?.let { (it.totalMinutes / 90.0).coerceIn(0.0, 1.0).toFloat() } ?: 0f
+    val intensity = day?.let { studyActivityIntensity(it.totalMinutes) } ?: 0f
     val description = day?.let { "${it.date}: ${it.totalMinutes.roundToInt()} ${stringResource(Res.string.study_log_minutes)}" }
     Surface(
         onClick = { day?.let(onSelect) },
-        modifier = modifier.size(11.dp),
+        modifier = modifier.fillMaxWidth().heightIn(min = 40.dp),
         shape = MaterialTheme.shapes.extraSmall,
-        color = when { day == null -> muted; intensity <= 0f -> empty; else -> androidx.compose.ui.graphics.lerp(empty, active, .2f + intensity * .8f) },
-    ) { androidx.compose.foundation.layout.Box(Modifier.semantics { description?.let { contentDescription = it } }) }
+        color = androidx.compose.ui.graphics.Color.Transparent,
+    ) {
+        androidx.compose.foundation.layout.Box(Modifier.fillMaxSize().semantics { description?.let { contentDescription = it } }, contentAlignment = Alignment.Center) {
+            androidx.compose.foundation.layout.Box(
+                Modifier.size(11.dp).background(
+                    when { day == null -> muted; intensity <= 0f -> empty; else -> androidx.compose.ui.graphics.lerp(empty, active, .2f + intensity * .8f) },
+                    MaterialTheme.shapes.extraSmall,
+                ),
+            )
+        }
+    }
 }
 
 @Composable fun DailyGoalCard(vm: AppViewModel, settings: AppSettings, manualSessions: List<StudySession> = emptyList()) {
@@ -203,17 +202,29 @@ private fun HeatmapCell(day: StudyDayActivity?, active: androidx.compose.ui.grap
     val rtl = androidx.compose.ui.platform.LocalLayoutDirection.current == androidx.compose.ui.unit.LayoutDirection.Rtl
     val description = stringResource(Res.string.ed_chart_description, title,
         labels.zip(values).joinToString { (label, value) -> "$label: ${value.roundToInt()}" })
+    val max = values.maxOrNull()?.coerceAtLeast(1.0) ?: 1.0
+    val middle = max / 2.0
     Column(Modifier.fillMaxWidth().semantics(mergeDescendants = true) { contentDescription = description }) {
-        Canvas(Modifier.fillMaxWidth().height(96.dp)) {
-            val max = values.maxOrNull()?.coerceAtLeast(1.0) ?: 1.0
-            val cell = size.width / values.size.coerceAtLeast(1)
-            values.forEachIndexed { i, value ->
-                val height = (size.height * value / max).toFloat()
-                val column = if (rtl) values.lastIndex - i else i
-                val left = column * cell + cell * .23f
-                val width = cell * .54f
-                drawRoundRect(track, Offset(left, 0f), Size(width, size.height), androidx.compose.ui.geometry.CornerRadius(4.dp.toPx()))
-                if (height > 0f) drawRoundRect(color, Offset(left, size.height - height), Size(width, height), androidx.compose.ui.geometry.CornerRadius(4.dp.toPx()))
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.Top) {
+            Column(Modifier.width(38.dp).height(96.dp), verticalArrangement = Arrangement.SpaceBetween, horizontalAlignment = Alignment.End) {
+                Text(formatChartAxisValue(max), style = MaterialTheme.typography.labelSmall)
+                Text(formatChartAxisValue(middle), style = MaterialTheme.typography.labelSmall)
+                Text("0", style = MaterialTheme.typography.labelSmall)
+            }
+            Canvas(Modifier.weight(1f).height(96.dp)) {
+                val cell = size.width / values.size.coerceAtLeast(1)
+                val gridColor = track.copy(alpha = .8f)
+                drawLine(gridColor, Offset(0f, 0f), Offset(size.width, 0f), 1.dp.toPx())
+                drawLine(gridColor, Offset(0f, size.height / 2), Offset(size.width, size.height / 2), 1.dp.toPx())
+                drawLine(gridColor, Offset(0f, size.height), Offset(size.width, size.height), 1.dp.toPx())
+                values.forEachIndexed { i, value ->
+                    val height = (size.height * value / max).toFloat()
+                    val column = if (rtl) values.lastIndex - i else i
+                    val left = column * cell + cell * .23f
+                    val width = cell * .54f
+                    drawRoundRect(track, Offset(left, 0f), Size(width, size.height), androidx.compose.ui.geometry.CornerRadius(4.dp.toPx()))
+                    if (height > 0f) drawRoundRect(color, Offset(left, size.height - height), Size(width, height), androidx.compose.ui.geometry.CornerRadius(4.dp.toPx()))
+                }
             }
         }
         Row(Modifier.fillMaxWidth().padding(top = 8.dp)) {
@@ -222,11 +233,37 @@ private fun HeatmapCell(day: StudyDayActivity?, active: androidx.compose.ui.grap
     }
 }
 
-@Composable private fun PeriodMetric(minutes: Int, label: String, icon: ImageVector, modifier: Modifier) {
-    Column(modifier, horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Icon(icon, label, Modifier.size(24.dp), tint = MaterialTheme.colorScheme.secondary)
-        Text(minutes.toString(), style = MaterialTheme.typography.titleLarge, maxLines = 1, softWrap = false)
-        Text(label, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
-            textAlign = TextAlign.Center, maxLines = 1, softWrap = false, overflow = TextOverflow.Ellipsis)
-    }
+private fun formatChartAxisValue(value: Double): String {
+    val rounded = (value * 10).roundToInt() / 10.0
+    return if (rounded % 1.0 == 0.0) rounded.roundToInt().toString() else rounded.toString()
+}
+
+private fun studyMonthLabelResource(month: Int) = when (month) {
+    1 -> Res.string.study_month_january
+    2 -> Res.string.study_month_february
+    3 -> Res.string.study_month_march
+    4 -> Res.string.study_month_april
+    5 -> Res.string.study_month_may
+    6 -> Res.string.study_month_june
+    7 -> Res.string.study_month_july
+    8 -> Res.string.study_month_august
+    9 -> Res.string.study_month_september
+    10 -> Res.string.study_month_october
+    11 -> Res.string.study_month_november
+    else -> Res.string.study_month_december
+}
+
+private fun studyMonthShortLabelResource(month: Int) = when (month) {
+    1 -> Res.string.study_month_short_january
+    2 -> Res.string.study_month_short_february
+    3 -> Res.string.study_month_short_march
+    4 -> Res.string.study_month_short_april
+    5 -> Res.string.study_month_short_may
+    6 -> Res.string.study_month_short_june
+    7 -> Res.string.study_month_short_july
+    8 -> Res.string.study_month_short_august
+    9 -> Res.string.study_month_short_september
+    10 -> Res.string.study_month_short_october
+    11 -> Res.string.study_month_short_november
+    else -> Res.string.study_month_short_december
 }

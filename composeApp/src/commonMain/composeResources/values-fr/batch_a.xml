@@ -14,6 +14,7 @@
   <string name="batch_a_backup_overview_description">Activez la protection automatique, enregistrez un fichier ou utilisez Google Drive si disponible.</string>
   <string name="batch_a_backup_now">Sauvegarder maintenant</string>
   <string name="batch_a_backup_pdf_files">Sauvegarder les fichiers PDF</string>
+  <string name="batch_a_backup_pdf_hint">Les PDF sont exclus par défaut pour limiter la taille des sauvegardes.</string>
   <string name="batch_a_backup_protected_label">Conservée avant une suppression importante ou une restauration</string>
   <string name="batch_a_backup_restore">Restaurer</string>
   <string name="batch_a_backup_restore_confirm_message">Cela remplace toutes les données actuelles de cet appareil par la sauvegarde Google Drive sélectionnée. Une sauvegarde locale de sécurité est créée au préalable si des données utilisateur existent.</string>

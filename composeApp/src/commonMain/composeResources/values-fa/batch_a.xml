@@ -14,6 +14,7 @@
   <string name="batch_a_backup_overview_description">پشتیبان‌گیری خودکار را فعال کنید، یک نسخهٔ فایل ذخیره کنید یا در صورت دسترسی از Google Drive استفاده کنید.</string>
   <string name="batch_a_backup_now">پشتیبان‌گیری الان</string>
   <string name="batch_a_backup_pdf_files">پشتیبان از فایل‌های پی‌دی‌اف</string>
+  <string name="batch_a_backup_pdf_hint">برای کوچک ماندن نسخهٔ پشتیبان، فایل‌های PDF به‌طور پیش‌فرض اضافه نمی‌شوند.</string>
   <string name="batch_a_backup_protected_label">نگه‌داشته‌شده پیش از حذف گسترده یا بازیابی</string>
   <string name="batch_a_backup_restore">بازیابی</string>
   <string name="batch_a_backup_restore_confirm_message">داده‌های فعلی دستگاه با پشتیبان انتخاب‌شده از Google Drive جایگزین می‌شوند. اگر دادهٔ کاربر وجود داشته باشد، ابتدا یک پشتیبان محلی ایمنی ذخیره می‌شود.</string>

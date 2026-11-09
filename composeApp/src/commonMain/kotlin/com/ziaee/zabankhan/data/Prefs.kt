@@ -49,6 +49,7 @@ data class AppSettings(
     val readerAutoFollow: Boolean = true,
     val lastHighlightColor: String = "yellow",
     val watchTranslationEnabled: Boolean = false,
+    val cloudTranslationEnabled: Boolean = true,
     val watchSubtitleSizePercent: Int = 100,
     val watchCompactPlayer: Boolean = false,
     val speechRate: Float = 1f,
@@ -110,6 +111,7 @@ class SettingsRepository(private val store: DataStore<Preferences>, private val 
         val autoFollow = androidx.datastore.preferences.core.booleanPreferencesKey("reader_auto_follow")
         val lastHighlight = stringPreferencesKey("last_highlight_color")
         val watchTranslation = androidx.datastore.preferences.core.booleanPreferencesKey("watch_translation_enabled")
+        val cloudTranslation = androidx.datastore.preferences.core.booleanPreferencesKey("cloud_translation_enabled")
         val watchSize = intPreferencesKey("watch_subtitle_size_percent")
         val watchCompact = androidx.datastore.preferences.core.booleanPreferencesKey("watch_compact_player")
         val speechRate = androidx.datastore.preferences.core.floatPreferencesKey("speech_rate")
@@ -160,6 +162,7 @@ class SettingsRepository(private val store: DataStore<Preferences>, private val 
             readerAutoFollow = p[K.autoFollow] ?: true,
             lastHighlightColor = p[K.lastHighlight] ?: "yellow",
             watchTranslationEnabled = p[K.watchTranslation] ?: false,
+            cloudTranslationEnabled = p[K.cloudTranslation] ?: true,
             watchSubtitleSizePercent = (p[K.watchSize] ?: 100).takeIf { it in listOf(85, 100, 115, 130, 150, 175) } ?: 100,
             watchCompactPlayer = p[K.watchCompact] ?: false,
             speechRate = p[K.speechRate] ?: 1f,
@@ -277,6 +280,7 @@ class SettingsRepository(private val store: DataStore<Preferences>, private val 
         it[K.lastHighlight] = value
     }
     suspend fun setWatchTranslationEnabled(enabled: Boolean) = store.edit { it[K.watchTranslation] = enabled }
+    suspend fun setCloudTranslationEnabled(enabled: Boolean) = store.edit { it[K.cloudTranslation] = enabled }
     suspend fun setWatchCompactPlayer(compact: Boolean) = store.edit { it[K.watchCompact] = compact }
     suspend fun setWatchSubtitleSizePercent(percent: Int) = store.edit {
         require(percent in listOf(85, 100, 115, 130, 150, 175))
