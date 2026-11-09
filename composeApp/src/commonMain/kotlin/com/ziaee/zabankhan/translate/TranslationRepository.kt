@@ -22,6 +22,16 @@ class TranslationRepository(private val http: HttpClient, private val cache: Key
     suspend fun translateText(text: String, source: String, target: String, sentenceContext: String? = null): Result<String> =
         translateTextWithSource(text, source, target, sentenceContext).map { it.text }
 
+    suspend fun googleDictionaryFallback(text: String, source: String, target: String): Result<ExampleTranslation> = result {
+        for (engine in listOf("google-gtx", "google-clients5")) {
+            translations.get(text, source, target, engine)?.let { return@result ExampleTranslation(it, ExampleSource.GOOGLE, engine = engine) }
+        }
+        val service = TranslationService(http)
+        val value = service.translateWithGoogle(text, target, source)
+        translations.put(text, source, target, service.lastEngine, value)
+        ExampleTranslation(value, ExampleSource.GOOGLE, engine = service.lastEngine)
+    }
+
     suspend fun translateTextWithSource(text: String, source: String, target: String, sentenceContext: String? = null): Result<ExampleTranslation> = result {
         overrides.getOverride(text, source, target)?.let { return@result ExampleTranslation(it, ExampleSource.EDITED) }
         Languages.byCode(TranslationService.baseLanguage(source))?.let { spec ->

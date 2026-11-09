@@ -125,8 +125,6 @@ class ReviewViewModel(private val container: AppContainer, private val settings:
     var isLearnedReview by mutableStateOf(false); private set
     var learnedReviewed by mutableIntStateOf(0); private set
     var busy by mutableStateOf(false); private set
-    /** (boxBefore, boxAfter) of the last answer, shown once as a snackbar. */
-    var move by mutableStateOf<Pair<Int, Int>?>(null); private set
     var dayTotals by mutableStateOf(ReviewDayTotals(0, 0, 0)); private set
     var studyTimeMs by mutableLongStateOf(0L); private set
     var nextScheduledAtMs by mutableStateOf<Long?>(null); private set
@@ -235,7 +233,6 @@ class ReviewViewModel(private val container: AppContainer, private val settings:
             knew = answer != VocabAnswer.FORGOT, boxBefore = boxBefore, boxAfter = boxAfter))
         session = state.answered(SessionAnswer(before, answer, after, log, requeued = !isLearnedReview && answer == VocabAnswer.FORGOT))
         if (isLearnedReview) learnedReviewed++
-        move = boxBefore to boxAfter
         show()
         if (current == null) finish()
     }
@@ -245,7 +242,7 @@ class ReviewViewModel(private val container: AppContainer, private val settings:
         val last = state.answers.lastOrNull() ?: return@run
         container.vocab.undoReview(last.before, last.logId)
         if (isLearnedReview) learnedReviewed = (learnedReviewed - 1).coerceAtLeast(0)
-        session = state.undo(); move = null
+        session = state.undo()
         show()
     }
 
@@ -262,8 +259,6 @@ class ReviewViewModel(private val container: AppContainer, private val settings:
             show()
         } else slot?.entry = now
     }
-
-    fun consumeMove() { move = null }
 
     private fun finish() {
         val now = nowMs()
@@ -305,7 +300,7 @@ internal fun meaningTarget(cardLang: String, settings: AppSettings): String =
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ReviewScreen(container: AppContainer, settings: AppSettings, onBack: () -> Unit = {}, onOpenSettings: () -> Unit = {}, listScope: Long = -1L, onOpenDatasets: () -> Unit = {}) {
+fun ReviewScreen(container: AppContainer, settings: AppSettings, onBack: () -> Unit = {}, onOpenSettings: () -> Unit = {}, listScope: Long = -1L, onOpenDatasets: () -> Unit = {}, onReviewingCardsChanged: (Boolean) -> Unit = {}) {
     val vm = viewModel(key = "review:${container.hashCode()}:${settings.learningLang}:${settings.dailyNewCards}:${settings.reviewIntervalDays}:$listScope") { ReviewViewModel(container, settings, listScope) }
     val snackbar = remember { SnackbarHostState() }
     val tts = remember { createTts() }
@@ -349,19 +344,7 @@ fun ReviewScreen(container: AppContainer, settings: AppSettings, onBack: () -> U
         if (currentRevealed) vm.loadMeaningOptions()
     }
     LaunchedEffect(vm.stage) { if (vm.stage == ReviewStage.OVERVIEW) vm.load() }
-    // Box-move feedback: a small transient pill at the top, so it never covers the answer buttons.
-    var moveHint by remember { mutableStateOf<String?>(null) }
-    LaunchedEffect(vm.move) {
-        val (before, after) = vm.move ?: return@LaunchedEffect
-        vm.consumeMove()
-        moveHint = when {
-            after > before -> getString(Res.string.review_moved_forward, after)
-            after < before -> getString(Res.string.review_returned_box_one)
-            else -> getString(Res.string.review_stayed_box, after)
-        }
-        kotlinx.coroutines.delay(1200)
-        moveHint = null
-    }
+    LaunchedEffect(vm.stage) { onReviewingCardsChanged(vm.stage == ReviewStage.REVIEW) }
     LaunchedEffect(vm.slot, currentRevealed) {
         tts.stop()
         val card = vm.current ?: return@LaunchedEffect
@@ -419,18 +402,13 @@ fun ReviewScreen(container: AppContainer, settings: AppSettings, onBack: () -> U
                         slot?.let { sl ->
                             ReviewCard(vm, sl.entry, sl === revealedSlot, sl === vm.slot && !vm.busy,
                                 onReveal = { revealedSlot = sl },
-                                onPlay = { text -> vm.cancelCardRecording(); tts.stop(); tts.pronounce(text, sl.entry.lang, settings) },
+                                onPlay = { text ->
+                                    vm.cancelCardRecording()
+                                    tts.togglePronounce(text, sl.entry.lang, settings)
+                                },
                                 onEdit = { editing = sl.entry })
                         }
                     }
-                }
-            }
-            androidx.compose.animation.AnimatedVisibility(moveHint != null, Modifier.align(Alignment.TopCenter).padding(top = 4.dp),
-                enter = androidx.compose.animation.fadeIn(), exit = androidx.compose.animation.fadeOut()) {
-                Surface(shape = CircleShape, color = MaterialTheme.colorScheme.inverseSurface.copy(alpha = .85f)) {
-                    Text(moveHint.orEmpty(), Modifier.padding(horizontal = 12.dp, vertical = 4.dp),
-                        style = MaterialTheme.typography.labelMedium.merge(contentStyle(moveHint.orEmpty())),
-                        color = MaterialTheme.colorScheme.inverseOnSurface)
                 }
             }
         }

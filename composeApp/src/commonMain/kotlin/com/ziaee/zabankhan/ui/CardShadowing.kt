@@ -70,7 +70,7 @@ internal fun CardShadowingRow(
             }
         ) {
             Box(contentAlignment = Alignment.Center) {
-                Icon(Icons.Default.Mic, stringResource(Res.string.shadowing_hold_to_speak), tint = Color.White)
+                Icon(Icons.Default.Mic, stringResource(Res.string.shadowing_hold_to_speak), tint = Color.White, modifier = Modifier.size(24.dp))
             }
         }
         Column(Modifier.weight(1f)) {

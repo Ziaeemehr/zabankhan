@@ -39,6 +39,7 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.PointerType
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.foundation.gestures.detectDragGestures
@@ -162,6 +163,9 @@ private data class PdfRange(val page: Int, val first: Int, val last: Int, val wo
     var fingerInk by rememberSaveable(path) { mutableStateOf(false) }
     var inkToolbarExpanded by rememberSaveable(path) { mutableStateOf(false) }
     var inkToolbarMinimized by rememberSaveable(path) { mutableStateOf(false) }
+    var inkToolbarVertical by rememberSaveable(path) { mutableStateOf(false) }
+    var inkToolbarBounds by remember { mutableStateOf<Rect?>(null) }
+    var toolbarViewportCoordinates by remember { mutableStateOf<LayoutCoordinates?>(null) }
     var toolbarFractionX by rememberSaveable(path) { mutableFloatStateOf(.5f) }
     var toolbarFractionY by rememberSaveable(path) { mutableFloatStateOf(.9f) }
     var recentInkColors by rememberSaveable(path) { mutableStateOf(listOf("primary", "secondary", "tertiary", "#FF222222", "#FFB42318", "#FF1570EF")) }
@@ -279,10 +283,14 @@ private data class PdfRange(val page: Int, val first: Int, val last: Int, val wo
         // Pinch coordinates belong to the untransformed viewport, as in French Reader.
         Box(Modifier.weight(1f).fillMaxWidth().onSizeChanged {
             viewportWidth = it.width; viewportHeight = it.height
-        }.pointerInput(areaMode, penMode) {
+        }.onGloballyPositioned { toolbarViewportCoordinates = it }.pointerInput(areaMode, penMode, inkToolbarExpanded, inkToolbarBounds) {
             if (areaMode) return@pointerInput
             awaitEachGesture {
-                awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Initial)
+                val down = awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Initial)
+                if (penMode && inkToolbarExpanded) {
+                    val rootPosition = toolbarViewportCoordinates?.localToRoot(down.position)
+                    if (rootPosition != null && inkToolbarBounds?.contains(rootPosition) != true) inkToolbarExpanded = false
+                }
                 var pinching = false
                 try {
                     do {
@@ -389,9 +397,10 @@ private data class PdfRange(val page: Int, val first: Int, val last: Int, val wo
                     else { eraser = true; highlighter = false }
                 })
                 PdfInkToolbar(
-                    modifier = dragModifier.onSizeChanged { toolbarSize = it },
+                    modifier = dragModifier.onSizeChanged { toolbarSize = it }.onGloballyPositioned { inkToolbarBounds = it.boundsInRoot() },
                     onMove = { delta -> moveToolbar(delta) }, onDragEnd = { settleToolbar() },
                     minimized = inkToolbarMinimized, expanded = inkToolbarExpanded,
+                    vertical = inkToolbarVertical, onToggleOrientation = { inkToolbarVertical = !inkToolbarVertical },
                     penColor = penColor, recentColors = recentInkColors, penWidth = penWidth,
                     eraser = eraser, highlighter = highlighter, fingerInk = fingerInk,
                     onMinimize = { inkToolbarMinimized = true }, onRestore = { inkToolbarMinimized = false },
@@ -743,10 +752,11 @@ private fun inkColor(key: String, primary: androidx.compose.ui.graphics.Color,
     )
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun PdfInkToolbar(
     modifier: Modifier, minimized: Boolean, expanded: Boolean, penColor: String, recentColors: List<String>,
-    penWidth: Float, eraser: Boolean, highlighter: Boolean, fingerInk: Boolean,
+    penWidth: Float, eraser: Boolean, highlighter: Boolean, fingerInk: Boolean, vertical: Boolean, onToggleOrientation: () -> Unit,
     onMinimize: () -> Unit, onRestore: () -> Unit, onExpand: () -> Unit,
     onMove: (Offset) -> Unit, onDragEnd: () -> Unit,
     onColor: (String) -> Unit, onWidth: (Float) -> Unit, onEraser: (Boolean) -> Unit,
@@ -754,7 +764,6 @@ private fun PdfInkToolbar(
     onToggleEraser: () -> Unit,
     onUndo: () -> Unit, onClear: () -> Unit, canUndo: Boolean, canClear: Boolean,
 ) {
-    val widths = listOf(.0025f, .004f, .007f)
     val palette = remember { mutableStateOf(false) }
     val currentToolIcon = when { eraser -> Icons.Default.Delete; highlighter -> Icons.Default.Highlight; else -> Icons.Default.Edit }
     if (minimized) {
@@ -772,13 +781,12 @@ private fun PdfInkToolbar(
         return
     }
     BoxWithConstraints(modifier) {
-        Column(Modifier.widthIn(max = this@BoxWithConstraints.maxWidth), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Column(Modifier.widthIn(max = this@BoxWithConstraints.maxWidth).heightIn(max = this@BoxWithConstraints.maxHeight), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(4.dp)) {
             AnimatedVisibility(visible = expanded, enter = expandVertically(tween(150)) + fadeIn(tween(150)),
                 exit = shrinkVertically(tween(150)) + fadeOut(tween(150))) {
                 Surface(shape = MaterialTheme.shapes.extraLarge, color = MaterialTheme.colorScheme.surfaceContainerHigh,
                     shadowElevation = 5.dp) {
-                    FlowRow(Modifier.widthIn(max = this@BoxWithConstraints.maxWidth).padding(horizontal = 8.dp, vertical = 5.dp),
-                        horizontalArrangement = Arrangement.Center, verticalArrangement = Arrangement.Center) {
+                    val expandedItems: @Composable () -> Unit = {
                         recentColors.take(6).forEach { key ->
                             val swatchScale by animateFloatAsState(if (key == penColor) 1.08f else 1f,
                                 animationSpec = tween(150), label = "ink-swatch-selection")
@@ -804,12 +812,14 @@ private fun PdfInkToolbar(
                                 }
                             }
                         }
-                        widths.forEachIndexed { index, value ->
-                            IconToggleButton(checked = penWidth == value, onCheckedChange = { onWidth(value) },
-                                modifier = Modifier.size(44.dp).semantics { contentDescription = listOf("Thin width", "Medium width", "Thick width")[index] }) {
-                                Box(Modifier.size(listOf(5.dp, 8.dp, 11.dp)[index]).background(MaterialTheme.colorScheme.onSurface, CircleShape))
+                        if (vertical) {
+                            Box(Modifier.width(48.dp).height(156.dp), contentAlignment = Alignment.Center) {
+                                Slider(value = penWidth, onValueChange = onWidth, valueRange = .0025f..0.007f,
+                                    modifier = Modifier.width(148.dp).height(48.dp).graphicsLayer { rotationZ = -90f }
+                                        .semantics { contentDescription = "Pen thickness" })
                             }
-                        }
+                        } else Slider(value = penWidth, onValueChange = onWidth, valueRange = .0025f..0.007f,
+                            modifier = Modifier.width(148.dp).semantics { contentDescription = "Pen thickness" })
                         IconToggleButton(checked = !eraser && !highlighter, onCheckedChange = { onEraser(false); onHighlighter(false) },
                             modifier = Modifier.size(44.dp).semantics { contentDescription = "Pen" }) { Icon(Icons.Default.Edit, "Pen", Modifier.size(20.dp)) }
                         IconToggleButton(checked = highlighter, onCheckedChange = onHighlighter,
@@ -821,11 +831,14 @@ private fun PdfInkToolbar(
                         IconButton(enabled = canUndo, onClick = onUndo, modifier = Modifier.size(44.dp).semantics { contentDescription = "Undo ink" }) { Icon(Icons.Default.Undo, "Undo", Modifier.size(20.dp)) }
                         IconButton(enabled = canClear, onClick = onClear, modifier = Modifier.size(44.dp).semantics { contentDescription = "Clear page ink" }) { Icon(Icons.Default.Clear, "Clear", Modifier.size(20.dp)) }
                     }
+                    if (vertical) FlowColumn(Modifier.widthIn(max = this@BoxWithConstraints.maxWidth).heightIn(max = this@BoxWithConstraints.maxHeight * .72f).verticalScroll(rememberScrollState()).padding(horizontal = 8.dp, vertical = 5.dp),
+                        maxItemsInEachColumn = 8, horizontalArrangement = Arrangement.Center, verticalArrangement = Arrangement.Center) { expandedItems() }
+                    else FlowRow(Modifier.widthIn(max = this@BoxWithConstraints.maxWidth).heightIn(max = this@BoxWithConstraints.maxHeight * .72f).verticalScroll(rememberScrollState()).padding(horizontal = 8.dp, vertical = 5.dp),
+                        horizontalArrangement = Arrangement.Center, verticalArrangement = Arrangement.Center) { expandedItems() }
                 }
             }
             Surface(shape = CircleShape, color = MaterialTheme.colorScheme.surfaceContainerHigh, shadowElevation = 6.dp) {
-                FlowRow(Modifier.heightIn(min = 48.dp).padding(horizontal = 4.dp),
-                    verticalArrangement = Arrangement.Center, horizontalArrangement = Arrangement.Center) {
+                val toolbarItems: @Composable () -> Unit = {
                     Box(Modifier.size(28.dp).pointerInput(Unit) {
                         detectDragGestures(onDragEnd = onDragEnd) { change, delta -> change.consume(); onMove(delta) }
                     }.semantics { contentDescription = "Move toolbar" }, contentAlignment = Alignment.Center) {
@@ -844,10 +857,18 @@ private fun PdfInkToolbar(
                         Icon(if (expanded) Icons.Default.ExpandMore else Icons.Default.ExpandLess,
                             if (expanded) "Hide pen tools" else "More pen tools", Modifier.size(20.dp))
                     }
+                    IconButton(onClick = onToggleOrientation, modifier = Modifier.size(44.dp).semantics { contentDescription = if (vertical) "Horizontal toolbar" else "Vertical toolbar" }) {
+                        Icon(if (vertical) Icons.Default.SwapHoriz else Icons.Default.SwapVert,
+                            if (vertical) "Horizontal toolbar" else "Vertical toolbar", Modifier.size(20.dp))
+                    }
                     IconButton(onClick = onMinimize, modifier = Modifier.size(44.dp).semantics { contentDescription = "Minimize pen toolbar" }) {
                         Icon(Icons.Default.Close, "Minimize toolbar", Modifier.size(18.dp))
                     }
                 }
+                if (vertical) FlowColumn(Modifier.heightIn(max = this@BoxWithConstraints.maxHeight).verticalScroll(rememberScrollState()).padding(vertical = 4.dp),
+                    maxItemsInEachColumn = 10, horizontalArrangement = Arrangement.Center, verticalArrangement = Arrangement.Center) { toolbarItems() }
+                else FlowRow(Modifier.widthIn(max = this@BoxWithConstraints.maxWidth).padding(horizontal = 4.dp),
+                    verticalArrangement = Arrangement.Center, horizontalArrangement = Arrangement.Center) { toolbarItems() }
             }
         }
     }

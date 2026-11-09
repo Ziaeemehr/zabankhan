@@ -24,10 +24,15 @@ private class KeychainSecretStore : SecretStore {
     override fun get(name: String): String? = memScoped {
         val result = alloc<CFTypeRefVar>()
         result.value = null
-        val status = dictionary(query(name) + mapOf(
-            attribute(kSecReturnData) to NSNumber.numberWithBool(true), // kotlin.Boolean bridges to KotlinBoolean, which Security rejects with -50
-            attribute(kSecMatchLimit) to attribute(kSecMatchLimitOne),
-        )) { SecItemCopyMatching(it, result.ptr) }
+        val status = dictionary(query(name)) { base ->
+            val search = requireNotNull(CFDictionaryCreateMutableCopy(null, 0, base))
+            try {
+                // Security requires a CFBoolean here. Bridging it through a Kotlin Map
+                // turns it into a CFNumber and makes SecItemCopyMatching return -50.
+                CFDictionarySetValue(search, kSecReturnData, kCFBooleanTrue)
+                SecItemCopyMatching(search, result.ptr)
+            } finally { CFRelease(search) }
+        }
         if (status == errSecItemNotFound) return@memScoped null
         check(status == errSecSuccess) { "Cannot read Keychain ($status)" }
         val data = CFBridgingRelease(result.value) as NSData

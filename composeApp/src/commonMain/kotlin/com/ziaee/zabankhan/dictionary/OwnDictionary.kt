@@ -79,7 +79,7 @@ data class Sense(val en: String, val fa: String, val tags: List<String>, val exa
 data class Entry(
     val id: Long, val word: String, val pos: String, val freq: Int, val ipa: String, val gender: String,
     val audio: String, val senses: List<Sense>, val forms: Map<String, List<String>>,
-    val expressions: List<String>, val moreExamples: List<String>,
+    val expressions: List<String>, val moreExamples: List<String>, val frenchDefinitions: List<String> = emptyList(),
 ) {
     val rank: Int get() = if (freq > 0) 6 - freq else Int.MAX_VALUE
     val en: List<String> get() = senses.map { it.en }.filter(String::isNotBlank)
@@ -129,7 +129,7 @@ fun decodeDictionaryEntry(element: JsonElement, audioPrefixes: List<String> = em
     }
     val forms = (row.at(8) as? JsonObject).orEmpty().mapValues { (_, value) -> value.asStringList() }
     return Entry(row.at(0).longOrZero(), row.at(1).stringOrEmpty(), row.at(2).stringOrEmpty(), row.at(3).intOrZero(),
-        row.at(4).stringOrEmpty(), row.at(5).stringOrEmpty(), audio, senses, forms, row.at(9).stringList(), row.at(10).stringList())
+        row.at(4).stringOrEmpty(), row.at(5).stringOrEmpty(), audio, senses, forms, row.at(9).stringList(), row.at(10).stringList(), row.at(11).stringList())
 }
 
 fun decodeDictionaryShard(element: JsonElement, audioPrefixes: List<String> = emptyList()): DictionaryShard {

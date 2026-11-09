@@ -71,6 +71,7 @@ data class AppOpenRequest(val text: String? = null, val review: Boolean = false,
             }
             val entry by nav.currentBackStackEntryAsState()
             val route = entry?.destination?.route
+            var reviewingCards by remember { mutableStateOf(false) }
             val labels = listOf(Res.string.nav_home, Res.string.nav_library, Res.string.nav_words, Res.string.nav_review, Res.string.nav_settings)
             val routes = listOf("home", "library", "words", "review", "settings")
             val icons = listOf(Icons.Default.Home, Icons.AutoMirrored.Filled.LibraryBooks, Icons.Default.Translate, Icons.Default.Style, Icons.Default.Settings)
@@ -96,7 +97,7 @@ data class AppOpenRequest(val text: String? = null, val review: Boolean = false,
                 }
             }
             Scaffold(snackbarHost = { SnackbarHost(snackbar) }, bottomBar = {
-                if (route in routes) NavigationBar(containerColor = MaterialTheme.colorScheme.surface) {
+                if (route in routes && !(route == "review" && reviewingCards)) NavigationBar(containerColor = MaterialTheme.colorScheme.surface) {
                     routes.forEachIndexed { i, target -> NavigationBarItem(selected = route == target,
                         onClick = {
                             if (target == "home" && route != "home") {
@@ -135,11 +136,12 @@ data class AppOpenRequest(val text: String? = null, val review: Boolean = false,
                     composable("words") { WordsScreen(vm, prefs, review = { nav.navigate("review") },
                         onOpenDataset = { nav.navigate("datasets") }, reviewScope = { nav.navigate("review-scope/$it") }) }
                     composable("review-scope/{listId}", arguments = listOf(navArgument("listId") { type = NavType.LongType })) {
+                        SideEffect { reviewingCards = false }
                         ReviewScreen(container, prefs, { nav.popBackStack() }, { nav.navigate("settings") },
-                            listScope = requireNotNull(it.arguments?.read { getLong("listId") }))
+                            listScope = requireNotNull(it.arguments?.read { getLong("listId") }), onReviewingCardsChanged = { reviewingCards = it })
                     }
                     composable("datasets") { DatasetScreen(vm, prefs) { nav.popBackStack() } }
-                    composable("review") { ReviewScreen(container, prefs, { nav.popBackStack() }, { nav.navigate("settings") }, onOpenDatasets = { nav.navigate("datasets") }) }
+                    composable("review") { ReviewScreen(container, prefs, { nav.popBackStack() }, { nav.navigate("settings") }, onOpenDatasets = { nav.navigate("datasets") }, onReviewingCardsChanged = { reviewingCards = it }) }
                     composable("settings") { SettingsScreen(vm, prefs, { nav.navigate("statistics") }, { nav.navigate("grammar") }, { nav.navigate("exams") }) }
                     composable("add") { AddTextScreen(vm, prefs, { sharedText = ""; nav.popBackStack() }, { id -> sharedText = ""; nav.navigate("reader/$id") { popUpTo("add") { inclusive = true } } }, initialText = sharedText) }
                     composable("pdf/{id}", arguments = listOf(navArgument("id") { type = NavType.LongType })) {

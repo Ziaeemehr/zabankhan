@@ -8,7 +8,8 @@ Sources (both CC BY-SA 4.0, credit them in the app):
 Step 1 (this script) writes entries with IPA, gender, English glosses, one example and verb forms:
     python3 content-tools/build_dictionary.py KAIKKI.jsonl.gz Lexique383.tsv OUT.sqlite
 Step 2: content-tools/gen_persian_meanings.py fills the Persian meanings with a local model.
-Step 3: content-tools/package_dictionary.py writes the compressed pack and its manifest.
+Step 2a: content-tools/merge_french_definitions.py adds sourced French-to-French definitions.
+The dictionary packer publishes compact shards from the resulting database.
 """
 import csv
 import gzip
@@ -119,7 +120,7 @@ def main():
         DROP TABLE IF EXISTS entry; DROP TABLE IF EXISTS meta;
         CREATE TABLE entry(id INTEGER PRIMARY KEY, word TEXT NOT NULL, pos TEXT NOT NULL, rank INTEGER NOT NULL,
             ipa TEXT NOT NULL, gender TEXT NOT NULL, en TEXT NOT NULL, example TEXT NOT NULL, forms TEXT NOT NULL,
-            fa TEXT NOT NULL DEFAULT '');
+            fa TEXT NOT NULL DEFAULT '', fr TEXT NOT NULL DEFAULT '');
         CREATE INDEX entry_word ON entry(word);
         CREATE TABLE meta(key TEXT PRIMARY KEY, value TEXT NOT NULL);
     """)

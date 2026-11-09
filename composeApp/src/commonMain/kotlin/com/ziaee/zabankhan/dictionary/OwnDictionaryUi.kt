@@ -8,6 +8,7 @@ import androidx.compose.material.icons.outlined.BookmarkAdd
 import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.material3.*
@@ -27,6 +28,7 @@ import com.ziaee.zabankhan.translate.ExampleSource
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.stringResource
+import androidx.compose.ui.platform.LocalUriHandler
 
 @OptIn(ExperimentalLayoutApi::class, ExperimentalMaterial3Api::class)
 @Composable
@@ -34,26 +36,35 @@ fun OwnDictionaryBlock(lookup: DictionaryLookup, lang: LanguageSpec, target: Str
     textId: Long, sentence: String, speak: (String) -> Unit, onLookup: (String) -> Unit,
     loading: Boolean = false, failed: Boolean = false) {
     val entries = lookup.entries + lookup.idioms
+    val settings by vm.settings.collectAsState()
+    val effectiveTarget = settings?.dictionaryMeaningLang?.ifBlank { target } ?: target
     if (entries.isEmpty()) {
-        val message = when { loading -> Res.string.own_searching; failed -> Res.string.own_search_error; else -> Res.string.own_no_entry }
-        Text(stringResource(message), Modifier.fillMaxWidth().padding(vertical = 12.dp),
-            color = if (failed) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant,
-            style = MaterialTheme.typography.bodySmall)
+        DictionaryMachineFallback(lookup.query, lang.code, effectiveTarget, sentence, textId, vm,
+            settings?.let(vm.container::translations), loading, failed)
         return
     }
     val vocabEntries by remember(lang.code) { vm.container.vocab.observeAll(lang.code) }.collectAsState(emptyList())
     val lists by remember(lang.code) { vm.container.vocab.observeLists(lang.code) }.collectAsState(emptyList())
-    val settings by vm.settings.collectAsState()
-    val effectiveTarget = settings?.dictionaryMeaningLang?.ifBlank { target } ?: target
     val translations = remember(effectiveTarget, settings) { settings?.let(vm.container::translations) }
-    val meanings by produceState<Map<Long, List<SenseMeaning>>>(emptyMap(), lookup, effectiveTarget, translations) {
+    val meaningsState by produceState(false to emptyMap<Long, List<SenseMeaning>>(), lookup, effectiveTarget, translations) {
         val repository = translations ?: return@produceState
-        value = entries.associate { it.id to vm.container.ownDictionary.senseMeanings(it, effectiveTarget, repository) }
+        value = true to entries.associate { it.id to vm.container.ownDictionary.senseMeanings(it, effectiveTarget, repository) }
     }
+    val meanings = meaningsState.second
+    if (meaningsState.first && entries.none { entry -> meanings[entry.id].orEmpty().any { it.text.isNotBlank() } }) {
+        DictionaryMachineFallback(lookup.query, lang.code, effectiveTarget, sentence, textId, vm,
+            translations, loading = false, failed = false)
+        return
+    }
+    var frenchMode by remember(lookup.query) { mutableStateOf(false) }
+    val hasFrenchDefinitions = lang.code == Languages.FRENCH.code && entries.any { it.frenchDefinitions.isNotEmpty() }
     Row(verticalAlignment = Alignment.CenterVertically) {
         Text(stringResource(Res.string.own_dictionary_title), Modifier.weight(1f), style = MaterialTheme.typography.titleSmall)
         listOf("fa" to "فا", "en" to "EN").forEach { (code, label) ->
-            TextButton(onClick = { vm.action { vm.container.settings.setDictionaryMeaningLang(code) } }, contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp)) { Text(label, color = if (effectiveTarget == code) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant) }
+            TextButton(onClick = { frenchMode = false; vm.action { vm.container.settings.setDictionaryMeaningLang(code) } }, contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp)) { Text(label, color = if (!frenchMode && effectiveTarget == code) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant) }
+        }
+        if (hasFrenchDefinitions) TextButton(onClick = { frenchMode = true }, contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp)) {
+            Text(stringResource(Res.string.own_dictionary_french_definitions), color = if (frenchMode) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }
     if (lookup.via.isNotEmpty()) {
@@ -62,11 +73,80 @@ fun OwnDictionaryBlock(lookup: DictionaryLookup, lang: LanguageSpec, target: Str
             "${redirect.form} → ${redirect.lemma} · ${formLabelText(redirect.labels.joinToString(";")) { names[it] ?: it }}"
         }, Modifier.fillMaxWidth().padding(12.dp), style = MaterialTheme.typography.bodyMedium.merge(contentStyle(lookup.query))) }
     }
-    entries.distinctBy { it.id }.take(8).forEachIndexed { index, entry ->
+    if (frenchMode) {
+        val uri = LocalUriHandler.current
+        entries.distinctBy { it.id }.filter { it.frenchDefinitions.isNotEmpty() }.take(8).forEach { entry ->
+            Card(Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
+                Column(Modifier.fillMaxWidth().padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text(entry.word, style = MaterialTheme.typography.titleMedium.merge(contentStyle(entry.word)))
+                    Text(entry.pos, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    entry.frenchDefinitions.forEachIndexed { index, definition ->
+                        SelectionContainer { Text("${index + 1}. $definition", style = MaterialTheme.typography.bodyMedium.merge(contentStyle(definition))) }
+                    }
+                    TextButton(onClick = { uri.openUri("https://fr.wiktionary.org/wiki/${entry.word.replace(" ", "_")}") }, contentPadding = PaddingValues(0.dp)) {
+                        Text(stringResource(Res.string.own_dictionary_french_source), style = MaterialTheme.typography.labelSmall)
+                    }
+                }
+            }
+        }
+        Text(stringResource(Res.string.own_dictionary_french_attribution), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    } else entries.distinctBy { it.id }.take(8).forEachIndexed { index, entry ->
         CompactEntryCard(entry, meanings[entry.id].orEmpty(), lang, effectiveTarget, vm, textId, sentence, speak, onLookup, vocabEntries, lists,
             via = if (index == 0) lookup.via.filter { it.entryId == entry.id } else emptyList(), initiallyExpanded = index == 0)
     }
     HorizontalDivider()
+}
+
+@Composable
+private fun DictionaryMachineFallback(
+    query: String, source: String, target: String, sentence: String, textId: Long, vm: AppViewModel,
+    repository: com.ziaee.zabankhan.translate.TranslationRepository?, loading: Boolean, failed: Boolean,
+) {
+    var translated by remember(query, source, target, sentence) { mutableStateOf<com.ziaee.zabankhan.translate.ExampleTranslation?>(null) }
+    var translating by remember(query, source, target, sentence) { mutableStateOf(false) }
+    var saving by remember(query, source, target, sentence) { mutableStateOf(false) }
+    val vocabEntries by remember(source) { vm.container.vocab.observeAll(source) }.collectAsState(emptyList())
+    LaunchedEffect(query, source, target, sentence, loading, failed, repository) {
+        translated = null
+        if (loading || failed || query.isBlank() || repository == null) return@LaunchedEffect
+        translating = true
+        try {
+            translated = repository.googleDictionaryFallback(query, source, target)
+                .getOrNull()?.takeIf { it.text.isNotBlank() }
+        } catch (cancelled: CancellationException) { throw cancelled }
+        catch (_: Exception) { translated = null }
+        finally { translating = false }
+    }
+    when {
+        loading -> Text(stringResource(Res.string.own_searching), Modifier.fillMaxWidth().padding(vertical = 12.dp), color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
+        failed -> Text(stringResource(Res.string.own_search_error), Modifier.fillMaxWidth().padding(vertical = 12.dp), color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+        translating -> Text(stringResource(Res.string.translation_loading), Modifier.fillMaxWidth().padding(vertical = 12.dp), color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
+        translated != null -> Row(Modifier.fillMaxWidth().padding(vertical = 8.dp), verticalAlignment = Alignment.Top) {
+            val value = requireNotNull(translated)
+            val savedEntry = vocabEntries.firstOrNull { it.lang == source && it.word.equals(query, true) &&
+                it.meaningLang == target && it.meaning == value.text && it.sentence == sentence }
+            SelectionContainer(Modifier.weight(1f)) { Text(value.text, style = MaterialTheme.typography.bodyLarge.merge(contentStyle(value.text))) }
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                TranslationSourceIcon(value)
+                Text(stringResource(Res.string.own_dictionary_machine_translation), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                IconButton(enabled = !saving, onClick = {
+                    saving = true
+                    vm.action {
+                        try {
+                            if (savedEntry != null) vm.container.vocab.delete(savedEntry)
+                            else vm.container.vocab.insert(com.ziaee.zabankhan.data.VocabEntry(lang = source,
+                                textId = textId.takeIf { it > 0L }, word = query, sentence = sentence,
+                                meaning = value.text, meaningLang = target))
+                        } finally { saving = false }
+                    }
+                }) {
+                    Icon(if (savedEntry != null) Icons.Filled.Bookmark else Icons.Outlined.BookmarkAdd,
+                        contentDescription = stringResource(if (savedEntry != null) Res.string.own_remove_from_leitner else Res.string.own_add_to_leitner))
+                }
+            }
+        }
+        else -> Text(stringResource(Res.string.own_no_entry), Modifier.fillMaxWidth().padding(vertical = 12.dp), color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
+    }
 }
 
 @Composable
@@ -169,7 +249,7 @@ internal fun OwnDictionaryEntryCard(entry: Entry, meanings: List<SenseMeaning>, 
         Column(Modifier.fillMaxWidth().padding(ZabankhanDesign.spacing.small), verticalArrangement = Arrangement.spacedBy(ZabankhanDesign.spacing.xSmall)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Text(entry.word, style = MaterialTheme.typography.headlineMedium.merge(contentStyle(entry.word)))
+                    SelectionContainer { Text(entry.word, style = MaterialTheme.typography.headlineMedium.merge(contentStyle(entry.word))) }
                     if (entry.ipa.isNotBlank()) Text(entry.ipa, style = MaterialTheme.typography.bodyMedium.merge(contentStyle(entry.ipa)), color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
                 IconButton(onClick = { speak(entry.word) }) { Icon(Icons.Default.VolumeUp, stringResource(Res.string.own_listen)) }
@@ -188,7 +268,7 @@ internal fun OwnDictionaryEntryCard(entry: Entry, meanings: List<SenseMeaning>, 
                 Column(Modifier.padding(top = 8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     Row(verticalAlignment = Alignment.Top) {
                         Text("${index + 1}. ", style = MaterialTheme.typography.bodyLarge)
-                        Text(meaning, Modifier.weight(1f), style = MaterialTheme.typography.bodyLarge.merge(contentStyle(meaning)))
+                        SelectionContainer(Modifier.weight(1f)) { Text(meaning, style = MaterialTheme.typography.bodyLarge.merge(contentStyle(meaning))) }
                         if (meanings.getOrNull(index)?.translation != null) TranslationSourceIcon(meanings[index].translation)
                         else if (target == Languages.PERSIAN.code && sense.fa.isBlank()) TranslationSourceIcon(ExampleSource.DICTIONARY)
                     }
@@ -199,7 +279,7 @@ internal fun OwnDictionaryEntryCard(entry: Entry, meanings: List<SenseMeaning>, 
                             Box(Modifier.width(2.dp).fillMaxHeight().background(accent))
                             Column(Modifier.weight(1f)) {
                                 Row(verticalAlignment = Alignment.Top) {
-                                    Text(example.text, Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium.merge(contentStyle(example.text)).copy(fontStyle = FontStyle.Italic))
+                                    SelectionContainer(Modifier.weight(1f)) { Text(example.text, style = MaterialTheme.typography.bodyMedium.merge(contentStyle(example.text)).copy(fontStyle = FontStyle.Italic)) }
                                     IconButton(onClick = { speak(example.text) }, Modifier.size(32.dp)) { Icon(Icons.Default.VolumeUp, stringResource(Res.string.own_listen), Modifier.size(16.dp)) }
                                 }
                                 // Persian missing in data for many entries: fall back to English.

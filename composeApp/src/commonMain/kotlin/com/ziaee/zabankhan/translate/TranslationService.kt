@@ -44,6 +44,10 @@ class TranslationService(private val http: HttpClient) {
         return polishTranslation(translated, targetLang)
     }
 
+    /** Dictionary fallback uses Google's endpoints even when another translation engine is configured. */
+    suspend fun translateWithGoogle(text: String, targetLang: String, sourceLang: String): String =
+        polishTranslation(parseGoogleResponse(googleRequest(text, targetLang, sourceLang)), targetLang)
+
     suspend fun translateUnlessSameLanguage(text: String, targetLang: String, sourceLang: String): String? {
         if (baseLanguage(sourceLang) == baseLanguage(targetLang)) return null
         if (baseLanguage(sourceLang) == "auto") {
