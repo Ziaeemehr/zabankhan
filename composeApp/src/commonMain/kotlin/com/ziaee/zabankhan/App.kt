@@ -100,7 +100,14 @@ data class AppOpenRequest(val text: String? = null, val review: Boolean = false,
                 if (route in routes && !(route == "review" && reviewingCards)) NavigationBar(containerColor = MaterialTheme.colorScheme.surface) {
                     routes.forEachIndexed { i, target -> NavigationBarItem(selected = route == target,
                         onClick = {
-                            if (target == "home" && route != "home") {
+                            if (target == "review") {
+                                // Always return to the review overview. A saved card-session state
+                                // must not be restored when the tab is tapped from Settings.
+                                nav.navigate("review") {
+                                    popUpTo("review") { inclusive = true; saveState = false }
+                                    launchSingleTop = true
+                                }
+                            } else if (target == "home" && route != "home") {
                                 if (!nav.popBackStack("home", inclusive = false)) nav.navigate("home") { launchSingleTop = true }
                             } else {
                                 nav.navigate(target) { popUpTo("home") { saveState = true }; launchSingleTop = true; restoreState = true }
@@ -141,7 +148,12 @@ data class AppOpenRequest(val text: String? = null, val review: Boolean = false,
                             listScope = requireNotNull(it.arguments?.read { getLong("listId") }), onReviewingCardsChanged = { reviewingCards = it })
                     }
                     composable("datasets") { DatasetScreen(vm, prefs) { nav.popBackStack() } }
-                    composable("review") { ReviewScreen(container, prefs, { nav.popBackStack() }, { nav.navigate("settings") }, onOpenDatasets = { nav.navigate("datasets") }, onReviewingCardsChanged = { reviewingCards = it }) }
+                    composable("review") { ReviewScreen(container, prefs, { nav.popBackStack() }, {
+                        nav.navigate("settings") {
+                            popUpTo("review") { inclusive = true; saveState = false }
+                            launchSingleTop = true
+                        }
+                    }, onOpenDatasets = { nav.navigate("datasets") }, onReviewingCardsChanged = { reviewingCards = it }) }
                     composable("settings") { SettingsScreen(vm, prefs, { nav.navigate("statistics") }, { nav.navigate("grammar") }, { nav.navigate("exams") }) }
                     composable("add") { AddTextScreen(vm, prefs, { sharedText = ""; nav.popBackStack() }, { id -> sharedText = ""; nav.navigate("reader/$id") { popUpTo("add") { inclusive = true } } }, initialText = sharedText) }
                     composable("pdf/{id}", arguments = listOf(navArgument("id") { type = NavType.LongType })) {

@@ -10,9 +10,12 @@ fun localToday(zone: TimeZone = TimeZone.currentSystemDefault()): LocalDate = Cl
 fun ActivityLogEntry.totalMs(): Long = readingMs + listeningMs + watchingMs
 
 /** Today has grace until its first activity; an empty yesterday breaks the chain. */
-fun activityStreak(rows: List<ActivityLogEntry>, today: LocalDate, reviews: List<ReviewLogEntry> = emptyList(), attempts: List<ShadowAttempt> = emptyList(), zone: TimeZone = TimeZone.currentSystemDefault(), manualSessions: List<StudySession> = emptyList()): Int {
+fun activityStreak(rows: List<ActivityLogEntry>, today: LocalDate, reviews: List<ReviewLogEntry> = emptyList(), attempts: List<ShadowAttempt> = emptyList(), zone: TimeZone = TimeZone.currentSystemDefault(), manualSessions: List<StudySession> = emptyList(), lang: String? = null): Int {
     fun date(ms: Long) = Instant.fromEpochMilliseconds(ms).toLocalDateTime(zone).date.toString()
-    val active = rows.filter { it.totalMs() > 0 }.map { it.date }.toSet() + reviews.map { date(it.timestampMs) } + attempts.map { date(it.timestampMs) } + manualSessions.filter { it.durationMin > 0 }.map { LocalDate.fromEpochDays(it.date.toInt()).toString() }
+    val active = rows.filter { it.totalMs() > 0 && (lang == null || it.lang == lang) }.map { it.date }.toSet() +
+        reviews.filter { lang == null || it.lang == lang }.map { date(it.timestampMs) } +
+        attempts.filter { lang == null || it.lang == lang }.map { date(it.timestampMs) } +
+        manualSessions.filter { it.durationMin > 0 && (lang == null || it.lang == lang) }.map { LocalDate.fromEpochDays(it.date.toInt()).toString() }
     var day = if (today.toString() in active) today else today.minus(1, DateTimeUnit.DAY)
     var count = 0
     while (day.toString() in active) { count++; day = day.minus(1, DateTimeUnit.DAY) }

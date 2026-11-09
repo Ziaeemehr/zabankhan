@@ -77,6 +77,15 @@ class StudyActivityAggregatesTest {
     }
 
     @Test
+    fun yearGridUsesRequestedFirstDayOfWeek() {
+        val today = LocalDate(2025, 12, 31)
+        val days = combinedStudyDays("en", emptyList(), emptyList(), LocalDate(2025, 1, 1), today)
+        val grid = studyYearGrid(days, 2025, DayOfWeek.SUNDAY, today)
+        assertNull(grid.first().first())
+        assertEquals(1, grid.first()[3]?.date?.day)
+    }
+
+    @Test
     fun automaticActivityKeepsItsPersistedDateAcrossTimezoneBoundaries() {
         val timestamp = Instant.parse("2026-03-01T00:30:00Z")
         val parisDay = timestamp.toLocalDateTime(TimeZone.of("Europe/Paris")).date

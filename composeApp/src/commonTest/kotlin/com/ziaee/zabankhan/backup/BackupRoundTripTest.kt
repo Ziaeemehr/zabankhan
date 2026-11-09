@@ -21,11 +21,11 @@ internal suspend fun assertBackupRoundTrip(buildTestDatabase: (String) -> AppDat
             try {
                 val dao = database.migration()
                 dao.insertFolder(LibraryFolder(id = 1, lang = lang, name = "Folder"))
-                dao.insertList(VocabList(id = 1, lang = lang, name = "Deck"))
+                dao.insertListRaw(VocabList(id = 1, lang = lang, name = "Deck"))
                 dao.insertText(TextDocument(id = 1, lang = lang, title = "Text", body = "Saved text", lastOffset = 17, pinned = true))
-                dao.insertWord(VocabEntry(id = 1, lang = lang, word = "bonjour", textId = 1, listId = 1,
+                dao.insertWordRaw(VocabEntry(id = 1, lang = lang, word = "bonjour", textId = 1, listId = 1,
                     learned = true, leitnerBox = 4, nextReviewAtMs = 123_456, lastReviewedAtMs = 120_000))
-                dao.insertReview(ReviewLogEntry(id = 1, entryId = 1, lang = lang, timestampMs = 120_000,
+                dao.insertReviewRaw(ReviewLogEntry(id = 1, entryId = 1, lang = lang, timestampMs = 120_000,
                     knew = true, boxBefore = 3, boxAfter = 4))
                 dao.insertHighlight(HighlightEntry(id = 1, textId = 1, startOffset = 2, endOffset = 7, colorKey = "yellow"))
                 dao.insertActivity(ActivityLogEntry(date = "2026-11-08", lang = lang, readingMs = 12_000, listeningMs = 3_000, watchingMs = 4_000))

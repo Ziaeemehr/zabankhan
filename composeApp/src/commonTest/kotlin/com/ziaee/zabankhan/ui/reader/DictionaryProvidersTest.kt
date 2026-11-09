@@ -15,7 +15,7 @@ class DictionaryProvidersTest {
         assertFalse(frenchEnglish.any { it.name == "B-amooz" })
         val frenchPersian = dictionaryProviders(Languages.FRENCH, "fa")
         assertTrue(frenchPersian.any { it.name == "B-amooz" })
-        assertFalse(frenchPersian.any { it.name == "WordReference" })
+        assertTrue(frenchPersian.any { it.name == "WordReference" })
         val englishPersian = dictionaryProviders(Languages.ENGLISH, "fa")
         assertTrue(englishPersian.any { it.name == "Cambridge" })
         assertFalse(englishPersian.any { it.name == "Larousse" })
@@ -36,7 +36,7 @@ class DictionaryProvidersTest {
         assertEquals("Larousse", restored.lastDictionaryProviders["fr"])
         assertEquals("Cambridge", restored.lastDictionaryProviders["en"])
         assertEquals("Larousse", selectedDictionaryProvider(dictionaryProviders(Languages.FRENCH, "fa"), restored.lastDictionaryProviders["fr"])?.name)
-        assertEquals("Reverso Conjugaison", selectedDictionaryProvider(dictionaryProviders(Languages.FRENCH, "fa"), "WordReference")?.name)
+        assertEquals("WordReference", selectedDictionaryProvider(dictionaryProviders(Languages.FRENCH, "fa"), "WordReference")?.name)
         assertNull(selectedDictionaryProvider(emptyList(), "Larousse"))
     }
 

@@ -84,7 +84,7 @@ class FrenchReaderMigrationTest {
         val lang = Languages.FRENCH.code
         val dao = MemoryMigrationDao()
         dao.insertText(TextDocument(id = 50, lang = lang, title = "Title", body = "Body"))
-        dao.insertWord(VocabEntry(id = 60, lang = lang, word = "bonjour"))
+        dao.insertWordRaw(VocabEntry(id = 60, lang = lang, word = "bonjour"))
         val snapshot = FrenchReaderSnapshot(
             listOf(TextDocument(id = 1, lang = lang, title = "Title", body = "Body", folderId = 3)),
             listOf(LibraryFolder(3, lang, "Child", 9), LibraryFolder(9, lang, "Root")),
@@ -126,6 +126,17 @@ private class MemoryMigrationDao : MigrationDao() {
     val activity = mutableListOf<ActivityLogEntry>()
     val shadows = mutableListOf<ShadowAttempt>()
     val tagRefs = mutableListOf<TextTagCrossRef>()
+    private val syncMetadata = mutableMapOf<String, SyncMetadataEntry>()
+    private var nextJournalId = 1L
+    override suspend fun getWord(id: Long) = words.firstOrNull { it.id == id }
+    override suspend fun getList(id: Long) = lists.firstOrNull { it.id == id }
+    override suspend fun getReview(id: Long) = reviews.firstOrNull { it.id == id }
+    override suspend fun getSyncMetadata(key: String) = syncMetadata[key]?.value
+    override suspend fun setSyncMetadata(value: SyncMetadataEntry) { syncMetadata[value.key] = value }
+    override suspend fun appendSyncJournal(value: SyncJournalEntry): Long = nextJournalId++
+    override suspend fun insertWordRaw(value: VocabEntry): Long = insertWord(value)
+    override suspend fun insertListRaw(value: VocabList): Long = insertList(value)
+    override suspend fun insertReviewRaw(value: ReviewLogEntry): Long = insertReview(value)
     override suspend fun findTag(lang: String, name: String) = tags.firstOrNull { it.lang == lang && it.name.equals(name, true) }
     override suspend fun findAttempt(lang: String, exam: String, question: String, created: Long, answer: String) = attempts.firstOrNull { it.lang == lang && it.examId == exam && it.questionId == question && it.createdAtMs == created && it.answer == answer }
     override suspend fun findStudySource(lang: String, name: String) = sources.firstOrNull { it.lang == lang && it.name.equals(name, true) }
@@ -149,9 +160,9 @@ private class MemoryMigrationDao : MigrationDao() {
     override suspend fun hasHighlight(text: Long, start: Int, end: Int, color: String) = highlights.count { it.textId == text && it.startOffset == start && it.endOffset == end && it.colorKey == color }
     override suspend fun hasReview(entry: Long, time: Long, knew: Boolean, before: Int, after: Int) = reviews.count { it.entryId == entry && it.timestampMs == time && it.knew == knew && it.boxBefore == before && it.boxAfter == after }
     override suspend fun insertText(value: TextDocument): Long { val id = value.id.takeIf { it != 0L } ?: next++; texts += value.copy(id = id); return id }
-    override suspend fun insertWord(value: VocabEntry): Long { val id = value.id.takeIf { it != 0L } ?: next++; words += value.copy(id = id); return id }
+    private suspend fun insertWord(value: VocabEntry): Long { val id = value.id.takeIf { it != 0L } ?: next++; words += value.copy(id = id); return id }
     override suspend fun insertFolder(value: LibraryFolder): Long { val id = next++; folders += value.copy(id = id); return id }
-    override suspend fun insertList(value: VocabList): Long { val id = next++; lists += value.copy(id = id); return id }
+    private suspend fun insertList(value: VocabList): Long { val id = next++; lists += value.copy(id = id); return id }
     override suspend fun insertHighlight(value: HighlightEntry): Long { val id = next++; highlights += value.copy(id = id); return id }
-    override suspend fun insertReview(value: ReviewLogEntry): Long { val id = next++; reviews += value.copy(id = id); return id }
+    private suspend fun insertReview(value: ReviewLogEntry): Long { val id = value.id.takeIf { it != 0L } ?: next++; reviews += value.copy(id = id); return id }
 }

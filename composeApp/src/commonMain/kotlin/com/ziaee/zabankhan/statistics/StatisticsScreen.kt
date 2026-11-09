@@ -1,8 +1,6 @@
 package com.ziaee.zabankhan.statistics
 
 import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.horizontalScroll
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -13,8 +11,6 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
-import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.foundation.lazy.items
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.semantics.contentDescription
@@ -49,7 +45,7 @@ import kotlinx.datetime.LocalDate
         TextButton(onClick = openStudyLog, modifier = Modifier.fillMaxWidth()) { Text(stringResource(Res.string.study_log_title) + " · " + stringResource(Res.string.study_log_add_time)) }
         EditorialCard {
             Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                EditorialSectionHeader(stringResource(Res.string.h2_streak, activityStreak(rows, today, reviews, attempts, manualSessions = studyState.allSessions)))
+                EditorialSectionHeader(stringResource(Res.string.h2_streak, activityStreak(rows, today, reviews, attempts, manualSessions = studyState.allSessions, lang = lang)))
                 DailyGoalCard(vm, settings, studyState.allSessions)
             }
         }
@@ -70,7 +66,7 @@ import kotlinx.datetime.LocalDate
                         TextButton(enabled = heatmapYear < today.year, onClick = { heatmapYear++ }) { Text("›") }
                     }
                 }
-                StudyYearHeatmap(combined, heatmapYear, today, firstDay)
+                StudyYearHeatmap(combined, heatmapYear, today, firstDay, studyState.allSessions, studyState.sources)
                 Text(stringResource(Res.string.study_log_combined_note), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
@@ -125,17 +121,13 @@ import kotlinx.datetime.LocalDate
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun StudyYearHeatmap(days: List<StudyDayActivity>, year: Int, today: LocalDate, firstDay: DayOfWeek) {
+private fun StudyYearHeatmap(days: List<StudyDayActivity>, year: Int, today: LocalDate, firstDay: DayOfWeek, sessions: List<StudySession>, sources: List<StudySource>) {
     var monthView by remember(year) { mutableStateOf(false) }
-    var selectedMonth by remember(year) { mutableIntStateOf(today.monthNumber) }
-    val grid = if (monthView) {
-        val monthDate = LocalDate(year, selectedMonth, 1)
-        studyMonthGrid(days, monthDate, firstDay, today).flatMap { week -> week.chunked(1) }.let { weeks ->
-            // Month cells are rendered as one chronological row, preserving the calendar order.
-            listOf(weeks.flatten())
-        }
-    } else studyYearGrid(days, year, firstDay, today)
-    var selected by remember(year) { mutableStateOf<StudyDayActivity?>(null) }
+    val lastAvailableMonth = if (year < today.year) 12 else today.monthNumber
+    var selectedMonth by remember(year) { mutableIntStateOf(if (year == today.year) today.monthNumber else 12) }
+    val grid = if (monthView) studyMonthGrid(days, LocalDate(year, selectedMonth, 1), firstDay, today)
+    else studyYearGrid(days, year, firstDay, today)
+    var selected by remember(year, selectedMonth, monthView) { mutableStateOf<StudyDayActivity?>(null) }
     val active = MaterialTheme.colorScheme.primary
     val empty = MaterialTheme.colorScheme.surfaceVariant
     val muted = MaterialTheme.colorScheme.surface
@@ -144,26 +136,29 @@ private fun StudyYearHeatmap(days: List<StudyDayActivity>, year: Int, today: Loc
             TextButton(onClick = { monthView = false }) { Text(stringResource(Res.string.study_log_year_view)) }
             TextButton(onClick = { monthView = true }) { Text(stringResource(Res.string.study_log_month_view)) }
             if (monthView) {
-                TextButton(onClick = { selectedMonth = if (selectedMonth == 1) 12 else selectedMonth - 1 }) { Text("‹") }
+                TextButton(enabled = selectedMonth > 1, onClick = { if (selectedMonth > 1) selectedMonth-- }) { Text("‹") }
                 Text(LocalDate(year, selectedMonth, 1).month.name, Modifier.align(Alignment.CenterVertically))
-                TextButton(onClick = { selectedMonth = if (selectedMonth == 12) 1 else selectedMonth + 1 }) { Text("›") }
+                TextButton(enabled = selectedMonth < lastAvailableMonth, onClick = { if (selectedMonth < lastAvailableMonth) selectedMonth++ }) { Text("›") }
             }
         }
-        Row {
-            val months = (1..12).map { LocalDate(year, it, 1) }
-            months.forEach { month -> Text(month.month.name.take(1), Modifier.weight(1f), textAlign = TextAlign.Center, style = MaterialTheme.typography.labelSmall) }
-        }
-        androidx.compose.foundation.layout.Box(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState())) {
-            if (monthView) {
-                Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                    grid.firstOrNull().orEmpty().chunked(7).forEach { week ->
-                        Row(horizontalArrangement = Arrangement.spacedBy(3.dp)) { week.forEach { day -> HeatmapCell(day, active, empty, muted) { selected = it } } }
+        if (monthView) {
+            Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                grid.forEach { week ->
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
+                        week.forEach { day -> HeatmapCell(day, active, empty, muted, Modifier.weight(1f)) { selected = it } }
                     }
                 }
-            } else Row(horizontalArrangement = Arrangement.spacedBy(3.dp)) {
+            }
+        } else {
+            Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
                 grid.forEach { week ->
-                    Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                        week.forEach { day -> HeatmapCell(day, active, empty, muted) { selected = it } }
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
+                        week.forEach { day ->
+                            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                                day?.let { Text(it.date.month.name.take(1), style = MaterialTheme.typography.labelSmall) } ?: Spacer(Modifier.height(14.dp))
+                                HeatmapCell(day, active, empty, muted) { selected = it }
+                            }
+                        }
                     }
                 }
             }
@@ -171,19 +166,25 @@ private fun StudyYearHeatmap(days: List<StudyDayActivity>, year: Int, today: Loc
         selected?.let { day ->
             Text("${day.date} · ${day.totalMinutes.roundToInt()} ${stringResource(Res.string.study_log_minutes)}", style = MaterialTheme.typography.bodyMedium)
             Text(stringResource(Res.string.study_log_day_detail, day.automatic.total.roundToInt(), day.manualMinutes), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            sessions.filter { it.date == day.date.toEpochDays().toLong() }.forEach { session ->
+                val sourceName = sources.firstOrNull { it.id == session.sourceId }?.name
+                val skill = stringResource(studySkillLabelResource(session.skill))
+                Text(listOfNotNull("${session.durationMin} ${stringResource(Res.string.study_log_minutes)}", skill, sourceName, session.note?.takeIf(String::isNotBlank)).joinToString(" · "), style = MaterialTheme.typography.bodySmall)
+            }
         } ?: Text(stringResource(Res.string.study_log_heatmap_hint), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }
 
 @Composable
-private fun HeatmapCell(day: StudyDayActivity?, active: androidx.compose.ui.graphics.Color, empty: androidx.compose.ui.graphics.Color, muted: androidx.compose.ui.graphics.Color, onSelect: (StudyDayActivity) -> Unit) {
+private fun HeatmapCell(day: StudyDayActivity?, active: androidx.compose.ui.graphics.Color, empty: androidx.compose.ui.graphics.Color, muted: androidx.compose.ui.graphics.Color, modifier: Modifier = Modifier, onSelect: (StudyDayActivity) -> Unit) {
     val intensity = day?.let { (it.totalMinutes / 90.0).coerceIn(0.0, 1.0).toFloat() } ?: 0f
+    val description = day?.let { "${it.date}: ${it.totalMinutes.roundToInt()} ${stringResource(Res.string.study_log_minutes)}" }
     Surface(
         onClick = { day?.let(onSelect) },
-        modifier = Modifier.size(11.dp),
+        modifier = modifier.size(11.dp),
         shape = MaterialTheme.shapes.extraSmall,
         color = when { day == null -> muted; intensity <= 0f -> empty; else -> androidx.compose.ui.graphics.lerp(empty, active, .2f + intensity * .8f) },
-    ) {}
+    ) { androidx.compose.foundation.layout.Box(Modifier.semantics { description?.let { contentDescription = it } }) }
 }
 
 @Composable fun DailyGoalCard(vm: AppViewModel, settings: AppSettings, manualSessions: List<StudySession> = emptyList()) {

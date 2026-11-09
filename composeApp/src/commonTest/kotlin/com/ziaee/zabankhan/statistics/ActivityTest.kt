@@ -54,6 +54,15 @@ class ActivityTest {
         assertEquals(100, shadowAverage(listOf(attempt)))
         assertEquals(0, shadowAverage(emptyList()))
     }
+    @Test fun streakCanBeScopedToTheActiveLearningLanguage() {
+        val today = LocalDate(2026, 10, 26)
+        val rows = listOf(
+            ActivityLogEntry("2026-10-25", "en", readingMs = 1),
+            ActivityLogEntry("2026-10-24", "en", readingMs = 1),
+            ActivityLogEntry("2026-10-23", "fr", readingMs = 1),
+        )
+        assertEquals(2, activityStreak(rows, today, lang = "en"))
+    }
     @Test fun aggregatesIncludeBoundaryExcludeFutureAndPreserveFractions() {
         val today = LocalDate(2026, 10, 26)
         val rows = listOf(ActivityLogEntry("2026-10-20", "en", 30_000, 90_000, 120_000), ActivityLogEntry("2026-10-19", "en", 600_000), ActivityLogEntry("2026-10-27", "en", 600_000))
