@@ -9,6 +9,10 @@ import okio.FileSystem
 import okio.Path.Companion.toPath
 import kotlin.random.Random
 import kotlin.test.assertEquals
+import kotlin.test.Test
+import kotlin.test.assertTrue
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.encodeToString
 
 internal suspend fun assertBackupRoundTrip(buildTestDatabase: (String) -> AppDatabase) {
     val fs = FileSystem.SYSTEM
@@ -79,6 +83,40 @@ internal suspend fun assertBackupRoundTrip(buildTestDatabase: (String) -> AppDat
             fs.delete(("$source-shm").toPath(), mustExist = false)
             fs.delete(("$restored-wal").toPath(), mustExist = false)
             fs.delete(("$restored-shm").toPath(), mustExist = false)
+    }
+}
+
+class BackupPdfMergeTest {
+    @Test
+    fun mergesOnlyMissingPdfFiles() {
+        val fs = FileSystem.SYSTEM
+        val root = FileSystem.SYSTEM_TEMPORARY_DIRECTORY / "backup-pdf-merge-${Random.nextLong()}"
+        val stage = root / "stage/pdfs"
+        val target = root / "files/pdfs"
+        try {
+            fs.createDirectories(stage / "nested")
+            fs.createDirectories(target / "nested")
+            fs.write(stage / "nested/existing.pdf") { writeUtf8("archive") }
+            fs.write(stage / "new.pdf") { writeUtf8("new") }
+            fs.write(target / "nested/existing.pdf") { writeUtf8("local") }
+
+            mergeBackupPdfs(stage, target)
+
+            assertEquals("local", fs.read(target / "nested/existing.pdf") { readUtf8() })
+            assertEquals("new", fs.read(target / "new.pdf") { readUtf8() })
+        } finally { fs.deleteRecursively(root, mustExist = false) }
+    }
+
+    @Test fun oldManifestDefaultsToNoPdfReferences() {
+        val old = Json.decodeFromString<BackupManifest>("""{"appVersion":"1","schemaVersion":7}""")
+        assertTrue(old.pdfs.isEmpty())
+    }
+    @Test fun pdfReferencesRecordHashWithoutZipEntries() {
+        val manifest = BackupManifest("1", 7, pdfs = listOf(BackupPdfRef("book.pdf", 3, "abc")))
+        val zip = ZipArchive.writeStored(mapOf("manifest.json" to Json.encodeToString(manifest).encodeToByteArray()))
+        val entries = ZipArchive.read(zip)
+        assertTrue(entries.keys.none { it.startsWith("pdfs/") })
+        assertEquals("abc", Json.decodeFromString<BackupManifest>(entries.getValue("manifest.json").decodeToString()).pdfs.single().sha256)
     }
 }
 

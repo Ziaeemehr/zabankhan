@@ -62,12 +62,17 @@ class DriveSyncEngine(
         syncDao.assignUnattributedOperations(deviceId)
         syncDao.setMetadata(SyncMetadataEntry("device_id", deviceId))
 
+        val restorePending = syncDao.getMetadata("restore_pending") == "1"
         val initial = syncDao.getMetadata("first_sync_completed") != "1"
         val remoteOperations = remoteFiles.flatMap { it.second.operations }
             .sortedWith(compareBy<SyncOperation>({ it.deviceId }, { it.sequence }, { it.operationId }))
-        if (initial || remoteOperations.isNotEmpty()) beforeApply(initial)
+        if (restorePending) beforeApply(true) else if (initial || remoteOperations.isNotEmpty()) beforeApply(initial)
 
         var appliedCount = 0
+        val skippedDeletes = mutableSetOf<String>()
+        val reemittedReviewIds = mutableSetOf<String>()
+        val localOperationIds = syncDao.allOperations().mapTo(mutableSetOf()) { it.operationId }
+        val skippedOperationIds = if (restorePending) opsToSkipAfterRestore(remoteOperations, localOperationIds, deviceId) else emptySet()
         val unresolvedCount = database.useWriterConnection { connection -> connection.immediateTransaction {
             val sync = database.sync()
             var pending = remoteOperations
@@ -77,6 +82,13 @@ class DriveSyncEngine(
                 val deferred = mutableListOf<SyncOperation>()
                 for (operation in pending) {
                     if (sync.wasApplied(operation.operationId)) continue
+                    if (operation.operationId in skippedOperationIds) {
+                        sync.markApplied(AppliedSyncOperation(operation.operationId, operation.deviceId, operation.sequence))
+                        if (operation.entityType == "list" || operation.entityType == "card") skippedDeletes += operation.entityType + "\u0000" + operation.entitySyncId
+                        appliedCount++
+                        progress = true
+                        continue
+                    }
                     val applied = applyOperation(operation, sync)
                     if (applied) {
                         sync.markApplied(AppliedSyncOperation(operation.operationId, operation.deviceId, operation.sequence))
@@ -86,6 +98,28 @@ class DriveSyncEngine(
                 }
                 pending = deferred
             } while (progress && pending.isNotEmpty())
+            if (restorePending) {
+                val vocab = database.vocab()
+                skippedDeletes.filter { it.startsWith("list\u0000") }.forEach { key ->
+                    val syncId = key.substringAfter('\u0000')
+                    vocab.getListBySyncId(syncId)?.let { vocab.resolveList(syncId, it, it.syncRevision) }
+                }
+                skippedDeletes.filter { it.startsWith("card\u0000") }.forEach { key ->
+                    val syncId = key.substringAfter('\u0000')
+                    vocab.getBySyncId(syncId)?.let { current ->
+                        val resolved = current.copy(syncRevision = current.syncRevision + 1L)
+                        vocab.resolveCard(syncId, current, current.syncRevision)
+                        reemittedReviewIds += vocab.reemitReviewsForCard(resolved)
+                    }
+                }
+                skippedDeletes.filter { it.startsWith("review\u0000") }.forEach { key ->
+                    val syncId = key.substringAfter('\u0000')
+                    if (syncId !in reemittedReviewIds) vocab.getReviewBySyncId(syncId)?.let { review ->
+                        vocab.getById(review.entryId)?.let { card -> vocab.reemitReview(review, card) }
+                    }
+                }
+                sync.clearMetadata("restore_pending")
+            }
             sync.setMetadata(SyncMetadataEntry("first_sync_completed", "1"))
             sync.unresolvedConflicts().size
         } }
@@ -386,3 +420,13 @@ class DriveSyncEngine(
     private fun JsonObject.boolean(key: String): Boolean? = this[key]?.jsonPrimitive?.booleanOrNull
     private fun JsonObject.rawJson(): String = Json.encodeToString(this)
 }
+
+internal fun opsToSkipAfterRestore(
+    remote: List<SyncOperation>,
+    localOperationIds: Set<String>,
+    deviceId: String,
+): Set<String> = remote.asSequence()
+    .filter { it.deviceId == deviceId && it.operationId !in localOperationIds }
+    .filter { it.entityType in setOf("card", "list", "review") && it.operationType in setOf("delete", "resolve_delete") }
+    .map { it.operationId }
+    .toSet()

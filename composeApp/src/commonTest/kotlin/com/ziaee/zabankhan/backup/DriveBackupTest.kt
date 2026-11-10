@@ -48,6 +48,8 @@ class DriveBackupTest {
                 }
                 HttpMethod.Get -> {
                     assertEquals("appDataFolder", request.url.parameters["spaces"])
+                    // Sidecar lookup after pruning: unordered listing, no sidecars present.
+                    if (request.url.parameters["orderBy"] == null) return@MockEngine respond("""{"files":[]}""")
                     assertEquals("createdTime desc", request.url.parameters["orderBy"])
                     val page = request.url.parameters["pageToken"]
                     if (page == null) respond("""{"nextPageToken":"second","files":[${(2..6).joinToString(",") { file(it) }}]}""")
@@ -58,11 +60,26 @@ class DriveBackupTest {
             }
         }
         HttpClient(engine).use { DriveBackupClient(it).upload("short-lived", "ZIP".encodeToByteArray(), 123) }
-        assertEquals(listOf("POST /upload/drive/v3/files", "GET /drive/v3/files", "GET /drive/v3/files", "DELETE /drive/v3/files/id1"), requests)
+        assertEquals(listOf("POST /upload/drive/v3/files", "GET /drive/v3/files", "GET /drive/v3/files", "DELETE /drive/v3/files/id1", "GET /drive/v3/files"), requests)
     }
     @Test fun pruningIgnoresUnrelatedFilesAndOrdersByCreationTime() {
         val backups = (1..7).map { DriveBackupFile("id$it", "zabankhan-backup-$it.zip", "2026-01-0${8-it}T00:00:00Z") }
         assertEquals(listOf("id6", "id7"), driveBackupsToDelete(backups + DriveBackupFile("other", "notes.zip", "2020-01-01T00:00:00Z")).map { it.id })
+    }
+    @Test fun pdfBlobUploadSkipsExistingHash() = runTest {
+        var uploads = 0
+        val hash = "a".repeat(64)
+        val engine = MockEngine { request ->
+            assertEquals(HttpMethod.Get, request.method)
+            respond("""{"files":[{"id":"id","name":"zabankhan-pdf-$hash.pdf"}]}""")
+        }
+        HttpClient(engine).use { DriveBackupClient(it).uploadPdfBlob("token", hash, "/missing.pdf") }
+        assertEquals(0, uploads)
+    }
+    @Test fun pdfGcAndMissingSelectionArePure() {
+        assertEquals(setOf("b"), pdfBlobsToDelete(setOf("a", "b"), listOf(setOf("a"))))
+        val refs = listOf(BackupPdfRef("a.pdf", 1, "a"), BackupPdfRef("b.pdf", 1, "b"))
+        assertEquals(listOf("b.pdf"), pdfRefsToDownload(refs) { it == "a.pdf" }.map { it.path })
     }
     @Test fun failedUploadNeverPrunes() = runTest {
         var count = 0

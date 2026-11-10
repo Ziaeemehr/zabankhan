@@ -261,7 +261,7 @@ private fun LocalBackupSection(
     val importLauncher = rememberFilePicker(listOf(FileKind.ZIP)) { file -> restoreUri = file?.path }
     fun exportBackup() { scope.launch {
         try {
-            shareBackup(createLocalBackup(container))
+            shareBackup(createLocalBackup(container, embedPdfs = true))
             val savedAt = Clock.System.now().toEpochMilliseconds()
             container.settings.backupPrefs.setLastBackupAtMs(savedAt)
             onBackupSaved(savedAt)
@@ -356,7 +356,7 @@ private fun CloudBackupSection(container: AppContainer, scope: CoroutineScope, s
             withDriveAccessToken { token ->
                 val archive = createLocalBackup(container)
                 val bytes = withContext(Dispatchers.IO) { okio.FileSystem.SYSTEM.read(archive.toPath()) { readByteArray() } }
-                client.upload(token, bytes, Clock.System.now().toEpochMilliseconds())
+                client.uploadBackup(token, bytes, Clock.System.now().toEpochMilliseconds(), backupPaths().files + "/pdfs")
                 val now = Clock.System.now().toEpochMilliseconds()
                 container.settings.backupPrefs.setLastBackupAtMs(now)
                 lastBackupAtMs = now
@@ -395,7 +395,8 @@ private fun CloudBackupSection(container: AppContainer, scope: CoroutineScope, s
                         val path = (backupPaths().exports.toPath() / "drive-restore.zip").toString()
                         client.download(token, chosen.id, path)
                         selected = null
-                        restoreLocalBackup(container, path)
+                        restoreLocalBackup(container, path, token)
+                        BackupRuntime.lastFailure?.let { snackbarHostState.showSnackbar(it) }
                     }
                 }) { Text(stringResource(Res.string.batch_a_backup_restore)) }
             },

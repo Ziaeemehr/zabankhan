@@ -28,9 +28,8 @@ class BackupRetentionTest {
         assertTrue(burst.first() !in keep)
     }
     @Test fun restoreWithoutPdfsPreservesExistingPdfs() {
-        assertFalse("pdfs" in restoreFileDirectories(false))
-        assertTrue("pdfs" in restoreFileDirectories(true))
-        assertTrue("text_images" in restoreFileDirectories(false))
+        assertFalse("pdfs" in restoreFileDirectories())
+        assertTrue("text_images" in restoreFileDirectories())
     }
     @Test fun protectedRotationKeepsFiveAndIgnoresIncompleteFiles() {
         val names = (1L..8L).map { "zabankhan-keep-${(1_780_000_000_000L + it).toString().padStart(16, '0')}.zip" }

@@ -26,13 +26,16 @@ import kotlinx.serialization.json.Json
 import okio.FileSystem
 import okio.Path
 import okio.Path.Companion.toPath
+import okio.HashingSink
+import okio.blackholeSink
 import kotlin.time.Clock
 
 const val BACKUP_SCHEMA_VERSION = 7
 private const val MAX_BACKUP_BYTES = 256L * 1024 * 1024
 class BackupTooLargeException : IllegalArgumentException("Backup exceeds 256 MiB")
+@Serializable data class BackupPdfRef(val path: String, val size: Long, val sha256: String)
 @Serializable
-data class BackupManifest(val appVersion: String, val schemaVersion: Int, val formatVersion: Int = 1, val filesRoot: String = "", val includesPdfs: Boolean? = null)
+data class BackupManifest(val appVersion: String, val schemaVersion: Int, val formatVersion: Int = 1, val filesRoot: String = "", val includesPdfs: Boolean? = null, val pdfs: List<BackupPdfRef> = emptyList())
 
 fun validateBackupManifest(manifest: BackupManifest, currentSchema: Int = BACKUP_SCHEMA_VERSION) {
     require(manifest.formatVersion == 1) { "Unsupported backup format" }
@@ -54,11 +57,11 @@ internal val backupMutex = Mutex()
 private val fs get() = FileSystem.SYSTEM
 private val json = Json { ignoreUnknownKeys = true }
 
-suspend fun createLocalBackup(container: AppContainer, automatic: Boolean = false): String = backupMutex.withLock {
-    createLocalBackupLocked(container, automatic)
+suspend fun createLocalBackup(container: AppContainer, automatic: Boolean = false, embedPdfs: Boolean = false): String = backupMutex.withLock {
+    createLocalBackupLocked(container, automatic, embedPdfs)
 }
 
-internal suspend fun createLocalBackupLocked(container: AppContainer, automatic: Boolean = false): String = withContext(Dispatchers.IO) {
+internal suspend fun createLocalBackupLocked(container: AppContainer, automatic: Boolean = false, embedPdfs: Boolean = false): String = withContext(Dispatchers.IO) {
         container.settings.persistForBackup()
         // Checkpoint through the same Room connection pool before reading the main database file.
         container.database.useWriterConnection { connection ->
@@ -67,20 +70,52 @@ internal suspend fun createLocalBackupLocked(container: AppContainer, automatic:
             }
             val paths = backupPaths()
             val includePdfs = container.settings.backupPrefs.backUpPdfFiles()
-            val entries = linkedMapOf("manifest.json" to json.encodeToString(BackupManifest(appVersion(), BACKUP_SCHEMA_VERSION, filesRoot = paths.files, includesPdfs = includePdfs)).encodeToByteArray())
+            val pdfRefs = mutableListOf<BackupPdfRef>()
+            var entries = linkedMapOf("manifest.json" to byteArrayOf())
             val sources = linkedMapOf(DB_NAME to paths.database.toPath())
             val base = paths.files.toPath()
             val prefs = base / PREFS_FILE
             check(fs.exists(prefs)) { "Preferences have not been saved yet" }
             sources[PREFS_FILE] = prefs
-            for (directory in (listOf("videos", "text_bodies", "text_images") + if (includePdfs) listOf("pdfs") else emptyList())) {
+            for (directory in listOf("videos", "text_bodies", "text_images")) {
                 val root = base / directory
                 if (fs.exists(root)) fs.listRecursively(root).forEach { file ->
                     if (fs.metadata(file).isRegularFile) sources["$directory/${file.relativeTo(root)}"] = file
                 }
             }
-            if (sources.entries.sumOf { (name, file) -> (fs.metadata(file).size ?: 0L) + 76L + 2 * name.encodeToByteArray().size } + 4096 > MAX_BACKUP_BYTES) throw BackupTooLargeException()
-            sources.forEach { (name, file) -> entries[name] = fs.read(file) { readByteArray() } }
+            if (includePdfs) {
+                val root = base / "pdfs"
+                if (fs.exists(root)) fs.listRecursively(root).filter { fs.metadata(it).isRegularFile }.forEach { file ->
+                    val hash = sha256Hex(file)
+                    pdfRefs += BackupPdfRef(file.relativeTo(root).toString(), fs.metadata(file).size ?: 0L, hash)
+                }
+            }
+            entries["manifest.json"] = json.encodeToString(BackupManifest(appVersion(), BACKUP_SCHEMA_VERSION, filesRoot = paths.files, includesPdfs = pdfRefs.isNotEmpty(), pdfs = pdfRefs)).encodeToByteArray()
+            if (embedPdfs && includePdfs) {
+                pdfRefs.forEach { ref ->
+                    val p = ref.path.toPath()
+                    require(!p.isAbsolute && p.segments.none { it == ".." }) { "Invalid PDF reference path" }
+                    val file = base / "pdfs" / p
+                    entries["pdfs/${ref.path}"] = fs.read(file) { readByteArray() }
+                }
+            }
+            fun estimatedSize() = sources.entries.sumOf { (name, file) -> (fs.metadata(file).size ?: 0L) + 76L + 2 * name.encodeToByteArray().size } + 4096
+            fun buildArchive(): ByteArray {
+                sources.forEach { (name, file) -> entries[name] = fs.read(file) { readByteArray() } }
+                return ZipArchive.writeStored(entries)
+            }
+            if (estimatedSize() > MAX_BACKUP_BYTES) {
+                if (embedPdfs && includePdfs) {
+                    entries.keys.filter { it.startsWith("pdfs/") }.forEach(entries::remove)
+                    BackupRuntime.lastFailure = "PDFs were omitted because the backup exceeds 256 MiB"
+                } else throw BackupTooLargeException()
+            }
+            var archive = buildArchive()
+            if (archive.size > MAX_BACKUP_BYTES && embedPdfs && includePdfs) {
+                entries.keys.filter { it.startsWith("pdfs/") }.forEach(entries::remove)
+                BackupRuntime.lastFailure = "PDFs were omitted because the backup exceeds 256 MiB"
+                archive = buildArchive()
+            }
             val destination = (if (automatic) paths.automatic else paths.exports).toPath()
             fs.createDirectories(destination)
             var timestamp = Clock.System.now().toEpochMilliseconds()
@@ -88,7 +123,6 @@ internal suspend fun createLocalBackupLocked(container: AppContainer, automatic:
             while (fs.exists(targetPath())) timestamp++
             val target = targetPath()
             val temp = target.parent!! / "${target.name}.tmp"
-            val archive = ZipArchive.writeStored(entries)
             if (archive.size > MAX_BACKUP_BYTES) throw BackupTooLargeException()
             try { fs.write(temp) { write(archive) }; fs.atomicMove(temp, target) }
             finally { fs.delete(temp, mustExist = false) }
@@ -123,7 +157,7 @@ internal fun validateDatabaseHeader(bytes: ByteArray, schemaVersion: Int) {
 }
 
 /** Validate and stage everything before closing the live container or replacing any data. */
-suspend fun restoreLocalBackup(container: AppContainer, path: String) = backupMutex.withLock {
+suspend fun restoreLocalBackup(container: AppContainer, path: String, driveToken: String? = null) = backupMutex.withLock {
     requireNotNull(BackupRuntime.onRestored) { "No app reload handler installed" }
     var closed = false
     try { withContext(Dispatchers.IO) {
@@ -150,6 +184,7 @@ suspend fun restoreLocalBackup(container: AppContainer, path: String) = backupMu
             stagedDatabase.useReaderConnection { connection ->
                 connection.usePrepared("SELECT COUNT(*) FROM texts") { it.step() }
             }
+            stagedDatabase.sync().setMetadata(com.ziaee.zabankhan.data.SyncMetadataEntry("restore_pending", "1"))
         } finally { stagedDatabase.close() }
         // File paths live inside the database and watch-history JSON. Rebase only the
         // previous sandbox prefix, before swapping the staged database into place.
@@ -170,18 +205,41 @@ suspend fun restoreLocalBackup(container: AppContainer, path: String) = backupMu
                 it.remove(stringPreferencesKey("backup:database_stamp"))
             }
         } finally { stagedPrefsJob.cancelAndJoin() }
+        val base = paths.files.toPath()
+        val token = driveToken ?: runCatching { backgroundDriveAccessToken() }.getOrNull()
+        val needed = pdfRefsToDownload(manifest.pdfs) { relative ->
+            val p = relative.toPath()
+            p.isAbsolute || p.segments.any { it == ".." } || fs.exists((base / "pdfs" / p)) || fs.exists((stage / "pdfs" / p))
+        }
+        var failedPdfs = 0
+        if (token != null) {
+            val http = io.ktor.client.HttpClient {
+                install(io.ktor.client.plugins.HttpTimeout) {
+                    requestTimeoutMillis = 10 * 60 * 1000L
+                    connectTimeoutMillis = 30_000L
+                    socketTimeoutMillis = 30_000L
+                }
+            }
+            val client = DriveBackupClient(http)
+            try {
+                for (ref in needed) try {
+                    val p = ref.path.toPath()
+                    require(!p.isAbsolute && p.segments.none { it == ".." }) { "Invalid PDF reference path" }
+                    client.downloadPdfBlob(token, ref.sha256, (stage / "pdfs" / p).toString())
+                } catch (cancelled: kotlinx.coroutines.CancellationException) { throw cancelled }
+                catch (_: Exception) { failedPdfs++ }
+            } finally { http.close() }
+        } else failedPdfs = needed.size
+        BackupRuntime.lastFailure = if (failedPdfs > 0) "$failedPdfs PDF files could not be restored" else null
         AutoBackup.protectCurrentStateLocked(container)
         closed = true
         container.database.close()
         container.settings.closeForRestore()
-        val base = paths.files.toPath()
-        // Keep the previous files until replacement is complete so a failed move can roll back.
         val rollback = base / "restore-previous"
-        fs.deleteRecursively(rollback, mustExist = false)
-        fs.createDirectories(rollback)
-        val directories = restoreFileDirectories(manifest.includesPdfs ?: entries.keys.any { it.startsWith("pdfs/") })
+        val directories = restoreFileDirectories()
         val targets = listOf(DB_NAME to paths.database.toPath(), PREFS_FILE to (base / PREFS_FILE)) + directories.map { it to (base / it) }
         val moved = mutableListOf<Pair<String, Path>>()
+        val addedPdfs = mutableListOf<Path>()
         try {
             for ((name, target) in targets) {
                 if (fs.exists(target)) fs.atomicMove(target, rollback / name)
@@ -189,8 +247,10 @@ suspend fun restoreLocalBackup(container: AppContainer, path: String) = backupMu
                 val source = stage / name
                 if (fs.exists(source)) { fs.createDirectories(target.parent!!); fs.atomicMove(source, target) }
             }
+            mergeBackupPdfs(stage / "pdfs", base / "pdfs", addedPdfs)
             for (suffix in listOf("-wal", "-shm")) fs.delete((paths.database + suffix).toPath(), mustExist = false)
         } catch (failure: Exception) {
+            addedPdfs.asReversed().forEach { fs.delete(it, mustExist = false) }
             moved.asReversed().forEach { (name, target) ->
                 fs.deleteRecursively(target, mustExist = false)
                 if (fs.exists(rollback / name)) fs.atomicMove(rollback / name, target)
@@ -202,6 +262,25 @@ suspend fun restoreLocalBackup(container: AppContainer, path: String) = backupMu
         fs.deleteRecursively(rollback, mustExist = false)
     } } finally {
         if (closed) withContext(NonCancellable + Dispatchers.Main) { BackupRuntime.onRestored?.invoke() }
+    }
+}
+
+/** Streams the file through SHA-256 so large PDFs are never loaded into memory. */
+internal fun sha256Hex(file: Path): String {
+    val sink = HashingSink.sha256(blackholeSink())
+    fs.read(file) { readAll(sink) }
+    return sink.hash.hex()
+}
+
+internal fun mergeBackupPdfs(stageDir: Path, targetDir: Path, added: MutableList<Path> = mutableListOf()) {
+    if (!fs.exists(stageDir)) return
+    for (source in fs.listRecursively(stageDir)) {
+        if (!fs.metadata(source).isRegularFile) continue
+        val target = targetDir / source.relativeTo(stageDir)
+        if (fs.exists(target)) continue
+        fs.createDirectories(target.parent!!)
+        fs.atomicMove(source, target)
+        added += target
     }
 }
 

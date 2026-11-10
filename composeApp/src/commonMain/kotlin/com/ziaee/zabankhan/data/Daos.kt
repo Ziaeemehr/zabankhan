@@ -303,17 +303,19 @@ interface VocabDao {
         val logId = insertReviewLogRaw(log.copy(scheduleSnapshot = cardPayload(updated)))
         appendLocalOperation("card", updated.syncId, old?.syncRevision, "review_state", cardPayload(updated))
         val review = getReviewById(logId) ?: log.copy(id = logId)
-        val reviewPayload = Json.encodeToString(buildJsonObject {
-            put("syncId", review.syncId); put("cardSyncId", updated.syncId); put("lang", review.lang)
-            put("timestampMs", review.timestampMs); put("knew", review.knew)
-            put("boxBefore", review.boxBefore); put("boxAfter", review.boxAfter)
-            review.scheduleSnapshot?.let { put("scheduleSnapshot", it) }
-            put("leitnerBox", updated.leitnerBox); put("nextReviewAtMs", updated.nextReviewAtMs)
-            updated.lastReviewedAtMs?.let { put("lastReviewedAtMs", it) }; put("learned", updated.learned)
-        })
+        val reviewPayload = reviewPayload(review, updated)
         appendLocalOperation("review", review.syncId, null, "upsert", reviewPayload)
         return logId
     }
+
+    private fun reviewPayload(review: ReviewLogEntry, card: VocabEntry) = Json.encodeToString(buildJsonObject {
+            put("syncId", review.syncId); put("cardSyncId", card.syncId); put("lang", review.lang)
+            put("timestampMs", review.timestampMs); put("knew", review.knew)
+            put("boxBefore", review.boxBefore); put("boxAfter", review.boxAfter)
+            review.scheduleSnapshot?.let { put("scheduleSnapshot", it) }
+            put("leitnerBox", card.leitnerBox); put("nextReviewAtMs", card.nextReviewAtMs)
+            card.lastReviewedAtMs?.let { put("lastReviewedAtMs", it) }; put("learned", card.learned)
+        })
 
     @Transaction
     suspend fun undoReview(entry: VocabEntry, logId: Long) {
@@ -349,15 +351,22 @@ interface VocabDao {
         allVocab().forEach { appendLocalOperation("card", it.syncId, null, "upsert", cardPayload(it)) }
         allReviews().forEach { review ->
             val card = getById(review.entryId) ?: return@forEach
-            val payload = Json.encodeToString(buildJsonObject {
-                put("syncId", review.syncId); put("cardSyncId", card.syncId); put("lang", review.lang)
-                put("timestampMs", review.timestampMs); put("knew", review.knew)
-                put("boxBefore", review.boxBefore); put("boxAfter", review.boxAfter)
-                review.scheduleSnapshot?.let { put("scheduleSnapshot", it) }
-            })
+            val payload = reviewPayload(review, card)
             appendLocalOperation("review", review.syncId, null, "upsert", payload)
         }
         setSyncMetadata(SyncMetadataEntry("initial_sync_seeded", "1"))
+    }
+
+    @Transaction
+    suspend fun reemitReviewsForCard(card: VocabEntry): Set<String> {
+        val reviews = allReviews().filter { it.entryId == card.id }
+        reviews.forEach { review -> appendLocalOperation("review", review.syncId, null, "upsert", reviewPayload(review, card)) }
+        return reviews.mapTo(mutableSetOf()) { it.syncId }
+    }
+
+    @Transaction
+    suspend fun reemitReview(review: ReviewLogEntry, card: VocabEntry) {
+        appendLocalOperation("review", review.syncId, null, "upsert", reviewPayload(review, card))
     }
 
     @Query("SELECT * FROM review_log WHERE lang = :lang AND timestampMs >= :since ORDER BY timestampMs")
@@ -374,6 +383,9 @@ interface SyncDao {
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun setMetadata(entry: SyncMetadataEntry)
+
+    @Query("DELETE FROM sync_metadata WHERE `key` = :key")
+    suspend fun clearMetadata(key: String)
 
     @Query("UPDATE sync_journal SET deviceId = :deviceId WHERE deviceId = 'local'")
     suspend fun assignUnattributedOperations(deviceId: String)

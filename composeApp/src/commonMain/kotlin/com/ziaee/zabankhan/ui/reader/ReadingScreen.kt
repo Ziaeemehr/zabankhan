@@ -224,9 +224,15 @@ fun ReadingScreen(vm: AppViewModel, settings: AppSettings, textId: Long, onBack:
     LaunchedEffect(playback, rate, settings.ttsVoices[lang.code]) { playback.configureAudio(rate, settings.ttsVoices[lang.code]) }
     LaunchedEffect(textId, parts, pageNavigation) {
         if (pageNavigation != PageNavigation.SCROLL) return@LaunchedEffect
-        snapshotFlow { listState.firstVisibleItemIndex }.distinctUntilChanged().collect { index ->
-            parts.getOrNull(index)?.let { vm.container.texts.savePosition(textId, it.offset) }
-        }
+        snapshotFlow { listState.firstVisibleItemIndex to (listState.layoutInfo.totalItemsCount > 0 && !listState.canScrollForward) }
+            .distinctUntilChanged().collect { (index, atEnd) ->
+                // The resume offset is the first visible paragraph; at the bottom store the end so progress reaches 100%.
+                val offset = if (atEnd && parts.isNotEmpty()) text.body.length else parts.getOrNull(index)?.offset ?: return@collect
+                vm.container.texts.savePosition(textId, offset)
+            }
+    }
+    LaunchedEffect(textId, speechComplete) {
+        if (speechComplete && parts.isNotEmpty()) vm.container.texts.savePosition(textId, text.body.length)
     }
     LaunchedEffect(listState, activity) {
         snapshotFlow { listState.firstVisibleItemIndex to listState.firstVisibleItemScrollOffset }.collect { activity.interact() }
@@ -554,7 +560,10 @@ fun ReadingScreen(vm: AppViewModel, settings: AppSettings, textId: Long, onBack:
                             }
                             activity.interact()
                             parts.getOrNull(visiblePageAnchor.chunkIndex)?.let { part ->
-                                val offset = part.sourceOffsets.getOrElse(visiblePageAnchor.characterOffset) { part.offset }
+                                val end = page.fragments.lastOrNull()
+                                val lastPage = end != null && end.chunkIndex == parts.lastIndex &&
+                                    end.endOffset >= (parts.getOrNull(end.chunkIndex)?.sourceOffsets?.size ?: 0)
+                                val offset = if (lastPage) text.body.length else part.sourceOffsets.getOrElse(visiblePageAnchor.characterOffset) { part.offset }
                                 vm.action { vm.container.texts.savePosition(textId, offset) }
                             }
                         }
