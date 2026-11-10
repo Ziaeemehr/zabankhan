@@ -78,8 +78,7 @@ class DriveSyncCoordinator(private val container: AppContainer) {
     suspend fun syncNow(token: String): SyncResult {
         mutableState.value = mutableState.value.copy(syncing = true, error = null)
         try {
-            // shortcut: card sync is off on every platform until cards seeded on two devices are merged (same word twice); re-enable after dedupe.
-            val result = if (!CARD_SYNC_ENABLED) SyncResult(0, 0, 0, now()) else engine.syncOnce(token) { initial ->
+            val result = engine.syncOnce(token) { initial ->
                 if (initial) AutoBackup.protectBeforeSync(container)
             }
             val libraryError = try {
@@ -112,5 +111,3 @@ class DriveSyncCoordinator(private val container: AppContainer) {
 
     fun close() { scope.cancel() }
 }
-
-private const val CARD_SYNC_ENABLED = false
