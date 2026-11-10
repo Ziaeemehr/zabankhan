@@ -109,7 +109,8 @@ class DriveBackupClient(private val http: HttpClient) {
         val name = "$DRIVE_SYNC_FILE_PREFIX$deviceId.json"
         val existing = listSyncFiles(token).firstOrNull { it.name == name }
         val boundary = "zabankhan-sync-" + kotlin.random.Random.nextLong().toString(16)
-        val metadata = json.encodeToString(if (existing == null) DriveMetadata(name, listOf("appDataFolder")) else DriveSyncMetadata(name))
+        val metadata = if (existing == null) json.encodeToString(DriveMetadata(name, listOf("appDataFolder")))
+            else json.encodeToString(DriveSyncMetadata(name))
         val prefix = "--$boundary\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n$metadata\r\n--$boundary\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n".encodeToByteArray()
         val suffix = "\r\n--$boundary--\r\n".encodeToByteArray()
         val target = if (existing == null) "https://www.googleapis.com/upload/drive/v3/files"

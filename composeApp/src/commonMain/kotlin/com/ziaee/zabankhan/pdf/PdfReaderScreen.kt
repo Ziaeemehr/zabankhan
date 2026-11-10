@@ -145,6 +145,9 @@ private data class PdfTextNoteEditor(
     val highlights by remember(text.id) { vm.container.database.pdfHighlights().observeForText(text.id) }.collectAsState(emptyList())
     val inkDao = vm.container.database.pdfInk()
     val pdfTextNoteDao = vm.container.database.pdfTextNotes()
+    val savedNotes by remember(text.id) { pdfTextNoteDao.observeForText(text.id) }.collectAsState(emptyList())
+    val notesByPage = remember(savedNotes) { savedNotes.groupBy { it.page } }
+    val notesRtl = remember(text.lang) { Languages.byCode(text.lang)?.direction == TextDir.RTL }
     val savedInk by remember(text.id) { inkDao.observeForText(text.id) }.collectAsState(initial = null)
     val ink = remember(text.id) { mutableStateMapOf<Int, List<InkStroke>>() }
     fun pageInk(index: Int): List<InkStroke> = ink[index] ?:
@@ -152,11 +155,19 @@ private data class PdfTextNoteEditor(
     // ViewModel writes survive leaving the reader; the mutex preserves edit order.
     val inkWriteLock = remember(text.id) { Mutex() }
     val noteWriteLock = remember(text.id) { Mutex() }
+    val noteVersions = remember(text.id) { mutableMapOf<Triple<Int, Int, Int>, Int>() }
     var noteEditor by remember(path) { mutableStateOf<PdfTextNoteEditor?>(null) }
     var noteSaveJob by remember(path) { mutableStateOf<Job?>(null) }
+    var confirmNoteDelete by remember(path) { mutableStateOf(false) }
+    fun openPdfNote(note: PdfTextNote) {
+        noteEditor = PdfTextNoteEditor(note.page, note.startWord, note.endWord, note.selectedText, note.body)
+    }
     fun savePdfNote(note: PdfTextNoteEditor) {
+        val key = Triple(note.page, note.startWord, note.endWord)
+        val version = noteVersions[key] ?: 0
         vm.action {
             noteWriteLock.withLock {
+                if ((noteVersions[key] ?: 0) != version) return@withLock
                 if (note.body.isBlank()) {
                     pdfTextNoteDao.delete(text.id, note.page, note.startWord, note.endWord)
                 } else {
@@ -179,12 +190,24 @@ private data class PdfTextNoteEditor(
     }
     fun changePdfNoteBody(body: String) {
         val updated = noteEditor?.copy(body = body) ?: return
+        val key = Triple(updated.page, updated.startWord, updated.endWord)
+        noteVersions[key] = (noteVersions[key] ?: 0) + 1
         noteEditor = updated
         noteSaveJob?.cancel()
         noteSaveJob = scope.launch {
             delay(300)
             savePdfNote(updated)
         }
+    }
+    fun deletePdfNote() {
+        val note = noteEditor ?: return
+        val key = Triple(note.page, note.startWord, note.endWord)
+        noteVersions[key] = (noteVersions[key] ?: 0) + 1
+        noteSaveJob?.cancel()
+        noteEditor = null
+        vm.action { noteWriteLock.withLock {
+            pdfTextNoteDao.delete(text.id, note.page, note.startWord, note.endWord)
+        } }
     }
     // Undo follows the page last drawn on, which is not always the centre page.
     var lastInkPage by remember(text.id) { mutableStateOf<Int?>(null) }
@@ -391,7 +414,8 @@ private data class PdfTextNoteEditor(
                         transformOrigin = TransformOrigin(0f, 0f)
                     }, verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     items((0 until handle.pageCount).toList(), key = { it }) { index ->
-                        PdfPage(handle, layout, index, renderZoom, areaMode, range?.takeIf { it.page == index }, highlights.filter { it.page == index },
+                        PdfPage(handle, layout, index, renderZoom, zoom, areaMode, range?.takeIf { it.page == index }, highlights.filter { it.page == index },
+                            notes = notesByPage[index].orEmpty(), notesRtl = notesRtl, onOpenNote = ::openPdfNote,
                             listState = list,
                             penMode = penMode, penColor = penColor, penWidth = penWidth, highlighter = highlighter,
                             eraser = eraser, fingerInk = fingerInk,
@@ -529,6 +553,10 @@ private data class PdfTextNoteEditor(
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                     Text(stringResource(Res.string.pdf_note_title, editor.page + 1),
                         Modifier.weight(1f), style = MaterialTheme.typography.titleMedium)
+                    IconButton(onClick = { confirmNoteDelete = true }) {
+                        Icon(Icons.Default.DeleteOutline, stringResource(Res.string.delete),
+                            tint = MaterialTheme.colorScheme.error)
+                    }
                     TextButton(onClick = ::closePdfNote) { Text(stringResource(Res.string.pdf_done)) }
                 }
                 Surface(shape = MaterialTheme.shapes.medium, color = MaterialTheme.colorScheme.surfaceContainerLow,
@@ -557,6 +585,8 @@ private data class PdfTextNoteEditor(
             }
         }
     }
+    if (confirmNoteDelete) ConfirmDelete(note = noteEditor?.selectedText.orEmpty(),
+        onDismiss = { confirmNoteDelete = false }, onDelete = ::deletePdfNote)
     translationSource?.let { source ->
         val dictionaryLang = requireNotNull(Languages.byCode(text.lang))
         val dictionaryTranslator = vm.container.translations(settings)
@@ -593,8 +623,9 @@ private data class PdfTextNoteEditor(
     }
 }
 
-@Composable private fun PdfPage(handle: PdfDocumentHandle, layout: PdfPageWords, index: Int, renderZoom: Float, areaMode: Boolean,
-    selection: PdfRange?, highlights: List<PdfHighlight>,
+@Composable private fun PdfPage(handle: PdfDocumentHandle, layout: PdfPageWords, index: Int, renderZoom: Float, displayZoom: Float, areaMode: Boolean,
+    selection: PdfRange?, highlights: List<PdfHighlight>, notes: List<PdfTextNote>, notesRtl: Boolean,
+    onOpenNote: (PdfTextNote) -> Unit,
     listState: LazyListState,
     penMode: Boolean, penColor: String, penWidth: Float, highlighter: Boolean, eraser: Boolean, fingerInk: Boolean,
     ink: List<InkStroke>, onInk: (List<InkStroke>) -> Unit, onError: () -> Unit,
@@ -653,6 +684,13 @@ private data class PdfTextNoteEditor(
     val primary = MaterialTheme.colorScheme.primary
     val secondary = MaterialTheme.colorScheme.secondary
     val tertiary = MaterialTheme.colorScheme.tertiary
+    val markerSize = 40.dp / displayZoom.coerceAtLeast(1f)
+    val markerGap = 4.dp / displayZoom.coerceAtLeast(1f)
+    val density = LocalDensity.current
+    val markerPositions = remember(notes, words, viewport, markerSize, markerGap, notesRtl) {
+        placePdfNoteMarkers(notes, words, viewport.width.toInt(), viewport.height.toInt(),
+            with(density) { markerSize.roundToPx() }, with(density) { markerGap.roundToPx() }, notesRtl)
+    }
     fun normalized(point: Offset) = Offset((point.x / viewport.width).coerceIn(0f, 1f), (point.y / viewport.height).coerceIn(0f, 1f))
     fun select(first: Int, last: Int) {
         val layout = coordinates?.takeIf { it.isAttached } ?: return
@@ -665,7 +703,8 @@ private data class PdfTextNoteEditor(
     }
     Box(Modifier.fillMaxWidth().aspectRatio(1f / aspect).onSizeChanged {
         width = it.width; viewport = Size(it.width.toFloat(), it.height.toFloat())
-    }.onGloballyPositioned { coordinates = it }.background(MaterialTheme.colorScheme.surface)
+    }.background(MaterialTheme.colorScheme.surface)) {
+        Box(Modifier.fillMaxSize().onGloballyPositioned { coordinates = it }
         .pointerInput(penMode, penColor, penWidth, highlighter, eraser, fingerInk, viewport) {
             if (penMode) awaitPointerEventScope {
                 while (true) {
@@ -787,6 +826,13 @@ private data class PdfTextNoteEditor(
                     rectangle(it.rect, (when (h.colorKey) { "secondary" -> secondary; "tertiary" -> tertiary; else -> primary }).copy(alpha = .25f))
                 }
             }
+            notes.forEach { note ->
+                if (note.startWord >= 0 && note.endWord in words.indices && note.startWord <= note.endWord) {
+                    for (wordIndex in note.startWord..note.endWord) {
+                        rectangle(words[wordIndex].rect, tertiary.copy(alpha = .08f))
+                    }
+                }
+            }
             (preview ?: ink).forEach { stroke ->
                 val color = inkColor(stroke.colorKey, primary, secondary, tertiary)
                     .copy(alpha = if (stroke.highlighter) .35f else .9f)
@@ -822,6 +868,21 @@ private data class PdfTextNoteEditor(
                     }
                     if (points.size > 4) lineTo(points[points.size - 2] * size.width, points.last() * size.height)
                 }, color, style = Stroke(radius * size.width, cap = StrokeCap.Round, join = StrokeJoin.Round))
+            }
+        }
+        }
+        notes.zip(markerPositions).forEach { (note, position) ->
+            Surface(
+                onClick = { onOpenNote(note) },
+                modifier = Modifier.offset { IntOffset(position.x, position.y) }.size(markerSize),
+                shape = CircleShape,
+                color = androidx.compose.ui.graphics.Color.Transparent,
+            ) {
+                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    Icon(Icons.Default.ChatBubble, stringResource(Res.string.pdf_note_open, note.selectedText.take(40)),
+                        Modifier.size(22.dp / displayZoom.coerceAtLeast(1f)),
+                        tint = MaterialTheme.colorScheme.tertiary.copy(alpha = .78f))
+                }
             }
         }
     }

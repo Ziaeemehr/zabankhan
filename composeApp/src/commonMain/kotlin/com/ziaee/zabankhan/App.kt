@@ -9,6 +9,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.savedstate.read
+import androidx.navigation.NavHostController
 import androidx.navigation.NavType
 import androidx.navigation.navArgument
 import androidx.navigation.compose.*
@@ -26,6 +27,27 @@ import org.jetbrains.compose.resources.stringResource
 }
 
 data class AppOpenRequest(val text: String? = null, val review: Boolean = false, val id: Long = 0, val youtubeVideoId: String? = null)
+
+private fun NavHostController.navigateToTab(route: String) {
+    when (route) {
+        "home" -> if (currentDestination?.route != "home" && !popBackStack("home", inclusive = false)) {
+            navigate("home") { launchSingleTop = true }
+        }
+        "review" -> navigate("review") {
+            // A review tab tap always starts at the overview, even if a card session was saved.
+            popUpTo("home") { saveState = false }
+            launchSingleTop = true
+        }
+        else -> {
+            val cameFromReview = route == "settings" && currentDestination?.route == "review"
+            navigate(route) {
+                popUpTo("home") { saveState = !cameFromReview }
+                launchSingleTop = true
+                restoreState = true
+            }
+        }
+    }
+}
 
 @Composable private fun AppContent(container: AppContainer, request: AppOpenRequest?, onRequestHandled: () -> Unit) {
     val vm = viewModel(key = "app-${container.hashCode()}") { AppViewModel(container) }
@@ -99,20 +121,7 @@ data class AppOpenRequest(val text: String? = null, val review: Boolean = false,
             Scaffold(snackbarHost = { SnackbarHost(snackbar) }, bottomBar = {
                 if (route in routes && !(route == "review" && reviewingCards)) NavigationBar(containerColor = MaterialTheme.colorScheme.surface) {
                     routes.forEachIndexed { i, target -> NavigationBarItem(selected = route == target,
-                        onClick = {
-                            if (target == "review") {
-                                // Always return to the review overview. A saved card-session state
-                                // must not be restored when the tab is tapped from Settings.
-                                nav.navigate("review") {
-                                    popUpTo("review") { inclusive = true; saveState = false }
-                                    launchSingleTop = true
-                                }
-                            } else if (target == "home" && route != "home") {
-                                if (!nav.popBackStack("home", inclusive = false)) nav.navigate("home") { launchSingleTop = true }
-                            } else {
-                                nav.navigate(target) { popUpTo("home") { saveState = true }; launchSingleTop = true; restoreState = true }
-                            }
-                        },
+                        onClick = { nav.navigateToTab(target) },
                         icon = { Icon(icons[i], stringResource(labels[i])) }, label = { EditorialNavigationLabel(stringResource(labels[i])) },
                         colors = NavigationBarItemDefaults.colors(
                             selectedIconColor = MaterialTheme.colorScheme.primary, selectedTextColor = MaterialTheme.colorScheme.primary,
@@ -144,16 +153,11 @@ data class AppOpenRequest(val text: String? = null, val review: Boolean = false,
                         onOpenDataset = { nav.navigate("datasets") }, reviewScope = { nav.navigate("review-scope/$it") }) }
                     composable("review-scope/{listId}", arguments = listOf(navArgument("listId") { type = NavType.LongType })) {
                         SideEffect { reviewingCards = false }
-                        ReviewScreen(container, prefs, { nav.popBackStack() }, { nav.navigate("settings") },
+                        ReviewScreen(container, prefs, { nav.popBackStack() }, { nav.navigateToTab("settings") },
                             listScope = requireNotNull(it.arguments?.read { getLong("listId") }), onReviewingCardsChanged = { reviewingCards = it })
                     }
                     composable("datasets") { DatasetScreen(vm, prefs) { nav.popBackStack() } }
-                    composable("review") { ReviewScreen(container, prefs, { nav.popBackStack() }, {
-                        nav.navigate("settings") {
-                            popUpTo("review") { inclusive = true; saveState = false }
-                            launchSingleTop = true
-                        }
-                    }, onOpenDatasets = { nav.navigate("datasets") }, onReviewingCardsChanged = { reviewingCards = it }) }
+                    composable("review") { ReviewScreen(container, prefs, { nav.popBackStack() }, { nav.navigateToTab("settings") }, onOpenDatasets = { nav.navigate("datasets") }, onReviewingCardsChanged = { reviewingCards = it }) }
                     composable("settings") { SettingsScreen(vm, prefs, { nav.navigate("statistics") }, { nav.navigate("grammar") }, { nav.navigate("exams") }) }
                     composable("add") { AddTextScreen(vm, prefs, { sharedText = ""; nav.popBackStack() }, { id -> sharedText = ""; nav.navigate("reader/$id") { popUpTo("add") { inclusive = true } } }, initialText = sharedText) }
                     composable("pdf/{id}", arguments = listOf(navArgument("id") { type = NavType.LongType })) {

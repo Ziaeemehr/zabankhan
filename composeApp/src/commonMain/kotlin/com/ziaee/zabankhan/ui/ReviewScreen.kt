@@ -19,12 +19,16 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.TrendingUp
@@ -41,10 +45,14 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.input.TextFieldValue
+import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDirection
@@ -695,6 +703,9 @@ internal fun EntryFlashcard(
 ) {
     var appliedMeaning by remember(entry.id, entry.word, entry.sentence, meaningTarget) { mutableStateOf<String?>(null) }
     var previousMeaning by remember(entry.id, entry.word, entry.sentence, meaningTarget) { mutableStateOf<String?>(null) }
+    val cardLanguage = requireNotNull(Languages.byCode(entry.lang))
+    val meaningLanguage = Languages.byCode(meaningTarget) ?: cardLanguage
+    val lookup: (String) -> Unit = { if (interactive) onLookup(it) }
     val wordStyle = centeredContent(MaterialTheme.typography.headlineMedium)
     FlipCard(
         revealed = revealed,
@@ -708,7 +719,7 @@ internal fun EntryFlashcard(
             Text(stringResource(Res.string.review_tap_to_reveal), style = MaterialTheme.typography.labelSmall)
         },
         back = {
-            SelectableCardText(entry.word, wordStyle, onLookup)
+            SelectableCardText(entry.word, wordStyle, cardLanguage, lookup)
             WordAudioButton(interactive, onPlayWord)
             Spacer(Modifier.height(14.dp)); HorizontalDivider(); Spacer(Modifier.height(12.dp))
             IconButton(onClick = onEdit, enabled = interactive) {
@@ -716,11 +727,11 @@ internal fun EntryFlashcard(
             }
             val (meaning, alternatives) = splitMeaning(entry.meaning)
             meaning?.let {
-                SelectableCardText(it, centeredContent(MaterialTheme.typography.titleMedium), onLookup)
+                SelectableCardText(it, centeredContent(MaterialTheme.typography.titleMedium), meaningLanguage, lookup)
                 Spacer(Modifier.height(8.dp))
             }
             alternatives.forEach {
-                SelectableCardText(it, centeredContent(MaterialTheme.typography.bodyMedium), onLookup, MaterialTheme.colorScheme.onSurfaceVariant)
+                SelectableCardText(it, centeredContent(MaterialTheme.typography.bodyMedium), meaningLanguage, lookup, MaterialTheme.colorScheme.onSurfaceVariant)
             }
             if (alternatives.isNotEmpty()) Spacer(Modifier.height(8.dp))
             if (revealed && meaningOptions.isNotEmpty()) {
@@ -738,7 +749,7 @@ internal fun EntryFlashcard(
             }
             if (entry.sentence.isNotBlank()) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    SelectableCardText(entry.sentence, centeredContent(LocalTextStyle.current).copy(fontStyle = FontStyle.Italic), onLookup, modifier = Modifier.weight(1f))
+                    SelectableCardText(entry.sentence, centeredContent(LocalTextStyle.current).copy(fontStyle = FontStyle.Italic), cardLanguage, lookup, modifier = Modifier.weight(1f))
                     IconButton(onClick = onPlaySentence, enabled = interactive) {
                         Icon(Icons.AutoMirrored.Filled.VolumeUp, stringResource(Res.string.accessibility_play_sentence))
                     }
@@ -757,18 +768,48 @@ internal fun EntryFlashcard(
 }
 
 @Composable
-private fun SelectableCardText(text: String, style: TextStyle, onLookup: (String) -> Unit, color: Color = MaterialTheme.colorScheme.onSurface, modifier: Modifier = Modifier) {
+private fun SelectableCardText(text: String, style: TextStyle, language: LanguageSpec, onLookup: (String) -> Unit, color: Color = MaterialTheme.colorScheme.onSurface, modifier: Modifier = Modifier) {
     var value by remember(text) { mutableStateOf(TextFieldValue(text)) }
+    var layout by remember(text) { mutableStateOf<TextLayoutResult?>(null) }
+    val lookup by rememberUpdatedState(onLookup)
+    val clipboard = LocalClipboardManager.current
     BasicTextField(
         value = value,
         onValueChange = { changed ->
+            if (changed.selection != value.selection && !changed.selection.collapsed) {
+                changed.text.substring(changed.selection.min, changed.selection.max).trim()
+                    .takeIf(String::isNotEmpty)?.let { clipboard.setText(AnnotatedString(it)) }
+            }
             value = changed
-            val range = changed.selection
-            if (!range.collapsed) text.substring(range.min, range.max).trim().takeIf(String::isNotEmpty)?.let(onLookup)
         },
         readOnly = true,
         textStyle = style.copy(color = color),
-        modifier = modifier.fillMaxWidth(),
+        modifier = modifier.fillMaxWidth().pointerInput(text, language) {
+            awaitEachGesture {
+                val down = awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Initial)
+                var isTap = !down.isConsumed
+                do {
+                    val event = awaitPointerEvent(PointerEventPass.Initial)
+                    val change = event.changes.firstOrNull { it.id == down.id } ?: break
+                    if ((change.position - down.position).getDistance() > viewConfiguration.touchSlop ||
+                        change.uptimeMillis - down.uptimeMillis >= viewConfiguration.longPressTimeoutMillis ||
+                        event.changes.size > 1
+                    ) isTap = false
+                    if (!change.pressed) {
+                        if (isTap) {
+                            val offset = layout?.getOffsetForPosition(change.position)
+                            val word = offset?.let { wordAt(text, it, language)?.text }
+                            if (!word.isNullOrBlank()) {
+                                value = value.copy(selection = TextRange.Zero)
+                                lookup(word)
+                            }
+                        }
+                        break
+                    }
+                } while (true)
+            }
+        },
+        onTextLayout = { layout = it },
         decorationBox = { inner -> Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) { inner() } },
     )
 }

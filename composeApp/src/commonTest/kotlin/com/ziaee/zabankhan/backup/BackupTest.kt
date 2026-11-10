@@ -24,15 +24,16 @@ class BackupTest {
         assertFailsWith<IllegalArgumentException> { validateBackupManifest(BackupManifest("0.1.0", 3, 2)) }
         assertFailsWith<IllegalArgumentException> { validateBackupManifest(BackupManifest("", 3)) }
     }
-    @Test fun databaseHeaderMustMatchManifestSchema() {
+    @Test fun databaseHeaderAcceptsOlderManifestFromBeforeSchemaBump() {
         val header = ByteArray(100)
         "SQLite format 3\u0000".encodeToByteArray().copyInto(header)
-        header[63] = 3
-        validateDatabaseHeader(header, 3)
-        assertFailsWith<IllegalArgumentException> { validateDatabaseHeader(header, 2) }
+        header[63] = 7
+        validateDatabaseHeader(header, 5)
+        validateDatabaseHeader(header, 7)
+        assertFailsWith<IllegalArgumentException> { validateDatabaseHeader(header, 8) }
         header[60] = 1 // Big-endian version must be read in full, not just its final byte.
-        assertFailsWith<IllegalArgumentException> { validateDatabaseHeader(header, 3) }
-        assertFailsWith<IllegalArgumentException> { validateDatabaseHeader(ByteArray(100), 3) }
+        assertFailsWith<IllegalArgumentException> { validateDatabaseHeader(header, 5) }
+        assertFailsWith<IllegalArgumentException> { validateDatabaseHeader(ByteArray(100), 5) }
     }
 
     @Test fun pdfBackupPreferenceDefaultsOffUnlessExplicitlyEnabled() = kotlinx.coroutines.test.runTest {

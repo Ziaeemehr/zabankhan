@@ -6,6 +6,7 @@
     <string name="pdf_pen_clear">Clear page</string>
     <string name="pdf_pen_finger">Draw with finger</string>
     <string name="pdf_note_add">Add note to selection</string>
+    <string name="pdf_note_open">Open note for %1$s</string>
     <string name="pdf_note_title">Note · page %1$d</string>
     <string name="pdf_note_hint">Write a note for this passage…</string>
 </resources>

@@ -8,6 +8,7 @@
   <string name="pdf_translate_sentence">Traduire la phrase touchée</string>
   <string name="pdf_recognized_text">Texte reconnu</string>
   <string name="pdf_note_add">Ajouter une note à la sélection</string>
+  <string name="pdf_note_open">Ouvrir la note pour %1$s</string>
   <string name="pdf_note_title">Note · page %1$d</string>
   <string name="pdf_note_hint">Écrire une note pour ce passage…</string>
 </resources>

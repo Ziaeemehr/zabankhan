@@ -7,7 +7,7 @@ Let learners attach editable text notes to a selected word or passage in a PDF. 
 ## Goals
 
 - Create a note from a text selection using the PDF reader's existing selection actions.
-- Reopen a note by selecting the same passage and choosing the note action again.
+- Show a persistent note balloon beside the selected passage and reopen it by tapping the balloon.
 - Keep each note attached to its selected range; distinct ranges can have separate notes.
 - Let learners edit, select, copy, and paste ordinary text.
 - Save automatically and restore notes when the PDF is reopened.
@@ -16,7 +16,7 @@ Let learners attach editable text notes to a selected word or passage in a PDF. 
 
 ## Non-goals
 
-- Persistent on-page note markers or a separate notes browser.
+- A separate notes browser.
 - Notes pinned to arbitrary screen coordinates or blank areas of the PDF.
 - Recognizing drawn pen strokes as editable text or generating a font from handwriting.
 - Embedding notes into or rewriting the PDF file.
@@ -33,17 +33,19 @@ Let learners attach editable text notes to a selected word or passage in a PDF. 
 
 ## Approaches
 
-1. **Selected-text note editor (selected).** Add a note action to the existing selection toolbar, save the selected page and word range, and reopen the note when the same range is selected again. This uses the existing word-range model without adding on-page marker layout.
+1. **Selected-text note editor (selected).** Add a note action to the existing selection toolbar, save the selected page and word range, and show a tappable balloon beside that range.
 2. **One note per page.** This is simpler to store and open, but it does not connect an exercise comment to the specific phrase it discusses.
 3. **Free-position sticky notes.** This permits notes anywhere, but needs coordinate editing, dragging, collision handling, and zoom-aware placement that the current note request does not require.
 
-Approach 1 is selected based on the user's preference to connect a note to a specific part of the page while keeping the first version simple. Reusing selection ranges is more reliable than free-position notes; reopening by reselecting the text avoids marker layout and collision handling.
+Approach 1 is selected based on the user's preference to connect a note to a specific part of the page while keeping the first version simple. Reusing selection ranges is more reliable than free-position notes. The balloon needs zoom-aware placement and basic collision handling.
 
 ## Proposed Experience
 
 - The learner selects a word or passage and chooses a localized Note action in the existing PDF selection toolbar.
 - A spacious editor opens with the selected text and page number visible as context. The text area supports ordinary typing, selection, copy/paste, and platform-supported handwriting input through the keyboard.
 - Changes save automatically. Closing the editor returns to the PDF without an extra save step.
+- A small, translucent balloon remains visible beside the selected passage without covering the text. Tapping it reopens the note; a subtle tint identifies its text range.
+- A delete action in the editor removes the note after confirmation and removes its balloon from the page.
 - If the same exact range is selected again, open its existing note instead of creating a duplicate. Different ranges remain separate notes.
 - The selected passage is context for the note and remains unchanged; editing the note never alters the PDF text or its existing highlights.
 - Existing pen and highlighter interactions remain unchanged.
@@ -61,6 +63,8 @@ Approach 1 is selected based on the user's preference to connect a note to a spe
 
 - Selecting a word range offers a Note action and opens the editor for that exact page/range.
 - Saving and reopening a note preserves its body and anchor; selecting the same range again finds the same note.
+- A saved note has a visible, tappable balloon beside its selected text, including after the PDF is reopened.
+- Deleting a note removes its balloon, and an older pending autosave cannot recreate it.
 - Different ranges on a page and the same range on different pages or PDFs remain independent.
 - Selecting an existing range again opens its note; another range, page, or PDF opens a different note.
 - Text can be entered, edited, selected, copied, and pasted without loss; rapid edits cannot be overwritten by a stale save.
@@ -73,6 +77,6 @@ Approach 1 is selected based on the user's preference to connect a note to a spe
 ## Implementation Choices Left to the Builder
 
 - Reuse the selection popup for note creation and the selected word range as the note key.
-- Do not add persistent markers or a separate notes browser in this first version.
+- Keep the marker small and readable at different zoom levels; do not add a separate notes browser.
 - Keep autosave local and ordered so rapid edits cannot be overwritten by an older pending write.
 - Use the existing backup table enumeration and round-trip coverage as the compatibility source of truth.

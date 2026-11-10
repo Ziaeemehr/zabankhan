@@ -8,6 +8,29 @@ import kotlinx.coroutines.test.runTest
 import kotlin.test.*
 
 class DriveBackupTest {
+    @Test fun syncUploadSerializesMetadataForNewAndExistingFiles() = runTest {
+        for (existing in listOf(false, true)) {
+            var uploaded = false
+            val engine = MockEngine { request ->
+                when (request.method) {
+                    HttpMethod.Get -> respond(if (existing) """{"files":[{"id":"file-id","name":"zabankhan-sync-device.json"}]}""" else """{"files":[]}""")
+                    HttpMethod.Post, HttpMethod.Patch -> {
+                        assertEquals(if (existing) HttpMethod.Patch else HttpMethod.Post, request.method)
+                        val body = (request.body as OutgoingContent.ByteArrayContent).bytes().decodeToString()
+                        assertTrue(body.contains("\"name\":\"zabankhan-sync-device.json\""))
+                        assertEquals(!existing, body.contains("\"parents\":[\"appDataFolder\"]"))
+                        assertTrue(body.contains("\r\n\r\nSYNC\r\n"))
+                        uploaded = true
+                        respond("{}")
+                    }
+                    else -> error("Unexpected request")
+                }
+            }
+            HttpClient(engine).use { DriveBackupClient(it).uploadSyncFile("token", "device", "SYNC".encodeToByteArray()) }
+            assertTrue(uploaded)
+        }
+    }
+
     @Test fun uploadListsEveryPageThenDeletesOnlyOlderBackups() = runTest {
         val requests = mutableListOf<String>()
         val engine = MockEngine { request ->

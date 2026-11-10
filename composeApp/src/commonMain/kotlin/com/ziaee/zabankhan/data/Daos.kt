@@ -493,6 +493,9 @@ interface PdfInkDao {
 
 @Dao
 interface PdfTextNoteDao {
+    @Query("SELECT * FROM pdf_text_notes WHERE textId = :textId ORDER BY page, startWord, endWord, id")
+    fun observeForText(textId: Long): Flow<List<PdfTextNote>>
+
     @Query("SELECT * FROM pdf_text_notes WHERE textId = :textId AND page = :page AND startWord = :startWord AND endWord = :endWord LIMIT 1")
     suspend fun find(textId: Long, page: Int, startWord: Int, endWord: Int): PdfTextNote?
 

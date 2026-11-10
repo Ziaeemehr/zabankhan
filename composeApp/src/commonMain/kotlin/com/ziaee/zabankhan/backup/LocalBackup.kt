@@ -28,7 +28,7 @@ import okio.Path
 import okio.Path.Companion.toPath
 import kotlin.time.Clock
 
-const val BACKUP_SCHEMA_VERSION = 5
+const val BACKUP_SCHEMA_VERSION = 7
 private const val MAX_BACKUP_BYTES = 256L * 1024 * 1024
 class BackupTooLargeException : IllegalArgumentException("Backup exceeds 256 MiB")
 @Serializable
@@ -119,7 +119,7 @@ private fun readBackup(path: String): Map<String, ByteArray> {
 internal fun validateDatabaseHeader(bytes: ByteArray, schemaVersion: Int) {
     require(bytes.size >= 100 && bytes.copyOfRange(0, 16).decodeToString() == "SQLite format 3\u0000") { "Invalid SQLite database" }
     val actualVersion = (60..63).fold(0L) { n, i -> (n shl 8) or (bytes[i].toLong() and 255L) }
-    require(actualVersion == schemaVersion.toLong()) { "Database schema does not match backup manifest" }
+    require(actualVersion in schemaVersion.toLong()..BACKUP_SCHEMA_VERSION.toLong()) { "Database schema does not match backup manifest" }
 }
 
 /** Validate and stage everything before closing the live container or replacing any data. */

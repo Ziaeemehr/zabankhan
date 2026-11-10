@@ -82,4 +82,5 @@ internal actual suspend fun backgroundDriveAccessToken(): String? {
             .addOnFailureListener { if (continuation.isActive) continuation.resumeWithException(it) }
     }
 }
-internal actual fun driveSyncSupported(): Boolean = true
+// Pause sync until cards seeded independently on two devices can be reconciled safely.
+internal actual fun driveSyncSupported(): Boolean = false
