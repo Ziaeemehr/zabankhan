@@ -13,4 +13,9 @@ object DriveSyncLifecycle {
     fun onAppActive(container: AppContainer) {
         scope.launch { container.driveSync?.syncSilently() }
     }
+
+    /** Best effort: pushes reading position and other changes the debounced observer ignores. */
+    fun onAppBackgrounded(container: AppContainer) {
+        scope.launch { container.driveSync?.syncSilently() }
+    }
 }

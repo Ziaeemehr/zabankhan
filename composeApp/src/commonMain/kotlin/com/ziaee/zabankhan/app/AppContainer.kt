@@ -12,6 +12,7 @@ import com.ziaee.zabankhan.pdf.AppFiles
 import com.ziaee.zabankhan.backup.driveSyncSupported
 import com.ziaee.zabankhan.sync.DriveSyncCoordinator
 import kotlinx.coroutines.*
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlin.uuid.ExperimentalUuidApi
 import kotlin.uuid.Uuid
 
@@ -35,6 +36,15 @@ class AppContainer(val database: AppDatabase, val settings: SettingsRepository, 
                 database.sync().observeJournalCount().collect { count ->
                     if (previousCount != null && count > previousCount!!) sync.onLocalChange()
                     previousCount = count
+                }
+            }
+        }
+        driveSync?.let { sync ->
+            speechScope.launch {
+                var first = true
+                database.librarySync().observeLibraryStamp().distinctUntilChanged().collect {
+                    if (!first) sync.onLibraryChange()
+                    first = false
                 }
             }
         }

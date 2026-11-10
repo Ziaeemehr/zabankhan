@@ -499,8 +499,8 @@
 				PRODUCT_NAME = Zabankhan;
 				SDKROOT = iphoneos;
 				TARGETED_DEVICE_FAMILY = "1,2";
-				ZABANKHAN_GOOGLE_CLIENT_ID = "229288799193-iebs9psmag7fqe3chmo8uul8j1ofru7a.apps.googleusercontent.com";
-				ZABANKHAN_GOOGLE_REDIRECT_SCHEME = "com.googleusercontent.apps.229288799193-iebs9psmag7fqe3chmo8uul8j1ofru7a";
+				ZABANKHAN_GOOGLE_CLIENT_ID = "229288799193-9gq1vd2036i8u3b1r0idtsjv717nit7f.apps.googleusercontent.com";
+				ZABANKHAN_GOOGLE_REDIRECT_SCHEME = "com.googleusercontent.apps.229288799193-9gq1vd2036i8u3b1r0idtsjv717nit7f";
 			};
 			name = Debug;
 		};

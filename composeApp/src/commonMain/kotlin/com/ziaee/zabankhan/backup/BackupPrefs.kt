@@ -12,12 +12,6 @@ class BackupPrefs(private val store: DataStore<Preferences>) {
         val k = stringPreferencesKey("backup:$key")
         if (value == null) p.remove(k) else p[k] = value
     } }
-    suspend fun backUpPdfFiles() = value("backup_pdfs") == "true"
-    suspend fun setBackUpPdfFiles(enabled: Boolean) { store.edit {
-        it[stringPreferencesKey("backup:backup_pdfs")] = enabled.toString()
-        it[stringPreferencesKey("backup:pdf_backup_changed_at")] = Clock.System.now().toEpochMilliseconds().toString()
-    } }
-    internal suspend fun pdfBackupChangedAt() = value("pdf_backup_changed_at")?.toLongOrNull() ?: 0L
     suspend fun isAutoBackupEnabled() = value("auto_backup_enabled") != "false"
     suspend fun setAutoBackupEnabled(enabled: Boolean) = put("auto_backup_enabled", enabled.toString())
     suspend fun getLastBackupAtMs() = value("last_backup_at_ms")?.toLongOrNull()

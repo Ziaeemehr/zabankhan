@@ -76,10 +76,10 @@ object AutoBackup {
             val startedAt = Clock.System.now().toEpochMilliseconds()
             val lastAt = prefs.getLastAutoBackupAtMs() ?: 0L
             val pdfRoot = backupPaths().files.toPath() / "pdfs"
-            val pdfModifiedAt = if (prefs.backUpPdfFiles() && fs.exists(pdfRoot)) {
+            val pdfModifiedAt = if (fs.exists(pdfRoot)) {
                 (fs.listRecursively(pdfRoot).toList() + pdfRoot).maxOfOrNull { fs.metadata(it).lastModifiedAtMillis ?: 0L } ?: 0L
             } else 0L
-            if (prefs.getLastDatabaseStamp() == databaseModifiedAt() && maxOf(pdfModifiedAt, prefs.pdfBackupChangedAt()) <= lastAt) return@withContext
+            if (prefs.getLastDatabaseStamp() == databaseModifiedAt() && pdfModifiedAt <= lastAt) return@withContext
             if (!hasUserData(container)) return@withContext
             val current = readBackupCounts(container)
             val previous = prefs.getLastAutoBackupCounts()

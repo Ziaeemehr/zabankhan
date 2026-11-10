@@ -30,7 +30,7 @@ import okio.HashingSink
 import okio.blackholeSink
 import kotlin.time.Clock
 
-const val BACKUP_SCHEMA_VERSION = 7
+const val BACKUP_SCHEMA_VERSION = 8
 private const val MAX_BACKUP_BYTES = 256L * 1024 * 1024
 class BackupTooLargeException : IllegalArgumentException("Backup exceeds 256 MiB")
 @Serializable data class BackupPdfRef(val path: String, val size: Long, val sha256: String)
@@ -69,7 +69,6 @@ internal suspend fun createLocalBackupLocked(container: AppContainer, automatic:
                 check(statement.step() && statement.getLong(0) == 0L) { "Database is busy; try again" }
             }
             val paths = backupPaths()
-            val includePdfs = container.settings.backupPrefs.backUpPdfFiles()
             val pdfRefs = mutableListOf<BackupPdfRef>()
             var entries = linkedMapOf("manifest.json" to byteArrayOf())
             val sources = linkedMapOf(DB_NAME to paths.database.toPath())
@@ -83,7 +82,7 @@ internal suspend fun createLocalBackupLocked(container: AppContainer, automatic:
                     if (fs.metadata(file).isRegularFile) sources["$directory/${file.relativeTo(root)}"] = file
                 }
             }
-            if (includePdfs) {
+            run {
                 val root = base / "pdfs"
                 if (fs.exists(root)) fs.listRecursively(root).filter { fs.metadata(it).isRegularFile }.forEach { file ->
                     val hash = sha256Hex(file)
@@ -91,7 +90,7 @@ internal suspend fun createLocalBackupLocked(container: AppContainer, automatic:
                 }
             }
             entries["manifest.json"] = json.encodeToString(BackupManifest(appVersion(), BACKUP_SCHEMA_VERSION, filesRoot = paths.files, includesPdfs = pdfRefs.isNotEmpty(), pdfs = pdfRefs)).encodeToByteArray()
-            if (embedPdfs && includePdfs) {
+            if (embedPdfs) {
                 pdfRefs.forEach { ref ->
                     val p = ref.path.toPath()
                     require(!p.isAbsolute && p.segments.none { it == ".." }) { "Invalid PDF reference path" }
@@ -105,13 +104,13 @@ internal suspend fun createLocalBackupLocked(container: AppContainer, automatic:
                 return ZipArchive.writeStored(entries)
             }
             if (estimatedSize() > MAX_BACKUP_BYTES) {
-                if (embedPdfs && includePdfs) {
+                if (embedPdfs) {
                     entries.keys.filter { it.startsWith("pdfs/") }.forEach(entries::remove)
                     BackupRuntime.lastFailure = "PDFs were omitted because the backup exceeds 256 MiB"
                 } else throw BackupTooLargeException()
             }
             var archive = buildArchive()
-            if (archive.size > MAX_BACKUP_BYTES && embedPdfs && includePdfs) {
+            if (archive.size > MAX_BACKUP_BYTES && embedPdfs) {
                 entries.keys.filter { it.startsWith("pdfs/") }.forEach(entries::remove)
                 BackupRuntime.lastFailure = "PDFs were omitted because the backup exceeds 256 MiB"
                 archive = buildArchive()
@@ -185,6 +184,7 @@ suspend fun restoreLocalBackup(container: AppContainer, path: String, driveToken
                 connection.usePrepared("SELECT COUNT(*) FROM texts") { it.step() }
             }
             stagedDatabase.sync().setMetadata(com.ziaee.zabankhan.data.SyncMetadataEntry("restore_pending", "1"))
+            stagedDatabase.sync().setMetadata(com.ziaee.zabankhan.data.SyncMetadataEntry("library_restore_pending", "1"))
         } finally { stagedDatabase.close() }
         // File paths live inside the database and watch-history JSON. Rebase only the
         // previous sandbox prefix, before swapping the staged database into place.

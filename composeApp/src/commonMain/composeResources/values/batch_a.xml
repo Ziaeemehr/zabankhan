@@ -23,6 +23,11 @@
   <string name="batch_a_backup_section_title">Cloud Backup</string>
   <string name="batch_a_backup_sign_in">Sign in with Google</string>
   <string name="batch_a_backup_sign_out">Sign out</string>
+  <string name="batch_a_drive_cleanup_button">Empty deleted files now</string>
+  <string name="batch_a_drive_cleanup_title">Empty deleted files?</string>
+  <string name="batch_a_drive_cleanup_message">Files of texts you deleted will be removed from Google Drive now. Deleted texts can no longer be recovered from Drive.</string>
+  <string name="batch_a_drive_cleanup_confirm">Delete from Drive</string>
+  <string name="batch_a_drive_cleanup_done">Removed %1$d files, freed %2$s</string>
   <string name="batch_a_backup_size_mb">%1$.2f MB</string>
   <string name="batch_a_backup_success">Backup complete</string>
   <string name="batch_a_local_backup_restore">Restore from file</string>

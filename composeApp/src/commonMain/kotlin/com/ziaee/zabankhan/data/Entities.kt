@@ -15,7 +15,7 @@ private fun newSyncId(): String = Uuid.random().toString().replace("-", "")
 fun nowMs(): Long = Clock.System.now().toEpochMilliseconds()
 
 /** A text in the library. [lang] is the learning-language code of its content ("fr", "en", "fa"). */
-@Entity(tableName = "texts", indices = [Index("lang"), Index(value = ["externalKey"], unique = true)])
+@Entity(tableName = "texts", indices = [Index("lang"), Index(value = ["externalKey"], unique = true), Index("syncId")])
 data class TextDocument(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
     val lang: String,
@@ -44,15 +44,27 @@ data class TextDocument(
     val externalKey: String? = null,
     val pinned: Boolean = false,
     @ColumnInfo(defaultValue = "0") val readMark: Int = 0,
+    @ColumnInfo(defaultValue = "''") val syncId: String = newSyncId(),
 )
 
-@Entity(tableName = "library_folders", indices = [Index("lang")])
+@Entity(tableName = "library_folders", indices = [Index("lang"), Index("syncId")])
 data class LibraryFolder(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
     val lang: String,
     val name: String,
     val parentId: Long? = null,
     val createdAtMs: Long = nowMs(),
+    @ColumnInfo(defaultValue = "''") val syncId: String = newSyncId(),
+)
+
+@Entity(tableName = "library_sync_shadow")
+data class LibrarySyncShadow(
+    @PrimaryKey val key: String,
+    val contentHash: String,
+    val updatedAtMs: Long,
+    val deleted: Boolean,
+    /** Comma-separated blob hashes of the item, so a tombstone can keep them referenced for Drive GC. */
+    @ColumnInfo(defaultValue = "''") val blobs: String = "",
 )
 
 /** A saved word or phrase with its sentence, meaning and Leitner state. */

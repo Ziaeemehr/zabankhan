@@ -5,6 +5,8 @@ import io.ktor.client.engine.mock.*
 import io.ktor.http.*
 import io.ktor.http.content.*
 import kotlinx.coroutines.test.runTest
+import com.ziaee.zabankhan.sync.library.LibraryItem
+import com.ziaee.zabankhan.sync.library.TOMBSTONE_RETENTION_MS
 import kotlin.test.*
 
 class DriveBackupTest {
@@ -80,6 +82,25 @@ class DriveBackupTest {
         assertEquals(setOf("b"), pdfBlobsToDelete(setOf("a", "b"), listOf(setOf("a"))))
         val refs = listOf(BackupPdfRef("a.pdf", 1, "a"), BackupPdfRef("b.pdf", 1, "b"))
         assertEquals(listOf("b.pdf"), pdfRefsToDownload(refs) { it == "a.pdf" }.map { it.path })
+    }
+    @Test fun libraryKeepSetAndTombstoneOnlyBlobs() {
+        val day = 24L * 60 * 60 * 1000; val now = 100 * day
+        val (live, fresh, old, side) = listOf("1", "2", "3", "4").map { it.repeat(64) }
+        val items = listOf(
+            LibraryItem("text", "text:a", now, blobs = listOf(live)),
+            LibraryItem("text", "text:b", now - 29 * day, deleted = true, blobs = listOf(fresh)),
+            LibraryItem("text", "text:c", now - TOMBSTONE_RETENTION_MS - 1, deleted = true, blobs = listOf(old)),
+        )
+        val keep = libraryBlobKeepSet(items, listOf(setOf(side)), now)
+        assertEquals(setOf(live, fresh, side), keep)
+        assertEquals(setOf(live, side), libraryBlobKeepSet(items, listOf(setOf(side)), now, ignoreTombstones = true))
+        // Both name formats resolve to the hash the keep-set uses.
+        assertEquals(live, blobHashFromName("zabankhan-pdf-$live.pdf")); assertEquals(live, blobHashFromName("zabankhan-file-$live"))
+        // A blob also referenced live or by a sidecar is never tombstone-only.
+        val shared = items + LibraryItem("text", "text:d", now, blobs = listOf(fresh))
+        assertEquals(setOf(fresh, old), tombstoneOnlyBlobs(items, listOf(setOf(side)), now))
+        assertEquals(setOf(old), tombstoneOnlyBlobs(shared, listOf(setOf(side)), now))
+        assertEquals(setOf(old), tombstoneOnlyBlobs(items, listOf(setOf(fresh)), now))
     }
     @Test fun failedUploadNeverPrunes() = runTest {
         var count = 0

@@ -56,7 +56,11 @@ class MainActivity : ComponentActivity() {
     }
     override fun onStop() {
         super.onStop()
-        if (!isChangingConfigurations) AutoBackup.onAppBackgrounded((application as ZabankhanApp).container)
+        if (!isChangingConfigurations) {
+            val container = (application as ZabankhanApp).container
+            AutoBackup.onAppBackgrounded(container)
+            DriveSyncLifecycle.onAppBackgrounded(container)
+        }
     }
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)

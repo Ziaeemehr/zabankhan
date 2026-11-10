@@ -46,7 +46,10 @@ object IosBackupLifecycle {
             val app = UIApplication.sharedApplication
             val task = app.beginBackgroundTaskWithName("Local backup", {})
             backupScope.launch {
-                try { runCatching { automaticBackupIfDue(container) }.onFailure { BackupRuntime.lastFailure = it.message } }
+                try {
+                    runCatching { automaticBackupIfDue(container) }.onFailure { BackupRuntime.lastFailure = it.message }
+                    runCatching { container.driveSync?.syncSilently() }
+                }
                 finally { app.endBackgroundTask(task) }
             }
         }

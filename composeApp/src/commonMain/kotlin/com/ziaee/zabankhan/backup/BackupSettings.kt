@@ -247,7 +247,6 @@ private fun LocalBackupSection(
     onBackupSaved: (Long) -> Unit
 ) {
     var restoreUri by remember { mutableStateOf<String?>(null) }
-    var backUpPdfs by remember { mutableStateOf(false) }
     val pdfBytes by produceState(0L, container) {
         value = withContext(Dispatchers.IO) { pdfSizeBytes() }
     }
@@ -257,7 +256,6 @@ private fun LocalBackupSection(
         scope.launch { snackbarHostState.showSnackbar(text) }
     }
 
-    LaunchedEffect(container) { backUpPdfs = container.settings.backupPrefs.backUpPdfFiles() }
     val importLauncher = rememberFilePicker(listOf(FileKind.ZIP)) { file -> restoreUri = file?.path }
     fun exportBackup() { scope.launch {
         try {
@@ -275,17 +273,7 @@ private fun LocalBackupSection(
         style = MaterialTheme.typography.labelMedium,
         modifier = Modifier.padding(top = 8.dp, bottom = 4.dp)
     )
-    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-        Column(Modifier.weight(1f)) {
-            Text(stringResource(Res.string.batch_a_backup_pdf_files))
-            Text(formatFileSize(pdfBytes), style = MaterialTheme.typography.bodySmall)
-            Text(stringResource(Res.string.batch_a_backup_pdf_hint), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        }
-        Switch(checked = backUpPdfs, onCheckedChange = {
-            backUpPdfs = it
-            scope.launch { container.settings.backupPrefs.setBackUpPdfFiles(it) }
-        })
-    }
+    Text(stringResource(Res.string.batch_a_backup_pdf_files) + " · " + formatFileSize(pdfBytes))
     Button(onClick = {
         exportBackup()
     }) {
@@ -330,6 +318,7 @@ private fun CloudBackupSection(container: AppContainer, scope: CoroutineScope, s
     var backups by remember { mutableStateOf<List<DriveBackupFile>?>(null) }
     var selected by remember { mutableStateOf<DriveBackupFile?>(null) }
     var busy by remember { mutableStateOf(false) }
+    var confirmCleanup by remember { mutableStateOf(false) }
     LaunchedEffect(container) { lastBackupAtMs = container.settings.backupPrefs.getLastDriveUploadAtMs() }
     fun withDriveAccessToken(action: suspend (String) -> Unit) { scope.launch {
         busy = true
@@ -371,11 +360,29 @@ private fun CloudBackupSection(container: AppContainer, scope: CoroutineScope, s
                 else backups = files
             }
         }) { Text(stringResource(Res.string.batch_a_backup_restore)) }
+        OutlinedButton(enabled = !busy, onClick = { confirmCleanup = true }) { Text(stringResource(Res.string.batch_a_drive_cleanup_button)) }
         OutlinedButton(enabled = !busy, onClick = { scope.launch {
             try { drive.disconnect(); connected = false }
             catch (cancelled: CancellationException) { throw cancelled }
             catch (_: Exception) { snackbarHostState.showSnackbar(getString(Res.string.batch_a_backup_failure)) }
         } }) { Text(stringResource(Res.string.batch_a_backup_sign_out)) }
+    }
+    if (confirmCleanup) {
+        AlertDialog(
+            onDismissRequest = { confirmCleanup = false },
+            title = { Text(stringResource(Res.string.batch_a_drive_cleanup_title)) },
+            text = { Text(stringResource(Res.string.batch_a_drive_cleanup_message)) },
+            confirmButton = {
+                OutlinedButton(enabled = !busy, onClick = {
+                    confirmCleanup = false
+                    withDriveAccessToken { token ->
+                        val result = client.deleteTombstoneOnlyBlobs(token)
+                        snackbarHostState.showSnackbar(getString(Res.string.batch_a_drive_cleanup_done, result.files, formatFileSize(result.bytes)))
+                    }
+                }) { Text(stringResource(Res.string.batch_a_drive_cleanup_confirm)) }
+            },
+            dismissButton = { OutlinedButton(onClick = { confirmCleanup = false }) { Text(stringResource(Res.string.batch_a_accessibility_back)) } }
+        )
     }
     backups?.let { files ->
         BackupPickerDialog(

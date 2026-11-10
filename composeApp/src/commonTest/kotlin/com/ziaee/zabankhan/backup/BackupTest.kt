@@ -36,12 +36,4 @@ class BackupTest {
         assertFailsWith<IllegalArgumentException> { validateDatabaseHeader(ByteArray(100), 5) }
     }
 
-    @Test fun pdfBackupPreferenceDefaultsOffUnlessExplicitlyEnabled() = kotlinx.coroutines.test.runTest {
-        val prefs = BackupPrefs(MemoryPreferencesStore())
-        assertEquals(false, prefs.backUpPdfFiles())
-        prefs.setBackUpPdfFiles(true)
-        assertEquals(true, prefs.backUpPdfFiles())
-        prefs.setBackUpPdfFiles(false)
-        assertEquals(false, prefs.backUpPdfFiles())
-    }
 }

@@ -23,6 +23,8 @@ import kotlinx.coroutines.SupervisorJob
 
 private fun newContainer(): AppContainer {
     val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    // Keep iCloud device backups small: these are re-downloadable models/dictionaries and local backup copies of data that is backed up anyway.
+    listOf("vosk", "own-dictionary", "Backups").forEach { com.ziaee.zabankhan.data.excludeFromICloudBackup("${com.ziaee.zabankhan.data.iosDocumentsDir()}/$it") }
     return AppContainer(iosDatabase(), SettingsRepository(createPrefsStore(iosPrefsPath(), scope), scope), HttpClient(Darwin))
 }
 private val containerState by lazy { mutableStateOf(newContainer()) }

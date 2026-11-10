@@ -48,7 +48,8 @@ class DrivePdfStoreTest {
                 HttpMethod.Post -> respond("""{"id":"new"}""")
                 HttpMethod.Delete -> { deletes += request.url.encodedPath; respond("", HttpStatusCode.NoContent) }
                 HttpMethod.Get -> when {
-                    q.contains("zabankhan-pdf-") -> respond("""{"files":[{"id":"blob","name":"zabankhan-pdf-${"c".repeat(64)}.pdf","modifiedTime":"2020-01-01T00:00:00Z"}]}""")
+                    q.endsWith("contains 'zabankhan-'") -> respond("""{"files":[{"id":"blob","name":"zabankhan-pdf-${"c".repeat(64)}.pdf","modifiedTime":"2020-01-01T00:00:00Z"}]}""")
+                    q.endsWith("contains 'zabankhan-library-'") -> respond("""{"files":[]}""")
                     request.url.parameters["orderBy"] != null -> respond("""{"files":[{"id":"z1","name":"zabankhan-backup-7.zip","createdTime":"2026-01-01T00:00:00Z"}]}""")
                     else -> { sidecarLists++; respond("""{"files":[]}""") }
                 }
