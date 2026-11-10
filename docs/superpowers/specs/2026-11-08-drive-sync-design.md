@@ -17,15 +17,15 @@ The app creates ZIP snapshots of its local Room database and uploads them to Dri
 - Show sync state, the last successful sync, and actionable errors. Keep manual “Sync now” available.
 - Keep the existing full ZIP backup and restore as a separate safety and migration path.
 
-## Initial scope
+## Implemented sync scope
 
 Sync flashcards and review progress:
 
 - Vocabulary cards and lists, including the word, saved sentence, meaning, dictionary URL, and review scheduling state.
 - Review history, including undo/deletion markers, merged by stable operation ID.
-- A card added while reading a text, PDF, or video transcript appears on the other device with its saved sentence and meaning. The source document/video itself and the local `textId` link do not sync, so opening the original source is only available on the device that has it.
+- A card added while reading appears on the other device with its saved sentence and meaning. Library documents, including PDFs, sync separately with their reading positions, tags, highlights, notes, and ink. Local numeric IDs and file paths remain device-specific.
 
-Keep PDFs on the iPad. Do not sync library documents, video files, transcripts, reading positions, study logs, measured activity, bundled dictionaries, downloaded datasets, translation/media caches, API credentials, platform-specific preferences, highlights, or PDF ink in this first version. Existing full backup/restore continues to transfer files and preferences; PDF inclusion follows the current backup setting. Revisit broader sync after cards and reviews are stable.
+Video files and transcripts, study logs, measured activity, bundled dictionaries, downloaded datasets, translation/media caches, API credentials, and platform-specific preferences are not part of Drive sync. Existing full backup/restore remains a separate transfer and recovery path.
 
 ## Approaches considered
 
@@ -56,4 +56,4 @@ Use the existing `drive.appdata` authorization and Drive client on Play Android 
 - Preserve backward compatibility with existing ZIP backups and database migrations.
 - Never upload secrets or platform credentials.
 - The exact set of write paths to instrument must be audited before implementation; writes made through import/migration paths need explicit classification.
-- PDFs remain on the iPad by decision. Syncing a PDF to Android later would need file upload/download, stable file identity, and on-demand download behavior; it is outside this implementation.
+- PDF files and library changes sync through Drive's app data folder; local file paths remain specific to each device. If a referenced local file is missing, that text is frozen from sync to avoid propagating an accidental deletion.

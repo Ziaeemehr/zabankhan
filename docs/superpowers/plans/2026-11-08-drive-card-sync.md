@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Automatically merge flashcards, lists, and review progress between the Release app on Android and iPad through Google Drive, while leaving PDFs and source files on their original device.
+**Goal:** Automatically sync flashcards, lists, review progress, library documents (including PDFs), and reading positions between Android and iPad through Google Drive.
 
 **Architecture:** Add stable sync identifiers and a durable operation journal alongside the existing Room database. Each device stores an independent journal in Drive `appDataFolder`; a common sync engine downloads, transactionally applies, then uploads operations, preserving retry safety and surfacing concurrent edits for user resolution. Existing ZIP backup and restore remain independent.
 
@@ -12,12 +12,12 @@
 
 ## Global Constraints
 
-- PDFs remain on the iPad; source texts/videos/PDFs, study logs, activity, dictionaries, caches, credentials, platform preferences, highlights, and PDF ink are excluded from sync.
+- Library documents (including PDFs), reading positions, highlights, PDF notes, and ink sync through Drive. Study logs, activity, dictionaries, caches, credentials, and platform-specific preferences remain outside library sync.
 - Preserve backward compatibility with existing ZIP backups and Room migrations.
 - Never upload secrets or platform credentials.
 - Use existing `drive.appdata` authorization; the Bazaar flavor remains without Drive support.
 - Applying remote operations is transactional and idempotent; failures leave local data and remote cursor intact.
-- A card originating from a text, PDF, or video syncs its word, saved sentence, and meaning; its source document and local `textId` link do not sync.
+- A card's word, saved sentence, and meaning sync. Library documents sync independently; local numeric IDs and file paths are mapped per device.
 - Do not add or run tests or create commits; verify the Android Play/Bazaar and iOS framework builds.
 
 ## Review Focus

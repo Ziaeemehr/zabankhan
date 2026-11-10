@@ -48,6 +48,15 @@ class AppContainer(val database: AppDatabase, val settings: SettingsRepository, 
                 }
             }
         }
+        driveSync?.let { sync ->
+            speechScope.launch {
+                var first = true
+                database.librarySync().observeTextsStamp().distinctUntilChanged().collect {
+                    if (!first) sync.onLibraryChange()
+                    first = false
+                }
+            }
+        }
         speechScope.launch {
             settings.settings.collect { value ->
                 SpeechEngine.configure(value)
