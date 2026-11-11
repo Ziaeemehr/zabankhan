@@ -54,5 +54,6 @@
   <string name="batch_a_drive_sync_keep_local">Keep this device</string>
   <string name="batch_a_drive_sync_keep_cloud">Keep Google Drive</string>
   <string name="batch_a_drive_sync_keep_both">Keep both cards</string>
+  <string name="batch_a_drive_sync_select_all">Select all</string>
   <string name="batch_a_drive_sync_resolved">Conflict resolved and synced</string>
 </resources>

@@ -19,5 +19,5 @@
     <string name="pack_next">بعدی</string>
     <string name="pack_session_score">نمرهٔ جلسه: %1$d از %2$d</string>
     <string name="pack_comprehension">حدود %1$d٪ کلمه‌ها را می‌دانید</string>
-    <string name="pack_credits">داده‌های زبان: Lexique 3.83 با مجوز CC BY-SA 4.0؛ Wiktionary/kaikki با مجوز CC BY-SA. محتوای RFI، franceinfo، VOA و BBC متعلق به ناشران آن‌هاست.</string>
+    <string name="pack_credits">داده‌های زبان: Lexique 3.83 با مجوز CC BY-SA 4.0؛ ویکی‌واژهٔ فرانسوی و Wiktionary از طریق Kaikki با مجوز CC BY-SA 4.0. محتوای RFI، franceinfo، VOA و BBC متعلق به ناشران آن‌هاست.</string>
 </resources>

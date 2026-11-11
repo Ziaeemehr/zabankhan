@@ -49,5 +49,6 @@
   <string name="batch_a_drive_sync_keep_local">Garder cet appareil</string>
   <string name="batch_a_drive_sync_keep_cloud">Garder Google Drive</string>
   <string name="batch_a_drive_sync_keep_both">Garder les deux cartes</string>
+  <string name="batch_a_drive_sync_select_all">Tout sélectionner</string>
   <string name="batch_a_drive_sync_resolved">Conflit résolu et synchronisé</string>
 </resources>

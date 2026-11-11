@@ -21,7 +21,7 @@
   <string name="about_title">درباره</string>
   <string name="about_vazirmatn_credit">قلم فارسی و عربی</string>
   <string name="about_version">نسخهٔ %1$s</string>
-  <string name="about_wiktionary_credit">داده‌های اصطلاحات: مشارکت‌کنندگان ویکی‌واژه، از طریق kaikki.org — CC BY-SA 4.0 (https://creativecommons.org/licenses/by-sa/4.0/).</string>
+  <string name="about_wiktionary_credit">داده‌های اصطلاحات و تعریف‌های تک‌زبانهٔ فرانسوی: مشارکت‌کنندگان Wiktionary و ویکی‌واژه از طریق Kaikki Wiktextract — CC BY-SA 4.0 (https://creativecommons.org/licenses/by-sa/4.0/).</string>
   <string name="guide_ai_explanation">این فایل را برای راهنمایی گام‌به‌گام به ChatGPT یا دستیار هوش مصنوعی دیگری بدهید.</string>
   <string name="guide_file_error">باز کردن، ذخیره یا اشتراک‌گذاری راهنما انجام نشد. دوباره تلاش کنید.</string>
   <string name="guide_github">باز کردن در گیت‌هاب</string>

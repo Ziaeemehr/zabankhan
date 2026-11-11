@@ -19,5 +19,5 @@
     <string name="pack_next">Next</string>
     <string name="pack_session_score">Session score: %1$d / %2$d</string>
     <string name="pack_comprehension">You know ~%1$d% of words</string>
-    <string name="pack_credits">Language data: Lexique 3.83 (CC BY-SA 4.0); Wiktionary/kaikki (CC BY-SA). RFI, franceinfo, VOA and BBC content belongs to its publishers.</string>
+    <string name="pack_credits">Language data: Lexique 3.83 (CC BY-SA 4.0); Wiktionary and French Wiktionnaire via Kaikki (CC BY-SA 4.0). RFI, franceinfo, VOA and BBC content belongs to its publishers.</string>
 </resources>

@@ -32,6 +32,8 @@ data class LanguageSpec(
     val vocabularyLessonTag: Regex? = null,
     val ownDictionaryAvailable: Boolean = false,
     val dictionaryLeadingArticles: Set<String> = emptySet(),
+    val monolingualPackId: String? = null,
+    val monolingualSourceUrlTemplate: String? = null,
 )
 
 object Languages {
@@ -57,6 +59,8 @@ object Languages {
         vocabularyLessonTag = Regex("\\s*—\\s*Leçon\\s+(\\d+)\\s*$"),
         ownDictionaryAvailable = true,
         dictionaryLeadingArticles = setOf("le", "la", "les", "un", "une", "du", "des", "l'"),
+        monolingualPackId = "fr/monolingual",
+        monolingualSourceUrlTemplate = "https://fr.wiktionary.org/wiki/{word}",
     )
     val ENGLISH = LanguageSpec(
         "en", "English", "English", Script.LATIN, TextDir.LTR, emptyList(), "en-US", "en-US", listOf(

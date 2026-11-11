@@ -1,7 +1,9 @@
 package com.ziaee.zabankhan.dictionary
 
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.jsonObject
 import com.ziaee.zabankhan.lang.Languages
+import com.ziaee.zabankhan.lang.loadLemmaLexicon
 import com.ziaee.zabankhan.translate.InMemoryKeyValueCache
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.mock.MockEngine
@@ -17,6 +19,23 @@ import kotlin.test.assertTrue
 import kotlin.test.assertFails
 
 class OwnDictionaryTest {
+    @Test fun monolingualPackParsesAndResolvesInflectedForms() = runTest {
+        val indexJson = """{"lang":"fr","format":1,"version":1,"entries":3,"shards":["al","be","ch"],"sources":"French Wiktionnaire via Kaikki Wiktextract (CC BY-SA 4.0)","license":"https://creativecommons.org/licenses/by-sa/4.0/"}"""
+        val alJson = """{"entries":[{"word":"aller","pos":"verb","gender":"","senses":[{"definition":"Se déplacer d'un lieu à un autre.","tags":[],"example":"Nous allons au marché."},{"definition":"Convenir, être dans un état donné.","tags":["informal"],"example":"Comment allez-vous ?"},{"definition":"Se mouvoir vers un lieu.","tags":["dated"],"example":""}]}]}"""
+        val beJson = """{"entries":[{"word":"beau","pos":"adjective","gender":"","senses":[{"definition":"Qui plaît par sa forme ou son apparence.","tags":[],"example":"Un beau jardin."}]}]}"""
+        val index = Json.parseToJsonElement(indexJson).jsonObject
+        val shard = Json.parseToJsonElement(alJson)
+        val entries = decodeMonolingualShard(shard)
+        assertEquals(3, index["entries"]?.toString()?.toInt())
+        val lexicon = loadLemmaLexicon("allions\taller\nbelles\tbeau", "", Languages.FRENCH)
+        assertEquals("aller", lookupMonolingualDefinitions("allions", lexicon, entries, Languages.FRENCH).single().word)
+        assertEquals("beau", lookupMonolingualDefinitions("belles", lexicon, entries + decodeMonolingualShard(
+            Json.parseToJsonElement(beJson)), Languages.FRENCH).single().word)
+        val aller = entries.single()
+        assertEquals("Se déplacer d'un lieu à un autre.", aller.senses.first().definition)
+        assertEquals("Nous allons au marché.", aller.senses.first().example)
+    }
+
     @Test fun splitAwareShardKeysMatchBuilderRule() {
         val split = setOf("se", "de", "a_", "_i")
         assertEquals("des", dictionaryShardKey("des", split))

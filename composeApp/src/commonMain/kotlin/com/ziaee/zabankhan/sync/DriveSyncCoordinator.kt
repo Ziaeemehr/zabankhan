@@ -109,5 +109,12 @@ class DriveSyncCoordinator(private val container: AppContainer) {
         return syncNow(token)
     }
 
+    // One backup + one sync for the whole selection instead of one round trip per conflict.
+    suspend fun resolveConflicts(conflictIds: List<String>, choice: ConflictChoice, token: String): SyncResult {
+        AutoBackup.protectBeforeSync(container)
+        conflictIds.forEach { engine.resolveConflict(it, choice) }
+        return syncNow(token)
+    }
+
     fun close() { scope.cancel() }
 }

@@ -54,5 +54,6 @@
   <string name="batch_a_drive_sync_keep_local">نگه‌داشتن نسخهٔ این دستگاه</string>
   <string name="batch_a_drive_sync_keep_cloud">نگه‌داشتن نسخهٔ Google Drive</string>
   <string name="batch_a_drive_sync_keep_both">نگه‌داشتن هر دو کارت</string>
+  <string name="batch_a_drive_sync_select_all">انتخاب همه</string>
   <string name="batch_a_drive_sync_resolved">تعارض حل و همگام شد</string>
 </resources>

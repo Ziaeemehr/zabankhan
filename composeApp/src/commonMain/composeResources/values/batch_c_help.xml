@@ -21,7 +21,7 @@
   <string name="about_title">About</string>
   <string name="about_vazirmatn_credit">Persian and Arabic typeface</string>
   <string name="about_version">Version %1$s</string>
-  <string name="about_wiktionary_credit">Idiom data: Wiktionary contributors, via kaikki.org — CC BY-SA 4.0 (https://creativecommons.org/licenses/by-sa/4.0/).</string>
+  <string name="about_wiktionary_credit">Idiom and French monolingual definition data: Wiktionary and Wiktionnaire contributors via Kaikki Wiktextract — CC BY-SA 4.0 (https://creativecommons.org/licenses/by-sa/4.0/).</string>
   <string name="guide_ai_explanation">Give this file to ChatGPT or another AI assistant for step-by-step help.</string>
   <string name="guide_file_error">Could not open, save, or share the guide. Please try again.</string>
   <string name="guide_github">Open on GitHub</string>

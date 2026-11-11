@@ -21,7 +21,7 @@
   <string name="about_title">À propos</string>
   <string name="about_vazirmatn_credit">Police de caractères persane et arabe</string>
   <string name="about_version">Version %1$s</string>
-  <string name="about_wiktionary_credit">Expressions : contributeurs du Wiktionnaire, via kaikki.org — CC BY-SA 4.0 (https://creativecommons.org/licenses/by-sa/4.0/).</string>
+  <string name="about_wiktionary_credit">Expressions et définitions monolingues : contributeurs du Wiktionary et du Wiktionnaire, via Kaikki Wiktextract — CC BY-SA 4.0 (https://creativecommons.org/licenses/by-sa/4.0/).</string>
   <string name="guide_ai_explanation">Donnez ce fichier à ChatGPT ou à un autre assistant IA pour une aide pas à pas.</string>
   <string name="guide_file_error">Impossible d’ouvrir, d’enregistrer ou de partager le guide. Réessayez.</string>
   <string name="guide_github">Ouvrir sur GitHub</string>

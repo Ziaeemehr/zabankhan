@@ -1,0 +1,5 @@
+{"word":"aller","lang_code":"fr","pos":"verb","senses":[{"glosses":["Se déplacer d'un lieu à un autre."],"tags":[],"examples":[{"text":"Nous allons au marché."}]},{"glosses":["Convenir, être dans un état donné."],"tags":["informal"],"examples":[{"text":"Comment allez-vous ?"}]}]}
+{"word":"beau","lang_code":"fr","pos":"adj","senses":[{"glosses":["Qui plaît par sa forme ou son apparence."],"tags":[],"examples":[{"text":"Un beau jardin."}]}]}
+{"word":"aller","lang_code":"fr","pos":"verb","forms":[{"form":"allions","tags":["imperfect","first-person","plural"]}],"senses":[{"glosses":["Se mouvoir vers un lieu."],"tags":["dated"]}]}
+{"word":"belle","lang_code":"fr","pos":"adj","senses":[{"glosses":["Féminin de beau."],"tags":["form-of"]}]}
+{"word":"chat","lang_code":"fr","pos":"noun","head_templates":[{"args":{"1":"m"}}],"senses":[{"glosses":["Mammifère carnivore domestique."],"tags":["familiar"]}]}

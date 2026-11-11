@@ -14,6 +14,8 @@ import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalLayoutDirection
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import com.ziaee.zabankhan.app.AppViewModel
 import com.ziaee.zabankhan.data.AppSettings
@@ -22,6 +24,7 @@ import com.ziaee.zabankhan.lang.Languages
 import com.ziaee.zabankhan.resources.Res
 import com.ziaee.zabankhan.resources.*
 import com.ziaee.zabankhan.ui.contentStyle
+import com.ziaee.zabankhan.ui.reader.partOfSpeechResource
 import com.ziaee.zabankhan.ui.TranslationSourceIcon
 import com.ziaee.zabankhan.ui.theme.ZabankhanDesign
 import com.ziaee.zabankhan.translate.ExampleSource
@@ -56,15 +59,15 @@ fun OwnDictionaryBlock(lookup: DictionaryLookup, lang: LanguageSpec, target: Str
             translations, loading = false, failed = false)
         return
     }
-    var frenchMode by remember(lookup.query) { mutableStateOf(false) }
-    val hasFrenchDefinitions = lang.code == Languages.FRENCH.code && entries.any { it.frenchDefinitions.isNotEmpty() }
+    var monolingualMode by remember(lookup.query) { mutableStateOf(false) }
+    val hasMonolingualDefinitions = lang.monolingualPackId != null && entries.any { it.monolingualDefinitions.isNotEmpty() }
     Row(verticalAlignment = Alignment.CenterVertically) {
         Text(stringResource(Res.string.own_dictionary_title), Modifier.weight(1f), style = MaterialTheme.typography.titleSmall)
         listOf("fa" to "فا", "en" to "EN").forEach { (code, label) ->
-            TextButton(onClick = { frenchMode = false; vm.action { vm.container.settings.setDictionaryMeaningLang(code) } }, contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp)) { Text(label, color = if (!frenchMode && effectiveTarget == code) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant) }
+            TextButton(onClick = { monolingualMode = false; vm.action { vm.container.settings.setDictionaryMeaningLang(code) } }, contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp)) { Text(label, color = if (!monolingualMode && effectiveTarget == code) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant) }
         }
-        if (hasFrenchDefinitions) TextButton(onClick = { frenchMode = true }, contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp)) {
-            Text(stringResource(Res.string.own_dictionary_french_definitions), color = if (frenchMode) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant)
+        if (hasMonolingualDefinitions) TextButton(onClick = { monolingualMode = true }, contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp)) {
+            Text(stringResource(Res.string.own_dictionary_french_definitions), color = if (monolingualMode) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }
     if (lookup.via.isNotEmpty()) {
@@ -73,17 +76,42 @@ fun OwnDictionaryBlock(lookup: DictionaryLookup, lang: LanguageSpec, target: Str
             "${redirect.form} → ${redirect.lemma} · ${formLabelText(redirect.labels.joinToString(";")) { names[it] ?: it }}"
         }, Modifier.fillMaxWidth().padding(12.dp), style = MaterialTheme.typography.bodyMedium.merge(contentStyle(lookup.query))) }
     }
-    if (frenchMode) {
+    if (monolingualMode) {
         val uri = LocalUriHandler.current
-        entries.distinctBy { it.id }.filter { it.frenchDefinitions.isNotEmpty() }.take(8).forEach { entry ->
+        Text(stringResource(Res.string.own_dictionary_french_definitions), style = MaterialTheme.typography.titleSmall)
+        entries.distinctBy { it.id }.filter { it.monolingualDefinitions.isNotEmpty() }.take(8).forEach { entry ->
             Card(Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
                 Column(Modifier.fillMaxWidth().padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     Text(entry.word, style = MaterialTheme.typography.titleMedium.merge(contentStyle(entry.word)))
-                    Text(entry.pos, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    entry.frenchDefinitions.forEachIndexed { index, definition ->
-                        SelectionContainer { Text("${index + 1}. $definition", style = MaterialTheme.typography.bodyMedium.merge(contentStyle(definition))) }
+                    val definitions = entry.monolingualDefinitions
+                    val pos = partOfSpeechResource(entry.pos)?.let { stringResource(it) } ?: entry.pos
+                    val gender = when (entry.gender) {
+                        "m" -> stringResource(Res.string.own_form_m)
+                        "f" -> stringResource(Res.string.own_form_f)
+                        else -> entry.gender
                     }
-                    TextButton(onClick = { uri.openUri("https://fr.wiktionary.org/wiki/${entry.word.replace(" ", "_")}") }, contentPadding = PaddingValues(0.dp)) {
+                    Text(listOf(pos, gender.takeIf(String::isNotBlank)).filterNotNull().joinToString(" · "),
+                        style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    var expanded by remember(entry.id) { mutableStateOf(false) }
+                    CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
+                        definitions.take(if (expanded || definitions.size <= 2) definitions.size else 2).forEachIndexed { index, sense ->
+                            SelectionContainer {
+                                Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                                    Text("${index + 1}. ${sense.definition}", style = MaterialTheme.typography.bodyMedium)
+                                    if (sense.tags.isNotEmpty()) FlowRow(horizontalArrangement = Arrangement.spacedBy(4.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                                        sense.tags.forEach { tag -> Surface(color = MaterialTheme.colorScheme.secondaryContainer, shape = MaterialTheme.shapes.small) {
+                                            Text(tag, Modifier.padding(horizontal = 6.dp, vertical = 2.dp), style = MaterialTheme.typography.labelSmall)
+                                        } }
+                                    }
+                                    if (sense.example.isNotBlank()) Text(sense.example, style = MaterialTheme.typography.bodySmall.copy(fontStyle = FontStyle.Italic), color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                }
+                            }
+                        }
+                    }
+                    if (definitions.size > 2) TextButton(onClick = { expanded = !expanded }, contentPadding = PaddingValues(0.dp)) {
+                        Text(if (expanded) stringResource(Res.string.own_dictionary_show_less) else stringResource(Res.string.own_dictionary_show_more), style = MaterialTheme.typography.labelSmall)
+                    }
+                    TextButton(onClick = { lang.monolingualSourceUrlTemplate?.let { uri.openUri(it.replace("{word}", entry.word.replace(" ", "_"))) } }, contentPadding = PaddingValues(0.dp)) {
                         Text(stringResource(Res.string.own_dictionary_french_source), style = MaterialTheme.typography.labelSmall)
                     }
                 }

@@ -23,8 +23,10 @@
     <string name="own_dictionary_follow_app">Suivre le réglage de l’application</string>
     <string name="own_dictionary_persian">Persan</string>
     <string name="own_dictionary_english">Anglais</string>
-    <string name="own_dictionary_french_definitions">Définitions françaises</string>
+    <string name="own_dictionary_french_definitions">Définitions</string>
     <string name="own_dictionary_french_source">Ouvrir le Wiktionnaire français</string>
-    <string name="own_dictionary_french_attribution">Définitions des contributeurs du Wiktionnaire français, sous licence CC BY-SA. Le lien ouvre l’entrée d’origine.</string>
+    <string name="own_dictionary_french_attribution">Contributeurs du Wiktionnaire via Kaikki Wiktextract · CC BY-SA 4.0. Le lien ouvre l’entrée d’origine.</string>
     <string name="own_dictionary_meaning_language">Langue des sens : %1$s</string>
+    <string name="own_dictionary_show_more">Afficher tous les sens</string>
+    <string name="own_dictionary_show_less">Afficher moins de sens</string>
 </resources>

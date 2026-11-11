@@ -105,41 +105,61 @@ private fun CloudSyncSection(
         }) { Text(stringResource(Res.string.batch_a_drive_sync_now)) }
     }
     if (state.conflicts.isNotEmpty()) {
+        var selected by remember { mutableStateOf(setOf<String>()) }
+        val ids = state.conflicts.map { it.conflictId }.toSet()
+        selected = selected intersect ids
         Text(stringResource(Res.string.batch_a_drive_sync_conflicts, state.conflicts.size), style = MaterialTheme.typography.titleSmall)
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Checkbox(checked = selected.size == ids.size, onCheckedChange = { selected = if (it) ids else emptySet() })
+            Text(stringResource(Res.string.batch_a_drive_sync_select_all))
+        }
+        fun apply(choice: ConflictChoice) {
+            val chosen = state.conflicts.filter { it.conflictId in selected }
+            scope.launch {
+                try {
+                    val token = drive.accessToken() ?: return@launch
+                    coordinator.resolveConflicts(chosen.map { it.conflictId }, choice, token)
+                    selected = emptySet()
+                    snackbarHostState.showSnackbar(getString(Res.string.batch_a_drive_sync_resolved))
+                } catch (cancelled: CancellationException) { throw cancelled }
+                catch (error: Exception) { snackbarHostState.showSnackbar(error.message ?: getString(Res.string.batch_a_backup_failure)) }
+            }
+        }
+        val canApply = !busy && selected.isNotEmpty()
+        val canKeepBoth = canApply && state.conflicts.filter { it.conflictId in selected }.all(::canKeepBoth)
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Button(enabled = canApply, onClick = { apply(ConflictChoice.KEEP_LOCAL) }) {
+                Text(stringResource(Res.string.batch_a_drive_sync_keep_local))
+            }
+            Button(enabled = canApply, onClick = { apply(ConflictChoice.KEEP_DRIVE) }) {
+                Text(stringResource(Res.string.batch_a_drive_sync_keep_cloud))
+            }
+            if (canKeepBoth) OutlinedButton(onClick = { apply(ConflictChoice.KEEP_BOTH) }) {
+                Text(stringResource(Res.string.batch_a_drive_sync_keep_both))
+            }
+        }
         state.conflicts.forEach { conflict ->
-            SyncConflictCard(conflict, busy) { choice ->
-                scope.launch {
-                    try {
-                        val token = drive.accessToken() ?: return@launch
-                        coordinator.resolveConflict(conflict.conflictId, choice, token)
-                        snackbarHostState.showSnackbar(getString(Res.string.batch_a_drive_sync_resolved))
-                    } catch (cancelled: CancellationException) { throw cancelled }
-                    catch (error: Exception) { snackbarHostState.showSnackbar(error.message ?: getString(Res.string.batch_a_backup_failure)) }
-                }
+            SyncConflictCard(conflict, conflict.conflictId in selected) { checked ->
+                selected = if (checked) selected + conflict.conflictId else selected - conflict.conflictId
             }
         }
     }
 }
 
+private fun canKeepBoth(conflict: SyncConflict) =
+    conflict.entityType == "card" && conflict.localPayload.isNotBlank() && conflict.remotePayload.isNotBlank()
+
 @Composable
-private fun SyncConflictCard(conflict: SyncConflict, busy: Boolean, onResolve: (ConflictChoice) -> Unit) {
+private fun SyncConflictCard(conflict: SyncConflict, checked: Boolean, onCheckedChange: (Boolean) -> Unit) {
     val local = conflictDisplay(conflict.localPayload).ifBlank { stringResource(Res.string.batch_a_drive_sync_deleted) }
     val remote = conflictDisplay(conflict.remotePayload).ifBlank { stringResource(Res.string.batch_a_drive_sync_deleted) }
     Card(Modifier.fillMaxWidth()) {
-        Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            Text(stringResource(Res.string.batch_a_drive_sync_conflict_title), style = MaterialTheme.typography.titleSmall)
-            Text(stringResource(Res.string.batch_a_drive_sync_local_version, local), style = MaterialTheme.typography.bodySmall)
-            Text(stringResource(Res.string.batch_a_drive_sync_cloud_version, remote), style = MaterialTheme.typography.bodySmall)
-            OutlinedButton(enabled = !busy, onClick = { onResolve(ConflictChoice.KEEP_LOCAL) }) {
-                Text(stringResource(Res.string.batch_a_drive_sync_keep_local))
-            }
-            OutlinedButton(enabled = !busy, onClick = { onResolve(ConflictChoice.KEEP_DRIVE) }) {
-                Text(stringResource(Res.string.batch_a_drive_sync_keep_cloud))
-            }
-            if (conflict.entityType == "card" && conflict.localPayload.isNotBlank() && conflict.remotePayload.isNotBlank()) {
-                TextButton(enabled = !busy, onClick = { onResolve(ConflictChoice.KEEP_BOTH) }) {
-                    Text(stringResource(Res.string.batch_a_drive_sync_keep_both))
-                }
+        Row(Modifier.padding(8.dp), verticalAlignment = Alignment.CenterVertically) {
+            Checkbox(checked = checked, onCheckedChange = onCheckedChange)
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text(stringResource(Res.string.batch_a_drive_sync_conflict_title), style = MaterialTheme.typography.titleSmall)
+                Text(stringResource(Res.string.batch_a_drive_sync_local_version, local), style = MaterialTheme.typography.bodySmall)
+                Text(stringResource(Res.string.batch_a_drive_sync_cloud_version, remote), style = MaterialTheme.typography.bodySmall)
             }
         }
     }
