@@ -23,8 +23,8 @@
   <string name="batch_a_backup_section_title">پشتیبان‌گیری ابری</string>
   <string name="batch_a_backup_sign_in">ورود با گوگل</string>
   <string name="batch_a_backup_sign_out">خروج از حساب</string>
-  <string name="batch_a_drive_cleanup_button">خالی کردن فایل‌های حذف‌شده</string>
-  <string name="batch_a_drive_cleanup_title">فایل‌های حذف‌شده خالی شود؟</string>
+  <string name="batch_a_drive_cleanup_button">پاک کردن متن‌های حذف‌شده از درایو</string>
+  <string name="batch_a_drive_cleanup_title">متن‌های حذف‌شده از درایو پاک شوند؟</string>
   <string name="batch_a_drive_cleanup_message">فایل‌های متن‌هایی که حذف کرده‌اید همین حالا از گوگل درایو پاک می‌شوند. متن‌های حذف‌شده دیگر از درایو قابل بازیابی نیستند.</string>
   <string name="batch_a_drive_cleanup_confirm">حذف از درایو</string>
   <string name="batch_a_drive_cleanup_done">%1$d فایل پاک شد و %2$s آزاد شد</string>

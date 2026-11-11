@@ -94,6 +94,7 @@ private fun NavHostController.navigateToTab(route: String) {
             val entry by nav.currentBackStackEntryAsState()
             val route = entry?.destination?.route
             var reviewingCards by remember { mutableStateOf(false) }
+            var reviewEntryIds by remember { mutableStateOf<Set<Long>?>(null) }
             val labels = listOf(Res.string.nav_home, Res.string.nav_library, Res.string.nav_words, Res.string.nav_review, Res.string.nav_settings)
             val routes = listOf("home", "library", "words", "review", "settings")
             val icons = listOf(Icons.Default.Home, Icons.AutoMirrored.Filled.LibraryBooks, Icons.Default.Translate, Icons.Default.Style, Icons.Default.Settings)
@@ -150,11 +151,18 @@ private fun NavHostController.navigateToTab(route: String) {
                     composable("grammar") { com.ziaee.zabankhan.grammar.GrammarScreen(prefs) { nav.popBackStack() } }
                     composable("exams") { com.ziaee.zabankhan.datapack.TcfPracticeScreen(prefs.learningLang.orEmpty()) { nav.popBackStack() } }
                     composable("words") { WordsScreen(vm, prefs, review = { nav.navigate("review") },
-                        onOpenDataset = { nav.navigate("datasets") }, reviewScope = { nav.navigate("review-scope/$it") }) }
+                        onOpenDataset = { nav.navigate("datasets") }, reviewScope = { listId, ids ->
+                            reviewEntryIds = ids
+                            nav.navigate("review-scope/$listId")
+                        }) }
                     composable("review-scope/{listId}", arguments = listOf(navArgument("listId") { type = NavType.LongType })) {
                         SideEffect { reviewingCards = false }
-                        ReviewScreen(container, prefs, { nav.popBackStack() }, { nav.navigateToTab("settings") },
-                            listScope = requireNotNull(it.arguments?.read { getLong("listId") }), onReviewingCardsChanged = { reviewingCards = it })
+                        ReviewScreen(container, prefs,
+                            onBack = { reviewEntryIds = null; nav.popBackStack() },
+                            onOpenSettings = { nav.navigateToTab("settings") },
+                            listScope = requireNotNull(it.arguments?.read { getLong("listId") }),
+                            reviewEntryIds = reviewEntryIds,
+                            onReviewingCardsChanged = { reviewingCards = it })
                     }
                     composable("datasets") { DatasetScreen(vm, prefs) { nav.popBackStack() } }
                     composable("review") { ReviewScreen(container, prefs, { nav.popBackStack() }, { nav.navigateToTab("settings") }, onOpenDatasets = { nav.navigate("datasets") }, onReviewingCardsChanged = { reviewingCards = it }) }

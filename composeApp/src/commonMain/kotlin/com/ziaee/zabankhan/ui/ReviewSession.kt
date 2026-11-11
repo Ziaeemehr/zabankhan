@@ -8,6 +8,15 @@ fun VocabEntry.srsState() = SrsState(leitnerBox, nextReviewAtMs, lastReviewedAtM
 fun VocabEntry.reviewCard() = ReviewCard(id, srsState(), createdAtMs, listId)
 fun VocabEntry.withState(state: SrsState) = copy(leitnerBox = state.leitnerBox, nextReviewAtMs = state.nextReviewAtMs, lastReviewedAtMs = state.lastReviewedAtMs, learned = state.learned)
 
+internal fun scopeReviewEntries(
+    entries: List<VocabEntry>,
+    listScope: Long,
+    entryIds: Set<Long>?
+): List<VocabEntry> = entries.filter { entry ->
+    (listScope == VOCAB_SCOPE_ALL || (entry.listId ?: VOCAB_SCOPE_UNFILED) == listScope) &&
+        (entryIds == null || entry.id in entryIds)
+}
+
 /** The first recorded review consumes the daily allowance, regardless of subsequent answers. */
 fun remainingNewCards(history: List<ReviewLogEntry>, limit: Int, dayStart: Long = VocabSrs.startOfDayMs(nowMs())): Int {
     val first = history.groupBy { it.entryId }.values.mapNotNull { logs -> logs.minOfOrNull { it.timestampMs } }

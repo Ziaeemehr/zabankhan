@@ -105,8 +105,9 @@ internal fun mergeDatasetManifests(bundled: DatasetManifest?, remote: DatasetMan
     if (remote == null) return bundled
     return bundled.copy(
         version = maxOf(bundled.version, remote.version),
-        decks = bundled.decks + remote.decks,
-        stories = bundled.stories + remote.stories,
+        // Same pack may ship bundled and remote; bundled wins so ids stay unique.
+        decks = (bundled.decks + remote.decks).distinctBy { it.id },
+        stories = (bundled.stories + remote.stories).distinctBy { it.id },
         starterDeckIds = bundled.starterDeckIds + remote.starterDeckIds,
         starterStoryIds = bundled.starterStoryIds + remote.starterStoryIds
     )

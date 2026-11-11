@@ -84,7 +84,9 @@ internal suspend fun createLocalBackupLocked(container: AppContainer, automatic:
             }
             run {
                 val root = base / "pdfs"
-                if (fs.exists(root)) fs.listRecursively(root).filter { fs.metadata(it).isRegularFile }.forEach { file ->
+                // Skip orphan PDFs left behind by deleted texts.
+                val used = container.texts.pdfPaths().map { it.substringAfterLast('/') }.toSet()
+                if (fs.exists(root)) fs.listRecursively(root).filter { fs.metadata(it).isRegularFile && it.name in used }.forEach { file ->
                     val hash = sha256Hex(file)
                     pdfRefs += BackupPdfRef(file.relativeTo(root).toString(), fs.metadata(file).size ?: 0L, hash)
                 }

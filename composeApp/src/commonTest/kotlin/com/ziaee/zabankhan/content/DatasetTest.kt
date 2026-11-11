@@ -73,4 +73,17 @@ class DatasetTest {
         assertEquals(listOf(sourceBundled, sourceBundled, sourceRemote), merged.decks.map { it.source })
         assertEquals(2, merged.version)
     }
+
+    @Test fun mergeKeepsBundledCopyWhenRemoteRepeatsDeckId() {
+        val bundled = parseDatasetManifest(
+            """{"version":1,"decks":[{"id":"same","name":"B","level":"A1","kind":"words","file":"decks/s.json","count":1}],"stories":[]}""",
+            DatasetSource.Bundled("fr")
+        )
+        val remote = parseDatasetManifest(
+            """{"version":1,"decks":[{"id":"same","name":"R","level":"A1","kind":"words","file":"decks/s.json","count":1}],"stories":[]}""",
+            DatasetSource.Remote("fr")
+        )
+        val merged = mergeDatasetManifests(bundled, remote)
+        assertEquals(listOf("B"), merged.decks.map { it.name })
+    }
 }

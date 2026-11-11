@@ -90,7 +90,12 @@ private const val REVIEW_DAILY_GOAL = 20
 /** Identity holder per card presentation (FrenchReader CardSlot), so AnimatedContent never merges equal entries. */
 class CardSlot(entry: VocabEntry) { var entry by mutableStateOf(entry) }
 
-class ReviewViewModel(private val container: AppContainer, private val settings: AppSettings, private val listScope: Long = -1L) : ViewModel() {
+class ReviewViewModel(
+    private val container: AppContainer,
+    private val settings: AppSettings,
+    private val listScope: Long = VOCAB_SCOPE_ALL,
+    private val reviewEntryIds: Set<Long>? = null
+) : ViewModel() {
     private val lang = requireNotNull(settings.learningLang)
     var meaningTarget by mutableStateOf(meaningTarget(lang, settings)); private set
     var meaningOptions by mutableStateOf<List<MeaningOption>>(emptyList()); private set
@@ -172,9 +177,7 @@ class ReviewViewModel(private val container: AppContainer, private val settings:
     val current get() = session?.current
     val canUndo get() = stage == ReviewStage.REVIEW && session?.answers?.isNotEmpty() == true && !busy
 
-    private suspend fun scopedEntries() = container.vocab.getAll(lang).filter {
-        listScope == VOCAB_SCOPE_ALL || (if (it.listId == null) VOCAB_SCOPE_UNFILED else it.listId) == listScope
-    }
+    private suspend fun scopedEntries() = scopeReviewEntries(container.vocab.getAll(lang), listScope, reviewEntryIds)
     init { load() }
 
     private fun run(block: suspend () -> Unit) {
@@ -310,8 +313,8 @@ internal fun meaningTarget(cardLang: String, settings: AppSettings): String =
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ReviewScreen(container: AppContainer, settings: AppSettings, onBack: () -> Unit = {}, onOpenSettings: () -> Unit = {}, listScope: Long = -1L, onOpenDatasets: () -> Unit = {}, onReviewingCardsChanged: (Boolean) -> Unit = {}) {
-    val vm = viewModel(key = "review:${container.hashCode()}:${settings.learningLang}:${settings.dailyNewCards}:${settings.reviewIntervalDays}:$listScope") { ReviewViewModel(container, settings, listScope) }
+fun ReviewScreen(container: AppContainer, settings: AppSettings, onBack: () -> Unit = {}, onOpenSettings: () -> Unit = {}, listScope: Long = VOCAB_SCOPE_ALL, reviewEntryIds: Set<Long>? = null, onOpenDatasets: () -> Unit = {}, onReviewingCardsChanged: (Boolean) -> Unit = {}) {
+    val vm = viewModel(key = "review:${container.hashCode()}:${settings.learningLang}:${settings.dailyNewCards}:${settings.reviewIntervalDays}:$listScope:${reviewEntryIds?.hashCode()}") { ReviewViewModel(container, settings, listScope, reviewEntryIds) }
     val snackbar = remember { SnackbarHostState() }
     val tts = remember { createTts() }
     DisposableEffect(Unit) { onDispose { tts.stop() } }

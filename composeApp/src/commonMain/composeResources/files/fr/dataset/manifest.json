@@ -1,5 +1,5 @@
 {
- "version": 3,
+ "version": 4,
  "sentenceTranslations": {
   "model": "gemma4",
   "promptRevision": "lines-fa-v1",
@@ -77,6 +77,15 @@
    "kind": "phrases",
    "file": "decks/comm-dial-a2b1-phrases.json",
    "count": 1354
+  },
+  {
+   "id": "comm-diag-a2b1-fa-fr",
+   "name": "Comm_diag_a2b1 · FA→FR",
+   "level": "A2-B1",
+   "kind": "phrases",
+   "file": "decks/comm-diag-a2b1-fa-fr.json",
+   "count": 1343,
+   "sizeBytes": 218764
   }
  ],
  "stories": [

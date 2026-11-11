@@ -1,9 +1,14 @@
 package com.ziaee.zabankhan.backup
 
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Backup
+import androidx.compose.material.icons.filled.ExpandMore
+import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -32,11 +37,25 @@ import kotlin.time.Clock
     val drive = rememberDriveAuth()
     var lastBackupAtMs by remember { mutableStateOf<Long?>(null) }
     LaunchedEffect(container) { lastBackupAtMs = container.settings.backupPrefs.getLastBackupAtMs() }
-    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)) {
-            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                Text(stringResource(Res.string.batch_a_backup_overview_title), style = MaterialTheme.typography.titleMedium)
-                Text(stringResource(Res.string.batch_a_backup_overview_last, formatLastBackupLabel(lastBackupAtMs)), style = MaterialTheme.typography.bodyMedium)
+    Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+        Card(
+            Modifier.fillMaxWidth(),
+            shape = MaterialTheme.shapes.extraLarge,
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer),
+        ) {
+            Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+                    Surface(shape = CircleShape, color = MaterialTheme.colorScheme.primary) {
+                        Icon(Icons.Default.Backup, null, Modifier.padding(12.dp).size(24.dp), tint = MaterialTheme.colorScheme.onPrimary)
+                    }
+                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Text(stringResource(Res.string.batch_a_backup_overview_title), style = MaterialTheme.typography.titleLarge)
+                        Text(
+                            stringResource(Res.string.batch_a_backup_overview_last, formatLastBackupLabel(lastBackupAtMs)),
+                            style = MaterialTheme.typography.bodyMedium,
+                        )
+                    }
+                }
                 Text(stringResource(Res.string.batch_a_backup_overview_description), style = MaterialTheme.typography.bodySmall)
             }
         }
@@ -79,13 +98,16 @@ private fun CloudSyncSection(
 
     Text(stringResource(Res.string.batch_a_drive_sync_title), style = MaterialTheme.typography.titleMedium)
     Text(stringResource(Res.string.batch_a_drive_sync_description), style = MaterialTheme.typography.bodySmall)
-    Text(
+    Surface(shape = MaterialTheme.shapes.medium, color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f)) {
+      Text(
         stringResource(
             Res.string.batch_a_drive_sync_last,
             state.lastSuccessfulSyncMs?.let { formatBackupTimestamp(it) } ?: stringResource(Res.string.batch_a_drive_sync_never),
         ),
+        modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
         style = MaterialTheme.typography.bodySmall,
-    )
+      )
+    }
     if (busy) Text(stringResource(Res.string.batch_a_drive_sync_syncing), style = MaterialTheme.typography.bodySmall)
     if (!state.error.isNullOrBlank()) Text(state.error.orEmpty(), color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
     if (!drive.connected) {
@@ -102,7 +124,7 @@ private fun CloudSyncSection(
                 } catch (cancelled: CancellationException) { throw cancelled }
                 catch (error: Exception) { snackbarHostState.showSnackbar(error.message ?: getString(Res.string.batch_a_backup_failure)) }
             }
-        }) { Text(stringResource(Res.string.batch_a_drive_sync_now)) }
+        }, modifier = Modifier.fillMaxWidth().heightIn(min = 50.dp)) { Text(stringResource(Res.string.batch_a_drive_sync_now)) }
     }
     if (state.conflicts.isNotEmpty()) {
         var selected by remember { mutableStateOf(setOf<String>()) }
@@ -170,16 +192,22 @@ private fun conflictDisplay(payload: String): String = runCatching {
     value["word"]?.jsonPrimitive?.contentOrNull ?: value["name"]?.jsonPrimitive?.contentOrNull.orEmpty()
 }.getOrDefault("")
 @Composable private fun BackupMethodCard(content: @Composable ColumnScope.() -> Unit) {
-    Card(Modifier.fillMaxWidth()) {
-        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp), content = content)
+    Card(
+        Modifier.fillMaxWidth(),
+        shape = MaterialTheme.shapes.extraLarge,
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
+    ) {
+        Column(Modifier.fillMaxWidth().padding(18.dp), verticalArrangement = Arrangement.spacedBy(10.dp), content = content)
     }
 }
 @Composable private fun formatLastBackupLabel(atMs: Long?): String =
     if (atMs == null) stringResource(Res.string.batch_a_backup_never_backed_up) else formatBackupTimestamp(atMs)
-private suspend fun pdfSizeBytes(): Long = withContext(Dispatchers.IO) {
+private suspend fun pdfSizeBytes(container: AppContainer): Long = withContext(Dispatchers.IO) {
     val fs = okio.FileSystem.SYSTEM
     val root = backupPaths().files.toPath() / "pdfs"
-    if (!fs.exists(root)) 0L else fs.listRecursively(root).sumOf { fs.metadata(it).size ?: 0L }
+    val used = container.texts.pdfPaths().map { it.substringAfterLast('/') }.toSet()
+    if (!fs.exists(root)) 0L else fs.listRecursively(root).filter { it.name in used }.sumOf { fs.metadata(it).size ?: 0L }
 }
 @Composable
 private fun AutoBackupSection(
@@ -191,6 +219,7 @@ private fun AutoBackupSection(
     var showBackups by remember { mutableStateOf(false) }
     var selected by remember { mutableStateOf<Path?>(null) }
     var backups by remember { mutableStateOf(AutoBackup.listBackups()) }
+    var showDetails by remember { mutableStateOf(false) }
     val latest = remember { AutoBackup.latest() }
     LaunchedEffect(container) { enabled = container.settings.backupPrefs.isAutoBackupEnabled() }
 
@@ -200,23 +229,25 @@ private fun AutoBackupSection(
 
     Text(
         stringResource(Res.string.batch_a_auto_backup_section_title),
-        style = MaterialTheme.typography.labelMedium,
-        modifier = Modifier.padding(top = 8.dp, bottom = 4.dp)
+        style = MaterialTheme.typography.titleMedium,
     )
     SettingsSwitchRow(stringResource(Res.string.batch_a_auto_backup_toggle), enabled) {
         enabled = it
         scope.launch { container.settings.backupPrefs.setAutoBackupEnabled(it) }
     }
-    Text(stringResource(Res.string.batch_a_auto_backup_description), style = MaterialTheme.typography.bodySmall)
-    Text(
-        stringResource(
-            Res.string.batch_a_auto_backup_last,
-            formatLastBackupLabel(latest?.let { backupEpoch(it.name) })
-        ),
-        style = MaterialTheme.typography.bodySmall
-    )
-    OutlinedButton(enabled = backups.isNotEmpty(), onClick = { backups = AutoBackup.listBackups(); showBackups = true }) {
-        Text(stringResource(Res.string.batch_a_auto_backup_restore))
+    Surface(shape = MaterialTheme.shapes.medium, color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f)) {
+        Column(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp)) {
+            TextButton(onClick = { showDetails = !showDetails }, modifier = Modifier.fillMaxWidth()) {
+                Text(stringResource(Res.string.batch_a_auto_backup_last, formatLastBackupLabel(latest?.let { backupEpoch(it.name) })), Modifier.weight(1f))
+                Icon(if (showDetails) Icons.Default.ExpandLess else Icons.Default.ExpandMore, contentDescription = null)
+            }
+            if (showDetails) {
+                Text(stringResource(Res.string.batch_a_auto_backup_description), Modifier.padding(horizontal = 4.dp, vertical = 6.dp), style = MaterialTheme.typography.bodySmall)
+                OutlinedButton(enabled = backups.isNotEmpty(), onClick = { backups = AutoBackup.listBackups(); showBackups = true }) {
+                    Text(stringResource(Res.string.batch_a_auto_backup_restore))
+                }
+            }
+        }
     }
 
     if (showBackups) {
@@ -268,7 +299,7 @@ private fun LocalBackupSection(
 ) {
     var restoreUri by remember { mutableStateOf<String?>(null) }
     val pdfBytes by produceState(0L, container) {
-        value = withContext(Dispatchers.IO) { pdfSizeBytes() }
+        value = withContext(Dispatchers.IO) { pdfSizeBytes(container) }
     }
 
 
@@ -290,16 +321,25 @@ private fun LocalBackupSection(
 
     Text(
         stringResource(Res.string.batch_a_local_backup_section_title),
-        style = MaterialTheme.typography.labelMedium,
-        modifier = Modifier.padding(top = 8.dp, bottom = 4.dp)
+        style = MaterialTheme.typography.titleMedium,
     )
-    Text(stringResource(Res.string.batch_a_backup_pdf_files) + " · " + formatFileSize(pdfBytes))
-    Button(onClick = {
-        exportBackup()
-    }) {
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = MaterialTheme.shapes.medium,
+        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f),
+    ) {
+        Text(
+            stringResource(Res.string.batch_a_backup_pdf_files) + " · " + formatFileSize(pdfBytes),
+            modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
+            style = MaterialTheme.typography.bodyMedium,
+        )
+    }
+    Button(onClick = { exportBackup() }, modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp)) {
+        Icon(Icons.Default.Backup, null)
+        Spacer(Modifier.width(10.dp))
         Text(stringResource(Res.string.batch_a_local_backup_save))
     }
-    OutlinedButton(onClick = { importLauncher() }) {
+    OutlinedButton(onClick = { importLauncher() }, modifier = Modifier.fillMaxWidth()) {
         Text(stringResource(Res.string.batch_a_local_backup_restore))
     }
 
@@ -352,15 +392,17 @@ private fun CloudBackupSection(container: AppContainer, scope: CoroutineScope, s
     val client = remember(http) { DriveBackupClient(http) }
     Text(
         stringResource(Res.string.batch_a_backup_section_title),
-        style = MaterialTheme.typography.labelMedium,
-        modifier = Modifier.padding(top = 8.dp, bottom = 4.dp)
+        style = MaterialTheme.typography.titleMedium,
     )
     if (!connected) {
-        OutlinedButton(enabled = !busy, onClick = { withDriveAccessToken {} }) {
+        Text(stringResource(Res.string.batch_a_backup_overview_description), style = MaterialTheme.typography.bodySmall)
+        Button(enabled = !busy, onClick = { withDriveAccessToken {} }, modifier = Modifier.fillMaxWidth().heightIn(min = 50.dp)) {
             Text(stringResource(Res.string.batch_a_backup_sign_in))
         }
     } else {
-        Text(formatLastBackupLabel(lastBackupAtMs))
+        Surface(shape = MaterialTheme.shapes.medium, color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f)) {
+            Text(stringResource(Res.string.batch_a_backup_overview_last, formatLastBackupLabel(lastBackupAtMs)), Modifier.fillMaxWidth().padding(12.dp), style = MaterialTheme.typography.bodyMedium)
+        }
         Button(enabled = !busy, onClick = {
             withDriveAccessToken { token ->
                 val archive = createLocalBackup(container)
@@ -372,20 +414,22 @@ private fun CloudBackupSection(container: AppContainer, scope: CoroutineScope, s
                 onBackupSaved(now)
                 snackbarHostState.showSnackbar(getString(Res.string.batch_a_backup_success))
             }
-        }) { Text(stringResource(Res.string.batch_a_backup_now)) }
+        }, modifier = Modifier.fillMaxWidth().heightIn(min = 50.dp)) { Text(stringResource(Res.string.batch_a_backup_now)) }
         OutlinedButton(enabled = !busy, onClick = {
             withDriveAccessToken { token ->
                 val files = client.list(token)
                 if (files.isEmpty()) snackbarHostState.showSnackbar(getString(Res.string.batch_a_backup_restore_not_found))
                 else backups = files
             }
-        }) { Text(stringResource(Res.string.batch_a_backup_restore)) }
+        }, modifier = Modifier.fillMaxWidth()) { Text(stringResource(Res.string.batch_a_backup_restore)) }
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         OutlinedButton(enabled = !busy, onClick = { confirmCleanup = true }) { Text(stringResource(Res.string.batch_a_drive_cleanup_button)) }
         OutlinedButton(enabled = !busy, onClick = { scope.launch {
             try { drive.disconnect(); connected = false }
             catch (cancelled: CancellationException) { throw cancelled }
             catch (_: Exception) { snackbarHostState.showSnackbar(getString(Res.string.batch_a_backup_failure)) }
         } }) { Text(stringResource(Res.string.batch_a_backup_sign_out)) }
+        }
     }
     if (confirmCleanup) {
         AlertDialog(

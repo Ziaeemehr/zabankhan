@@ -6,9 +6,9 @@ import com.ziaee.zabankhan.data.*
 
 @Composable
 fun WordsScreen(vm: AppViewModel, settings: AppSettings, review: () -> Unit = {},
-    onOpenDataset: () -> Unit = {}, reviewScope: ((Long) -> Unit)? = null) =
+    onOpenDataset: () -> Unit = {}, reviewScope: ((Long, Set<Long>) -> Unit)? = null) =
     androidx.compose.runtime.key(settings.learningLang) {
-        VocabListScreen(vm, settings, onBack = {}, onOpenReview = { reviewScope?.invoke(it) ?: review() },
+        VocabListScreen(vm, settings, onBack = {}, onOpenReview = { scope, ids -> reviewScope?.invoke(scope, ids) ?: review() },
             onOpenDataset = onOpenDataset, asTab = true)
     }
 

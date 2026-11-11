@@ -94,7 +94,7 @@ fun VocabListScreen(
     appVm: AppViewModel,
     settings: AppSettings,
     onBack: () -> Unit,
-    onOpenReview: (Long) -> Unit,
+    onOpenReview: (Long, Set<Long>) -> Unit,
     onOpenDataset: () -> Unit,
     asTab: Boolean = false,
 ) {
@@ -156,10 +156,10 @@ fun VocabListScreen(
         filterVocabulary(scoped, -1L, query, selectedStatus, spec)
     }
     val logs by vm.logs.collectAsState()
-    val dueCount = remember(scoped, logs, settings.dailyNewCards) {
+    val dueCount = remember(filtered, logs, settings.dailyNewCards) {
         val now = nowMs()
         val remainingNew = remainingNewCards(logs, settings.dailyNewCards, VocabSrs.startOfDayMs(now))
-        reviewableCount(scoped.map { it.reviewCard() }, now, remainingNew)
+        reviewableCount(filtered.map { it.reviewCard() }, now, remainingNew)
     }
     val visibleIds = remember(filtered) { filtered.mapTo(mutableSetOf()) { it.id } }
     val isSelecting = selectedIds.isNotEmpty()
@@ -420,7 +420,7 @@ fun VocabListScreen(
                                 }
                             }
                             Button(
-                                onClick = { onOpenReview(selectedScope) },
+                                onClick = { onOpenReview(selectedScope, visibleIds) },
                                 enabled = dueCount > 0
                             ) {
                                 Text(stringResource(Res.string.b_words_vocab_review_start))

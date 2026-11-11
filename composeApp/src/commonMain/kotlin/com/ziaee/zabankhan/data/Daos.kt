@@ -18,6 +18,8 @@ import kotlin.uuid.Uuid
 
 @Dao
 interface TextDao {
+    @Query("SELECT pdfPath FROM texts WHERE pdfPath IS NOT NULL")
+    suspend fun pdfPaths(): List<String>
     @Query("SELECT * FROM texts")
     fun observeProgressTexts(): Flow<List<TextDocument>>
 
