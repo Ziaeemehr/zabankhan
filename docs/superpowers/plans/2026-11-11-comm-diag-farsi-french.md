@@ -52,7 +52,7 @@
 ### Task 2: Build the reverse-direction deck and import file
 
 **Files:**
-- Create: `tools/build_comm_diag_a2b1.py`
+- Create: `zabankhan-dict/tools/build_comm_diag_a2b1.py`
 - Create: `zabankhan-dict/packs/fr/dataset/csv/Comm_diag_a2b1.csv`
 - Create: `composeApp/src/commonMain/composeResources/files/fr/dataset/decks/comm-diag-a2b1-fa-fr.json`
 - Modify: `composeApp/src/commonMain/composeResources/files/fr/dataset/manifest.json`
