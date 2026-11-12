@@ -53,7 +53,7 @@
 
 **Files:**
 - Create: `tools/build_comm_diag_a2b1.py`
-- Create: `docs/flashcards/Comm_diag_a2b1.csv`
+- Create: `zabankhan-dict/packs/fr/dataset/csv/Comm_diag_a2b1.csv`
 - Create: `composeApp/src/commonMain/composeResources/files/fr/dataset/decks/comm-diag-a2b1-fa-fr.json`
 - Modify: `composeApp/src/commonMain/composeResources/files/fr/dataset/manifest.json`
 - Test: `composeApp/src/iosTest/kotlin/com/ziaee/zabankhan/content/CommDiagDeckTest.kt` (not commonTest: `Res.readBytes` fails in Android unit tests, and test fixtures under commonTest composeResources broke resource generation before)

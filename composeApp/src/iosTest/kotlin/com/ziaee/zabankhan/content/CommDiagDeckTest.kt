@@ -50,7 +50,7 @@ class CommDiagDeckTest {
     }
 
     @Test fun currentReleaseCsvImporterReadsAllCardsAndKeepsUnitSearchTextOutsideSentence() {
-        val csvPath = projectRoot.parent!! / "docs/flashcards/Comm_diag_a2b1.csv"
+        val csvPath = root / "dataset/csv/Comm_diag_a2b1.csv"
         val csv = FileSystem.SYSTEM.read(csvPath) { readUtf8() }
         val parsed = parseCsvWords(csv)
         assertTrue(parsed.hasDeckColumn)

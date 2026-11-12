@@ -13,7 +13,6 @@ DATASET = ROOT.parent / "zabankhan-dict/packs/fr/dataset"
 SOURCE = DATASET / "decks/comm-dial-a2b1-phrases.json"
 OUTPUT = DATASET / "decks/comm-diag-a2b1-fa-fr.json"
 MANIFEST = DATASET / "manifest.json"
-CSV_OUTPUT = ROOT / "docs/flashcards/Comm_diag_a2b1.csv"
 REMOTE_CSV_OUTPUT = DATASET / "csv/Comm_diag_a2b1.csv"
 
 DECK_ID = "comm-diag-a2b1-fa-fr"
@@ -199,7 +198,6 @@ def main() -> None:
     deck_bytes = (json.dumps(cards, ensure_ascii=False, separators=(",", ":")) + "\n").encode("utf-8")
     OUTPUT.write_bytes(deck_bytes)
 
-    CSV_OUTPUT.parent.mkdir(parents=True, exist_ok=True)
     csv_file = io.StringIO(newline="")
     writer = csv.writer(csv_file, lineterminator="\n")
     writer.writerow(["word", "meaning", "sentence", "deck"])
@@ -209,7 +207,7 @@ def main() -> None:
     assert len(parsed_csv) == len(cards) + 1
     assert all(row[3] == DECK_NAME for row in parsed_csv[1:])
     assert len({row[0].casefold() for row in parsed_csv[1:]}) == len(cards)
-    for csv_path in (CSV_OUTPUT, REMOTE_CSV_OUTPUT):
+    for csv_path in (REMOTE_CSV_OUTPUT,):
         csv_path.parent.mkdir(parents=True, exist_ok=True)
         with csv_path.open("w", encoding="utf-8", newline="") as csv_output:
             csv_output.write(csv_text)
