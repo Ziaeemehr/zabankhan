@@ -194,19 +194,49 @@ internal fun DocumentThumbnail(doc: TextDocument, modifier: Modifier = Modifier)
         }
     }
     val shape = RoundedCornerShape(8.dp)
-    if (image != null) {
-        androidx.compose.foundation.Image(
-            bitmap = requireNotNull(image),
-            contentDescription = null,
-            contentScale = androidx.compose.ui.layout.ContentScale.Crop,
-            modifier = modifier.clip(shape)
-        )
-    } else {
-        Box(
-            modifier = modifier.clip(shape).background(MaterialTheme.colorScheme.surfaceVariant),
-            contentAlignment = Alignment.Center
-        ) {
-            Icon(Icons.AutoMirrored.Filled.Article, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
+    Box(modifier = modifier.clip(shape), contentAlignment = Alignment.Center) {
+        if (image != null) {
+            androidx.compose.foundation.Image(
+                bitmap = requireNotNull(image),
+                contentDescription = null,
+                contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+                modifier = Modifier.fillMaxSize()
+            )
+        } else {
+            Box(
+                modifier = Modifier.fillMaxSize().background(
+                    if (doc.pdfPath != null) MaterialTheme.colorScheme.errorContainer else MaterialTheme.colorScheme.primaryContainer
+                ),
+                contentAlignment = Alignment.Center
+            ) {
+                if (doc.pdfPath != null) {
+                    Icon(Icons.Default.PictureAsPdf, contentDescription = null,
+                        tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(26.dp))
+                } else {
+                    Box(
+                        modifier = Modifier.size(width = 32.dp, height = 38.dp)
+                            .clip(RoundedCornerShape(4.dp))
+                            .background(MaterialTheme.colorScheme.surface),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Box(Modifier.align(Alignment.TopCenter).fillMaxWidth().height(4.dp)
+                            .background(MaterialTheme.colorScheme.primary))
+                        Icon(Icons.AutoMirrored.Filled.Article, contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(23.dp))
+                    }
+                }
+            }
+        }
+        if (doc.pdfPath != null) {
+            Text(
+                text = "PDF",
+                modifier = Modifier.align(Alignment.BottomCenter).fillMaxWidth().background(MaterialTheme.colorScheme.error),
+                color = MaterialTheme.colorScheme.onError,
+                style = MaterialTheme.typography.labelSmall,
+                fontWeight = FontWeight.Bold,
+                maxLines = 1,
+                textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+            )
         }
     }
 }

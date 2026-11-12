@@ -630,7 +630,13 @@ private fun LibraryRow(
         }
         Spacer(Modifier.width(12.dp))
         Column(modifier = Modifier.weight(1f)) {
-            Text(doc.title, style = MaterialTheme.typography.titleSmall.merge(contentStyle(doc.title)), maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(doc.title, modifier = Modifier.weight(1f, fill = false), style = MaterialTheme.typography.titleSmall.merge(contentStyle(doc.title)), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                if (doc.pdfPath != null) {
+                    Spacer(Modifier.width(4.dp))
+                    MetadataBadge(text = stringResource(Res.string.ed_type_pdf), modifier = Modifier.testTag("pdfBadge_${doc.id}"))
+                }
+            }
             bodySnippet?.takeIf { it.isNotBlank() }?.let { snippet ->
                 Text(
                     snippet.replace(Regex("\\s+"), " ").trim(),
