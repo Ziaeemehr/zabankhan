@@ -4,7 +4,7 @@
 
 **Goal:** Add one downloadable and current-release-importable Farsi-to-French deck from *Communication en dialogues A2-B1*, and make Words review honor the active search and status filters.
 
-**Architecture:** Convert the existing 1,354-card source deck into Persian-front/French-back cards, carrying its 24 unit labels into searchable sentence text; publish the same pack in the app's bundled dataset and `zabankhan-dict/packs`. Ship a CSV with the deck for current-release import. Pass the filtered card IDs from Words through shared app state alongside the existing scoped-review route so Review calculates and queues only those cards.
+**Architecture:** Convert the existing 1,354-card source deck into Persian-front/French-back cards, carrying its 24 unit labels into searchable meaning text so sentence audio does not read them; publish the same pack in the app's bundled dataset and `zabankhan-dict/packs`. Ship a CSV with the deck for current-release import. Pass the filtered card IDs from Words through shared app state alongside the existing scoped-review route so Review calculates and queues only those cards.
 
 **Tech Stack:** Kotlin Multiplatform, Compose Multiplatform, kotlinx.serialization JSON, CSV importer, Python standard library for generated dataset files.
 
@@ -23,7 +23,7 @@
 - Search plus status filters yield the same review subset as the visible Words list; test matching, no matches, and status-only filtering.
 - Existing whole-deck review remains whole-deck when no filtered ID set is supplied; test null and empty subset semantics separately.
 - Persian equivalents do not accidentally include the English gloss; validate representative entries from the first and last units.
-- Unit labels remain present in `sentence` and searchable after both CSV import and dataset installation; validate all 24 labels and counts. Empty filter result disables review.
+- Unit labels remain present in `meaning` and searchable after both CSV import and dataset installation; examples in `sentence` contain only French example text and are safe to send to TTS. Validate all 24 labels and counts. Empty filter result disables review.
 - The card pack is parseable by the existing dataset parser, and CSV rows are parseable by the current release importer; assert every generated card has a front, French meaning, unit label, and valid chapter.
 
 ---
@@ -62,11 +62,11 @@
 **Interfaces:**
 - Generator reads `comm-dial-a2b1-phrases.json` and emits the app dataset JSON and `word,meaning,sentence,deck` CSV.
 - Dataset ID: `comm-diag-a2b1-fa-fr`; display/deck name: `Comm_diag_a2b1 · FA→FR`.
-- Each row has Persian `word`, French translation plus up to two known French synonyms in `meaning`, and its French example followed by a newline and `Unité NN — <chapter title>` in `sentence`. The label stays out of `meaning` so the card back stays clean.
+- Each row has Persian `word`, French translation, up to two known French synonyms, and searchable `Unité NN — <chapter title>` metadata in `meaning`. `sentence` contains only the French example so sentence TTS does not read unit labels.
 
-- [x] **Step 1: Add a failing data validation test** that loads the generated resource and asserts there are 1,343 unique Persian fronts, all 24 unit labels are represented in sentence, every card has a Persian front and French meaning, repeated source fronts preserve every equivalent/example/unit, and no `meaning` contains an English gloss or slash-delimited English translation.
+- [x] **Step 1: Add a failing data validation test** that loads the generated resource and asserts there are 1,343 unique Persian fronts, all 24 unit labels are represented in meaning, every card has a Persian front and French meaning, repeated source fronts preserve every equivalent/example/unit, sentence contains no unit label, and no `meaning` contains an English gloss or slash-delimited English translation.
 - [x] **Step 2: Run the focused test** `./gradlew :composeApp:iosSimulatorArm64Test --tests 'com.ziaee.zabankhan.content.CommDiagDeckTest'`; confirm it fails before the pack exists.
-- [x] **Step 3: Implement the generator** using the existing card order, `l` chapter IDs, title list from the supplied PDF's contents page, and the Persian side of existing bilingual meanings. Carry through reliable French alternatives and add synonyms only where the source gives a clear equivalent; do not guess. Merge cards with the same Persian front, preserving all equivalent phrases, examples, and unit labels. Supply short original examples for the 23 entries whose source cards have no sentence. Append unit labels to sentence (leave `l` out of generated rows so app import does not append a second label to meaning). Fail with asserts if any front/meaning/example/label is missing, if any duplicate Persian fronts remain, or if not all 24 units are present. Produce the CSV with the app's current column order and a single deck name.
+- [x] **Step 3: Implement the generator** using the existing card order, `l` chapter IDs, title list from the supplied PDF's contents page, and the Persian side of existing bilingual meanings. Carry through reliable French alternatives and add synonyms only where the source gives a clear equivalent; do not guess. Merge cards with the same Persian front, preserving all equivalent phrases, examples, and unit labels. Supply short original examples for the 23 entries whose source cards have no sentence. Put unit labels into meaning (leave `l` out of generated rows to avoid app-appended duplicate labels); keep sentence as French example text only. Fail with asserts if any front/meaning/example/label is missing, if any duplicate Persian fronts remain, or if not all 24 units are present. Produce the CSV with the app's current column order and a single deck name.
 - [x] **Step 4: Generate the resource and CSV** and register the resource pack in the bundled manifest with its exact generated card count and size.
 - [x] **Step 5: Run the focused data test** and inspect representative cards from units 01, 12, and 24, plus the merged three-unit card, in both outputs.
 

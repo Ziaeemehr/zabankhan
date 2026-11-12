@@ -149,7 +149,7 @@ class DatasetRepository(
                 ?: folders.insertFolder(LibraryFolder(lang = language.code, name = pack.level, parentId = root))
             var added = 0
             rows.forEach { story ->
-                if (db.texts().getByExternalKey(externalKey(story.key, pack.sourceRef)) == null) {
+                if (storyKeys(story.key).none { db.texts().getByExternalKey(it) != null }) {
                     val stored = story.image?.let { image ->
                         val bytes = assetBytes(pack.sourceRef, image)
                         val path = "${AppFiles.filesDir}/text_images/${language.code}/dataset/${image.substringAfterLast('/')}".toPath()
@@ -197,7 +197,7 @@ class DatasetRepository(
                 pack.key to DatasetPackStatus(installed, pack.count)
             },
             stories = manifest.stories.associate { pack ->
-                val installed = runCatching { parseDatasetStories(asset(pack.sourceRef, pack.file)).count { externalKey(it.key, pack.sourceRef) in storyKeys } }.getOrDefault(0)
+                val installed = runCatching { parseDatasetStories(asset(pack.sourceRef, pack.file)).count { story -> storyKeys(story.key).any { it in storyKeys } } }.getOrDefault(0)
                 pack.key to DatasetPackStatus(installed, pack.count)
             }
         )
@@ -286,6 +286,8 @@ class DatasetRepository(
         return DatasetInstallResult(added, skipped)
     }
 
+    // Same story may come bundled (starter demo) or remote; either key means already installed.
+    private fun storyKeys(key: String) = listOf(externalKey(key, DatasetSource.Bundled(language.code)), externalKey(key, DatasetSource.Remote(language.code)))
     private fun externalKey(key: String, source: DatasetSource): String = when (source) {
         is DatasetSource.Bundled -> "dataset:${language.code}:$key"
         is DatasetSource.Remote -> "dataset:${language.code}:remote:$key"

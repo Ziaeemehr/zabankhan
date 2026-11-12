@@ -12,10 +12,11 @@ import kotlin.test.assertTrue
 class CommDiagDeckTest {
     private val projectRoot = (NSProcessInfo.processInfo.environment["PDF_FIXTURE"] as String).toPath()
         .parent!!.parent!!.parent!!.parent!!
-    private val root = projectRoot / "src/commonMain/composeResources/files" / Languages.FRENCH.code
+    // Deck ships only in the sibling zabankhan-dict repo (downloaded at runtime).
+    private val root = projectRoot.parent!!.parent!! / "zabankhan-dict/packs" / Languages.FRENCH.code
     private fun read(file: String) = FileSystem.SYSTEM.read(root / file) { readUtf8() }
 
-    @Test fun farsiFrontAndSearchableFrenchUnitLabelsLoadFromBundledPack() {
+    @Test fun farsiFrontAndSearchableFrenchUnitLabelsStayOutsideSpokenExamples() {
         val manifest = parseDatasetManifest(read("dataset/manifest.json"))
         val pack = manifest.decks.firstOrNull { it.id == "comm-diag-a2b1-fa-fr" }
         assertNotNull(pack)
@@ -25,28 +26,30 @@ class CommDiagDeckTest {
         val units = (1..24).map { it.toString().padStart(2, '0') }
         assertEquals(1343, cards.size)
         assertEquals(cards.size, cards.map { it.word.lowercase() }.distinct().size)
-        assertTrue(units.all { unit -> cards.any { "Unité $unit —" in it.sentence } })
+        assertTrue(units.all { unit -> cards.any { "Unité $unit —" in it.meaning } })
         assertTrue(cards.all { card -> card.word.any { it in '\u0600'..'\u06ff' } })
         assertTrue(cards.all { card -> card.meaning.isNotBlank() && '/' !in card.meaning })
-        assertTrue(cards.all { card -> units.any { "Unité $it —" in card.sentence } })
-        assertTrue(cards.all { card -> card.sentence.substringBefore("\nUnité ").isNotBlank() })
+        assertTrue(cards.all { card -> units.any { "Unité $it —" in card.meaning } })
+        assertTrue(cards.all { card -> "Unité " !in card.sentence && card.sentence.isNotBlank() })
 
         val first = cards.first()
         assertEquals("چطوره؟ نظرت چیه؟", first.word)
-        assertEquals("Ça te dit ?", first.meaning)
+        assertTrue(first.meaning.startsWith("Ça te dit ?"))
+        assertTrue(first.meaning.contains("Unité 01 — INVITER, ACCEPTER, REFUSER, S’EXCUSER"))
         assertTrue(first.sentence.contains("On va à la campagne ce week-end, ça te dit ?"))
-        assertTrue(first.sentence.contains("Unité 01 — INVITER, ACCEPTER, REFUSER, S’EXCUSER"))
+        assertTrue("Unité " !in first.sentence)
 
         val shared = cards.single { it.word == "به شرط اینکه" }
         assertTrue(shared.meaning.contains("à condition que + subjonctif"))
         assertTrue(shared.meaning.contains("à condition de + inf."))
         assertTrue(shared.meaning.contains("pourvu que"))
-        assertTrue(shared.sentence.contains("Unité 06 —"))
-        assertTrue(shared.sentence.contains("Unité 07 —"))
-        assertTrue(shared.sentence.contains("Unité 24 —"))
+        assertTrue(shared.meaning.contains("Unité 06 —"))
+        assertTrue(shared.meaning.contains("Unité 07 —"))
+        assertTrue(shared.meaning.contains("Unité 24 —"))
+        assertTrue("Unité " !in shared.sentence)
     }
 
-    @Test fun currentReleaseCsvImporterReadsAllCardsAndUnitSearchText() {
+    @Test fun currentReleaseCsvImporterReadsAllCardsAndKeepsUnitSearchTextOutsideSentence() {
         val csvPath = projectRoot.parent!! / "docs/flashcards/Comm_diag_a2b1.csv"
         val csv = FileSystem.SYSTEM.read(csvPath) { readUtf8() }
         val parsed = parseCsvWords(csv)
@@ -55,6 +58,7 @@ class CommDiagDeckTest {
         assertTrue(parsed.words.all { it.deck == "Comm_diag_a2b1 · FA→FR" })
         assertEquals(parsed.words.size, parsed.words.map { it.word.lowercase() }.distinct().size)
         assertTrue(parsed.words.all { card -> card.word.any { it in '\u0600'..'\u06ff' } })
-        assertTrue(parsed.words.all { card -> card.sentence.contains("Unité ") })
+        assertTrue(parsed.words.all { card -> card.meaning.orEmpty().contains("Unité ") })
+        assertTrue(parsed.words.all { card -> "Unité " !in card.sentence })
     }
 }

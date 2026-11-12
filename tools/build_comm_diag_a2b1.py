@@ -9,11 +9,12 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
-DATASET = ROOT / "composeApp/src/commonMain/composeResources/files/fr/dataset"
+DATASET = ROOT.parent / "zabankhan-dict/packs/fr/dataset"
 SOURCE = DATASET / "decks/comm-dial-a2b1-phrases.json"
 OUTPUT = DATASET / "decks/comm-diag-a2b1-fa-fr.json"
 MANIFEST = DATASET / "manifest.json"
 CSV_OUTPUT = ROOT / "docs/flashcards/Comm_diag_a2b1.csv"
+REMOTE_CSV_OUTPUT = DATASET / "csv/Comm_diag_a2b1.csv"
 
 DECK_ID = "comm-diag-a2b1-fa-fr"
 DECK_NAME = "Comm_diag_a2b1 · FA→FR"
@@ -152,14 +153,16 @@ def make_cards(source_rows: list[dict]) -> list[dict[str, str]]:
         unit = row.get("l", "").strip()
         assert unit in CHAPTER_TITLES, f"Unknown unit: {unit!r}"
         front = front_from_bilingual_meaning(row.get("m", ""))
-        entry = grouped.setdefault(front.casefold(), {"w": front, "meanings": [], "examples": []})
+        entry = grouped.setdefault(front.casefold(), {"w": front, "meanings": [], "examples": [], "units": []})
         meaning = french_back(row["w"].strip())
         if meaning not in entry["meanings"]:
             entry["meanings"].append(meaning)
 
         example = row.get("s", "").strip() or EXAMPLES[row["w"]]
         unit_label = f"Unité {unit} — {CHAPTER_TITLES[unit]}"
-        entry["examples"].append((example, unit_label))
+        entry["examples"].append(example)
+        if unit_label not in entry["units"]:
+            entry["units"].append(unit_label)
 
     cards = []
     for entry in grouped.values():
@@ -167,8 +170,9 @@ def make_cards(source_rows: list[dict]) -> list[dict[str, str]]:
         meaning = meanings[0]
         for other in meanings[1:]:
             meaning += "\nAutre équivalent : " + other.replace("\n", " — ")
+        meaning += "\n\n" + "\n".join(entry["units"])
         examples = list(dict.fromkeys(entry["examples"]))
-        sentence = "\n\n".join(f"{example}\n{unit}" for example, unit in examples)
+        sentence = "\n\n".join(examples)
         cards.append({"w": entry["w"], "m": meaning, "s": sentence})
     return cards
 
@@ -178,11 +182,12 @@ def validate(source_rows: list[dict], cards: list[dict[str, str]]) -> None:
     assert len(cards) == EXPECTED_UNIQUE_FRONTS
     assert len({card["w"].casefold() for card in cards}) == len(cards)
     units = {f"Unité {number:02d} — {title}" for number, title in enumerate(CHAPTER_TITLES.values(), 1)}
-    seen_units = {unit for card in cards for unit in units if unit in card["s"]}
+    seen_units = {unit for card in cards for unit in units if unit in card["m"]}
     assert seen_units == units
     assert all(any("\u0600" <= char <= "\u06ff" for char in card["w"]) for card in cards)
     assert all(card["m"].strip() and "/" not in card["m"] for card in cards)
-    assert all(card["s"].strip() and "\nUnité " in card["s"] for card in cards)
+    assert all(card["s"].strip() and "Unité " not in card["s"] for card in cards)
+    assert all(any(unit in card["m"] for unit in units) for card in cards)
 
 
 def main() -> None:
@@ -204,11 +209,11 @@ def main() -> None:
     assert len(parsed_csv) == len(cards) + 1
     assert all(row[3] == DECK_NAME for row in parsed_csv[1:])
     assert len({row[0].casefold() for row in parsed_csv[1:]}) == len(cards)
-    with CSV_OUTPUT.open("w", encoding="utf-8", newline="") as csv_output:
-        csv_output.write(csv_text)
+    for csv_path in (CSV_OUTPUT, REMOTE_CSV_OUTPUT):
+        csv_path.parent.mkdir(parents=True, exist_ok=True)
+        with csv_path.open("w", encoding="utf-8", newline="") as csv_output:
+            csv_output.write(csv_text)
 
-    manifest = json.loads(MANIFEST.read_text(encoding="utf-8"))
-    manifest["version"] = max(manifest["version"], 4)
     deck = {
         "id": DECK_ID,
         "name": DECK_NAME,
@@ -218,8 +223,11 @@ def main() -> None:
         "count": len(cards),
         "sizeBytes": len(deck_bytes),
     }
-    manifest["decks"] = [item for item in manifest["decks"] if item["id"] != DECK_ID] + [deck]
-    MANIFEST.write_text(json.dumps(manifest, ensure_ascii=False, indent=1) + "\n", encoding="utf-8")
+    for manifest_path in (MANIFEST,):
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        manifest["version"] = max(manifest["version"], 4)
+        manifest["decks"] = [item for item in manifest["decks"] if item["id"] != DECK_ID] + [deck]
+        manifest_path.write_text(json.dumps(manifest, ensure_ascii=False, indent=1) + "\n", encoding="utf-8")
     print(f"Generated {len(cards)} unique cards from {len(source_rows)} source rows; {deck['sizeBytes']} bytes.")
 
 
