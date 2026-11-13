@@ -58,7 +58,7 @@ import org.jetbrains.compose.resources.stringResource
 import kotlin.time.TimeSource
 
 @OptIn(ExperimentalLayoutApi::class, ExperimentalMaterial3Api::class, androidx.compose.ui.ExperimentalComposeUiApi::class)
-@Composable fun WatchScreen(vm: AppViewModel, settings: AppSettings, videoId: String, path: String, subs: String, back: () -> Unit) {
+@Composable fun WatchScreen(vm: AppViewModel, settings: AppSettings, videoId: String, path: String, subs: String, shadowMode: Boolean = false, back: () -> Unit) {
     val lang = Languages.learnable.firstOrNull { it.code == settings.learningLang } ?: return
     val identity = path.ifBlank { videoId }
     val scope = rememberCoroutineScope()
@@ -72,9 +72,26 @@ import kotlin.time.TimeSource
     var failed by remember(identity) { mutableStateOf(false) }
     var attempt by remember(identity) { mutableIntStateOf(0) }
     var shadowIndex by remember(identity) { mutableStateOf<Int?>(null) }
+    var practiced by remember(identity, lang) { mutableStateOf(false) }
+    var practicePosition by remember(identity, lang) { mutableLongStateOf(0L) }
+    var autoPauseShadow by remember(identity) { mutableStateOf(true) }
+    var shadowCueEntered by remember(identity, shadowIndex) { mutableStateOf(false) }
+    var previousShadowPosition by remember(identity, shadowIndex) { mutableLongStateOf(0L) }
+    var previousShadowSampleAt by remember(identity, shadowIndex) { mutableLongStateOf(now()) }
+    var restoredPosition by remember(controller, identity, lang) { mutableStateOf(false) }
+    var openedShadow by remember(identity, lang) { mutableStateOf(false) }
     var selection by remember(identity) { mutableStateOf<ReaderSelection?>(null) }
     var idiomMatcher by remember(lang) { mutableStateOf(IdiomMatcher(InMemoryIdiomLexicon(emptyList()), lang)) }
     val words by remember(lang) { vm.container.vocab.observeAll(lang.code) }.collectAsState(emptyList())
+    val savedVideos by remember(lang) { vm.container.database.savedVideos().observeFavorites(lang.code) }.collectAsState(emptyList())
+    val savedVideoRepository = remember(vm) { SavedVideoRepository(vm.container.database) }
+    val favoriteKey = remember(lang, videoId, path) {
+        if (videoId.isNotBlank() || path.isNotBlank()) savedVideoStableKey(lang.code, videoId, path) else ""
+    }
+    val isFavorite = savedVideos.any { it.stableKey == favoriteKey }
+    var playlistDialog by remember(identity) { mutableStateOf(false) }
+    val playlistRepository = remember(vm) { VideoPlaylistRepository(vm.container.database) }
+    if (playlistDialog && favoriteKey.isNotBlank()) VideoPlaylistMembershipDialog(playlistRepository, lang.code, favoriteKey) { playlistDialog = false }
     val highlighter = remember(words, lang) { VocabHighlighter(words.map { SavedVocab(it.word, it.srsState().status()) }, lang) }
     val history = remember { WatchHistory(vm.container.cache) }
     val cueList = captions?.cues.orEmpty()
@@ -131,7 +148,9 @@ import kotlin.time.TimeSource
             } else CaptionCache(vm.container.cache).load(videoId, lang, YoutubeCaptionFetcher(vm.container.http))
             if (path.isBlank() && subtitlePath.isNotBlank() && result.cues.isNotEmpty()) CaptionCache(vm.container.cache).write(videoId, lang, result, "file")
             captions = result
-            document = saveTranscript(vm.container.texts, identity, lang, result.title, if (path.isBlank()) "https://www.youtube.com/watch?v=$videoId" else null, mergeSentenceUnits(result.cues, lang).units, legacyCues = result.cues)
+            document = loadTranscriptDocument(vm.container.texts, identity, lang, result.title,
+                if (path.isBlank()) "https://www.youtube.com/watch?v=$videoId" else null,
+                mergeSentenceUnits(result.cues, lang).units)
             if (result.cues.isEmpty() && subtitlePath.isNotBlank()) failed = true
         } catch (e: CancellationException) { throw e } catch (_: Exception) { failed = true }
         finally { loading = false }
@@ -141,23 +160,56 @@ import kotlin.time.TimeSource
         idiomMatcher = if (pack == null) IdiomMatcher(InMemoryIdiomLexicon(emptyList()), lang)
             else IdiomMatcher(pack.idioms, lang, pack.lemmas)
     }
-    LaunchedEffect(controller, identity, lang) {
+    LaunchedEffect(controller, identity, lang, shadowMode, captions, shadowSentences) {
         val player = controller ?: return@LaunchedEffect
-        history.read(lang).firstOrNull { (it.path ?: it.videoId) == identity }?.let { player.seekTo(it.positionMs) }
+        if (captions == null) return@LaunchedEffect
+        val saved = if (shadowMode) history.readShadow(lang)?.takeIf {
+            (it.videoId.isNotBlank() || !it.path.isNullOrBlank()) && savedVideoStableKey(lang.code, it.videoId, it.path.orEmpty()) == favoriteKey
+        } else history.read(lang).firstOrNull { (it.path ?: it.videoId) == identity }
+        if (!restoredPosition) { saved?.let { player.seekTo(it.positionMs) }; restoredPosition = true }
+        if (shadowMode && !openedShadow && shadowSentences.isNotEmpty()) {
+            player.pause()
+            shadowIndex = shadowUnits.unitIndex(findCueIndex(cueList, saved?.positionMs ?: 0L).coerceAtLeast(0)).coerceAtLeast(0)
+            openedShadow = true
+        }
         while (true) {
-            captions?.let { c -> history.record(lang, RecentVideo(videoId, c.title, c.channel, player.positionMs.value, path.takeIf { it.isNotBlank() }, subtitlePath.takeIf { it.isNotBlank() })) }
+            captions?.let { c ->
+                val entry = RecentVideo(videoId, c.title, c.channel, player.positionMs.value, path.takeIf { it.isNotBlank() }, subtitlePath.takeIf { it.isNotBlank() })
+                history.record(lang, entry)
+                if (practiced) history.recordShadow(lang, entry.copy(positionMs = practicePosition))
+            }
             delay(5_000)
         }
     }
     val latestCaptions by rememberUpdatedState(captions)
     val latestSubtitles by rememberUpdatedState(subtitlePath)
+    val latestPracticed by rememberUpdatedState(practiced)
+    val latestPracticePosition by rememberUpdatedState(practicePosition)
+    LaunchedEffect(shadowIndex, position, playing, autoPauseShadow, shadowSentences) {
+        val cue = shadowIndex?.let(shadowSentences::getOrNull) ?: return@LaunchedEffect
+        practiced = true
+        practicePosition = cue.startMs
+        val sampleAt = now()
+        if (!continuousShadowPlayback(previousShadowPosition, position, sampleAt - previousShadowSampleAt, rate)) shadowCueEntered = false
+        previousShadowPosition = position
+        previousShadowSampleAt = sampleAt
+        if (position in cue.startMs until cue.endMs) shadowCueEntered = true
+        if (shouldPauseShadowCue(autoPauseShadow, playing, shadowCueEntered, position, cue.endMs)) {
+            shadowCueEntered = false
+            controller?.pause()
+        }
+    }
     DisposableEffect(controller, identity, lang) {
         val player = controller
         onDispose {
             player?.pause()
             createTts().stop()
             val c = latestCaptions; val currentSubs = latestSubtitles
-            if (player != null && c != null) vm.action { history.record(lang, RecentVideo(videoId, c.title, c.channel, player.positionMs.value, path.takeIf { it.isNotBlank() }, currentSubs.takeIf { it.isNotBlank() })) }
+            if (player != null && c != null) vm.action {
+                val entry = RecentVideo(videoId, c.title, c.channel, player.positionMs.value, path.takeIf { it.isNotBlank() }, currentSubs.takeIf { it.isNotBlank() })
+                history.record(lang, entry)
+                if (latestPracticed) history.recordShadow(lang, entry.copy(positionMs = latestPracticePosition))
+            }
         }
     }
     var previousTime by remember(identity) { mutableLongStateOf(position) }
@@ -188,10 +240,12 @@ import kotlin.time.TimeSource
     fun playFromLine(index: Int) {
         val sentence = sentences.getOrNull(index) ?: return
         freeze = freeze.resume(); gestureActive = false; following = true; lastTouch = -1
+        shadowCueEntered = false
         controller?.seekTo(sentence.startMs); controller?.play()
     }
     fun skip(delta: Long) {
         freeze = freeze.resume(); gestureActive = false; following = true; lastTouch = -1
+        shadowCueEntered = false
         controller?.seekTo((position + delta).coerceAtLeast(0))
     }
     fun closeDictionary() {
@@ -223,6 +277,24 @@ import kotlin.time.TimeSource
                         Text(stringResource(if (loading) Res.string.watch_loading_captions else if (cueList.isEmpty()) Res.string.watch_no_captions else Res.string.watch_caption_ready),
                             style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     }
+                    IconButton(enabled = favoriteKey.isNotBlank(), onClick = {
+                        val currentTitle = captions?.title?.takeIf { it.isNotBlank() }
+                            ?: document?.title?.takeIf { it.isNotBlank() } ?: path.substringAfterLast('/').ifBlank { videoId }
+                        vm.action {
+                            savedVideoRepository.toggleFavorite(lang.code, videoId, path, subtitlePath, currentTitle,
+                                captions?.channel.orEmpty())
+                        }
+                    }, modifier = Modifier.size(48.dp)) {
+                        val label = stringResource(if (isFavorite) Res.string.watch_favorite_remove else Res.string.watch_favorite_add)
+                        Icon(if (isFavorite) Icons.Default.Favorite else Icons.Default.FavoriteBorder, label, Modifier.size(24.dp))
+                    }
+                    IconButton(enabled = favoriteKey.isNotBlank(), onClick = {
+                        scope.launch {
+                            val currentTitle = captions?.title?.takeIf { it.isNotBlank() } ?: document?.title.orEmpty().ifBlank { path.substringAfterLast('/').ifBlank { videoId } }
+                            savedVideoRepository.setFavorite(lang.code, videoId, path, subtitlePath, currentTitle, captions?.channel.orEmpty(), isFavorite)
+                            playlistDialog = true
+                        }
+                    }, modifier = Modifier.size(48.dp)) { Icon(Icons.Default.PlaylistAdd, stringResource(Res.string.video_playlist_choose)) }
                     IconButton(
                         onClick = { scope.launch { vm.container.settings.setWatchCompactPlayer(!settings.watchCompactPlayer) } },
                         modifier = Modifier.size(48.dp),
@@ -275,12 +347,16 @@ import kotlin.time.TimeSource
                     WatchActionButton(Icons.Default.Cloud, stringResource(Res.string.ai_model_translation), settings.cloudTranslationEnabled, true) {
                         scope.launch { vm.container.settings.setCloudTranslationEnabled(!settings.cloudTranslationEnabled) }
                     }
-                    WatchActionButton(Icons.Default.RecordVoiceOver, stringResource(Res.string.watch_toolbar_shadow), shadowIndex != null, shadowSentenceIndex >= 0) {
+                WatchActionButton(Icons.Default.RecordVoiceOver, stringResource(Res.string.watch_toolbar_shadow), shadowIndex != null, shadowSentenceIndex >= 0) {
                         if (shadowIndex == null) { controller?.pause(); shadowIndex = shadowSentenceIndex } else shadowIndex = null
+                    }
+                    if (shadowIndex != null) WatchActionButton(Icons.Default.PauseCircle, stringResource(Res.string.watch_shadow_auto_pause), autoPauseShadow, true) {
+                        autoPauseShadow = !autoPauseShadow
                     }
                     WatchActionButton(Icons.Default.IosShare, stringResource(Res.string.watch_toolbar_export), false, cueList.isNotEmpty()) { exportOpen = true }
             }
             if (loading) LinearProgressIndicator(Modifier.fillMaxWidth())
+            if (shadowMode && !loading && shadowSentences.isEmpty()) Text(stringResource(Res.string.watch_shadow_no_captions), Modifier.padding(12.dp))
             if (failed) Row(Modifier.padding(horizontal = 12.dp), verticalAlignment = Alignment.CenterVertically) {
                 Text(stringResource(Res.string.watch_caption_error), Modifier.weight(1f))
                 TextButton(onClick = { attempt++ }) { Text(stringResource(Res.string.retry)) }
@@ -381,7 +457,7 @@ import kotlin.time.TimeSource
             if (shadowIndex != null && selection == null) {
                 val start = shadowIndex ?: shadowSentenceIndex
                 ShadowingPanel(
-                    vm.container, settings, lang, document?.id, shadowSentences.map { it.text }, start,
+                    vm.container, settings, lang, document?.id?.takeIf { it > 0 }, shadowSentences.map { it.text }, start,
                     dismiss = { controller?.pause(); shadowIndex = null },
                     replay = { index ->
                         val cue = shadowSentences[index]
@@ -389,6 +465,7 @@ import kotlin.time.TimeSource
                     },
                     rate = rate,
                     onRateChange = { rate = it },
+                    pauseOriginal = { controller?.pause() },
                     onStep = { next ->
                         if (next in shadowSentences.indices) {
                             shadowIndex = next
@@ -400,7 +477,7 @@ import kotlin.time.TimeSource
                     modifier = Modifier,
                 )
             }
-            if (selection == null) WatchPlaybackBar(playing, sentenceIndex > 0, sentenceIndex < sentences.lastIndex && sentences.isNotEmpty(),
+            if (selection == null && shadowIndex == null) WatchPlaybackBar(playing, sentenceIndex > 0, sentenceIndex < sentences.lastIndex && sentences.isNotEmpty(),
                 previous = { playFromLine(sentenceIndex - 1) }, backward = { skip(-5_000) },
                 playPause = { if (playing) controller?.pause() else { freeze = freeze.resume(); gestureActive = false; following = true; controller?.play() } },
                 forward = { skip(5_000) }, next = { playFromLine(sentenceIndex + 1) })
@@ -420,8 +497,8 @@ import kotlin.time.TimeSource
             }
         }
     }
-    if (exportOpen) captions?.let { value -> WatchExportSheet(vm, lang, identity, videoId, path, value,
-        dismiss = { exportOpen = false }, added = { scope.launch { snackbar.showSnackbar(addedMessage) } }) }
+    if (exportOpen) captions?.let { value -> WatchExportSheet(vm, lang, identity, videoId, path, value, document,
+        dismiss = { exportOpen = false }, added = { saved -> document = saved; scope.launch { snackbar.showSnackbar(addedMessage) } }) }
 }
 
 @Composable private fun WatchPlaybackBar(playing: Boolean, hasPrevious: Boolean, hasNext: Boolean, previous: () -> Unit, backward: () -> Unit,

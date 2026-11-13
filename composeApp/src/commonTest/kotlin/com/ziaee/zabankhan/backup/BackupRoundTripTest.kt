@@ -27,13 +27,17 @@ internal suspend fun assertBackupRoundTrip(buildTestDatabase: (String) -> AppDat
                 dao.insertFolder(LibraryFolder(id = 1, lang = lang, name = "Folder"))
                 dao.insertListRaw(VocabList(id = 1, lang = lang, name = "Deck"))
                 dao.insertText(TextDocument(id = 1, lang = lang, title = "Text", body = "Saved text", lastOffset = 17, pinned = true))
-                dao.insertWordRaw(VocabEntry(id = 1, lang = lang, word = "bonjour", textId = 1, listId = 1,
+                dao.insertWordRaw(VocabEntry(id = 1, lang = lang, word = "bonjour", sentence = "Source sentence", textId = 1, listId = 1,
                     learned = true, leitnerBox = 4, nextReviewAtMs = 123_456, lastReviewedAtMs = 120_000))
+                database.vocab().insert(VocabEntry(lang = lang, word = "salut", sentence = "Example survives sync"))
+                val cardOperation = database.sync().allOperations().single { it.entityType == "card" }
+                assertTrue(cardOperation.payload.orEmpty().contains("\"sentence\":\"Example survives sync\""))
                 dao.insertReviewRaw(ReviewLogEntry(id = 1, entryId = 1, lang = lang, timestampMs = 120_000,
                     knew = true, boxBefore = 3, boxAfter = 4))
                 dao.insertHighlight(HighlightEntry(id = 1, textId = 1, startOffset = 2, endOffset = 7, colorKey = "yellow"))
                 dao.insertActivity(ActivityLogEntry(date = "2026-11-08", lang = lang, readingMs = 12_000, listeningMs = 3_000, watchingMs = 4_000))
                 database.cache().put(CacheEntry(key = "grammar:favorites:fr", value = "unit-1", updatedAtMs = 10))
+                database.videoChannels().upsert(VideoChannelEntity(channelId = "UCabcdefghijk", lang = lang, title = "Films", category = "films", syncId = "backup-channel"))
                 dao.insertTag(LibraryTag(id = 1, name = "Important", createdAtMs = 11, lang = lang))
                 dao.insertTagRef(TextTagCrossRef(textId = 1, tagId = 1))
                 dao.insertAttempt(ExamAttempt(id = 1, examId = "exam", questionId = "q1", question = "Question",
@@ -51,6 +55,9 @@ internal suspend fun assertBackupRoundTrip(buildTestDatabase: (String) -> AppDat
                     sentenceIndex = 3, engine = "device", matched = 8, total = 10, paceRatio = .9f, timestampMs = 27))
                 database.pdfHighlights().insert(PdfHighlight(id = 1, textId = 1, page = 2, startWord = 3, endWord = 5, colorKey = "blue"))
                 database.pdfInk().upsert(PdfInk(id = 1, textId = 1, page = 2, strokes = "stroke-data"))
+                database.savedVideos().upsert(SavedVideoEntity(savedVideoStableKey(lang, "abcdefghijk", ""), lang, "abcdefghijk", "", "subtitles.srt", "Favorite video", "Channel", true, 28))
+                database.videoPlaylists().upsert(VideoPlaylistEntity("playlist-backup-test", lang, "Study", 27, 28))
+                database.videoPlaylists().add(VideoPlaylistMembershipEntity("playlist-backup-test", savedVideoStableKey(lang, "abcdefghijk", ""), 28))
                 database.useWriterConnection { connection ->
                     connection.usePrepared("PRAGMA wal_checkpoint(TRUNCATE)") { it.step() }
                 }
@@ -66,8 +73,8 @@ internal suspend fun assertBackupRoundTrip(buildTestDatabase: (String) -> AppDat
             assertEquals(expected, actual)
 
             // Keep explicit assertions for the two histories most likely to be lost by a partial export.
-            val vocabRow = actual.getValue("vocab").single()
-            assertEquals(listOf("1", "fr", "bonjour", "", "1", null, null, "fa", "1", "1"), vocabRow.take(10))
+            val vocabRow = actual.getValue("vocab").first()
+            assertEquals(listOf("1", "fr", "bonjour", "Source sentence", "1", null, null, "fa", "1", "1"), vocabRow.take(10))
             assertEquals("4", vocabRow[11]) // Leitner box
             assertEquals("123456", vocabRow[12]) // Next review timestamp
             assertEquals("120000", vocabRow[13]) // Last review timestamp
@@ -134,5 +141,5 @@ private fun SQLiteConnection.rows(table: String): List<List<String?>> =
 private val USER_DATA_TABLES = listOf(
     "texts", "library_folders", "library_tags", "text_tags", "vocab", "vocab_lists", "review_log",
     "activity_log", "study_source", "study_session", "highlights", "pdf_highlights", "pdf_ink",
-    "headlines", "resources", "exam_attempts", "shadow_attempts", "kv_cache",
+    "headlines", "resources", "exam_attempts", "shadow_attempts", "kv_cache", "video_channels", "saved_videos", "video_playlists", "video_playlist_memberships",
 )

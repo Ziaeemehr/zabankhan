@@ -58,11 +58,15 @@ internal fun lemmaSuggestions(word: String, lexicon: LemmaLexicon?, lang: Langua
 
 internal data class DictionarySavedState(val exactEntry: VocabEntry? = null, val otherContextCount: Int = 0)
 
+internal fun dictionaryCardText(sourceSentence: String, example: String): String =
+    sourceSentence.takeIf { it.isNotBlank() } ?: example
+
 /** Same spelling in a different sentence or document is a separate learning context. */
-internal fun dictionarySavedState(entries: List<VocabEntry>, lang: LanguageSpec, textId: Long, word: String, sentence: String): DictionarySavedState {
+internal fun dictionarySavedState(entries: List<VocabEntry>, lang: LanguageSpec, textId: Long?, word: String, sentence: String): DictionarySavedState {
+    val contextId = textId?.takeIf { it > 0 }
     val matching = entries.filter { it.lang == lang.code && dictionaryIdentityKey(it.word) == dictionaryIdentityKey(word) }
-    val exact = matching.firstOrNull { it.textId == textId && it.sentence == sentence }
-    return DictionarySavedState(exact, matching.count { it.textId != textId || it.sentence != sentence })
+    val exact = matching.firstOrNull { it.textId?.takeIf { id -> id > 0 } == contextId && it.sentence == sentence }
+    return DictionarySavedState(exact, matching.count { it.textId?.takeIf { id -> id > 0 } != contextId || it.sentence != sentence })
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -86,7 +90,7 @@ private fun ReferenceDictionarySheet(
             ) {}
         }
     ) {
-        ReferenceDictionaryPane(vm, settings, text, selection, words, highlights, dismiss, listen, listenFromHere, shadow, Modifier.fillMaxHeight())
+        ReferenceDictionaryPane(vm, settings, text, selection, words, highlights, dismiss, listen, listenFromHere, shadow, Modifier.fillMaxHeight().navigationBarsPadding())
     }
 }
 
@@ -140,7 +144,7 @@ private fun ReferenceDictionaryPane(
     var justSaved by remember(selection, word) { mutableStateOf<VocabEntry?>(null) }
     var deletedIds by remember(selection) { mutableStateOf(emptySet<Long>()) }
     val visibleEntries = (entries ?: words).filterNot { it.id in deletedIds }
-    val observedState = dictionarySavedState(visibleEntries, lang, text.id, word, selection.sentence)
+    val observedState = dictionarySavedState(visibleEntries, lang, text.id.takeIf { it > 0 }, word, selection.sentence)
     val savedState = if (justSaved != null && justSaved?.id !in deletedIds) observedState.copy(exactEntry = justSaved) else observedState
     var ownMeaningSource by remember(word, selection.sentence, meaningTarget) { mutableStateOf<ExampleTranslation?>(null) }
     var optionSources by remember(word, selection.sentence, meaningTarget) { mutableStateOf(emptyMap<String, ExampleTranslation>()) }
@@ -161,15 +165,17 @@ private fun ReferenceDictionaryPane(
         mutableStateOf(settings.lastDictionaryProviders[lang.code])
     }
     val provider = selectedDictionaryProvider(providers, selectedProviderName)
-    var selectedDictionarySource by rememberSaveable(lang.code) { mutableStateOf("own") }
+    var selectedDictionarySource by rememberSaveable(lang.code, selectedProviderName) {
+        mutableStateOf(restoredDictionarySource(providers, selectedProviderName))
+    }
     var sourceMenuExpanded by remember { mutableStateOf(false) }
     val url = provider?.urlFor(word)
     var webViewFailed by remember(url) { mutableStateOf(false) }
     val selectSource: (String) -> Unit = { sourceName ->
         selectedDictionarySource = sourceName
+        selectedProviderName = sourceName
+        vm.action { vm.container.settings.setLastDictionaryProvider(lang.code, sourceName) }
         if (sourceName != "own") {
-            selectedProviderName = sourceName
-            vm.action { vm.container.settings.setLastDictionaryProvider(lang.code, sourceName) }
             webViewFailed = false
         }
         sourceMenuExpanded = false
@@ -228,7 +234,7 @@ private fun ReferenceDictionaryPane(
     }
     BoxWithConstraints(modifier.fillMaxWidth().imePadding()) {
       val controlsMaxHeight = if (providers.isEmpty() || selectedDictionarySource == "own") maxHeight else maxHeight * 0.65f
-      Column(Modifier.fillMaxSize().padding(horizontal = if (compactControls) 12.dp else 20.dp)) {
+      Column(Modifier.fillMaxSize().padding(horizontal = if (compactControls) 12.dp else 20.dp).padding(top = 16.dp)) {
         // Only controls scroll on short screens; the browser owns its bounded viewport.
         Column(Modifier.heightIn(max = controlsMaxHeight).verticalScroll(rememberScrollState())) {
             val focusManager = LocalFocusManager.current
@@ -246,8 +252,8 @@ private fun ReferenceDictionaryPane(
                     value = draft,
                     onValueChange = { draft = it },
                     singleLine = true,
-                    textStyle = MaterialTheme.typography.headlineSmall.merge(contentStyle(draft.text))
-                        .copy(color = MaterialTheme.colorScheme.onSurface, fontFamily = readerContentFamily(draft.text)),
+                    textStyle = MaterialTheme.typography.headlineMedium.merge(contentStyle(draft.text))
+                        .copy(fontSize = MaterialTheme.typography.headlineMedium.fontSize * 1.1f, color = MaterialTheme.colorScheme.onSurface, fontFamily = readerContentFamily(draft.text)),
                     cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
                     keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
                     keyboardActions = KeyboardActions(onDone = { applyDraft() }),
@@ -282,20 +288,20 @@ private fun ReferenceDictionaryPane(
                 FlowRow(modifier = Modifier.fillMaxWidth().padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) { wordPills(false) }
             }
             FlowRow(
-                modifier = Modifier.fillMaxWidth().padding(top = if (compactControls) 2.dp else 8.dp, bottom = if (compactControls) 4.dp else 12.dp),
-                horizontalArrangement = Arrangement.spacedBy(if (compactControls) 4.dp else 8.dp),
-                verticalArrangement = Arrangement.spacedBy(if (compactControls) 2.dp else 6.dp)
+                modifier = Modifier.fillMaxWidth().padding(top = 2.dp, bottom = 2.dp),
+                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                verticalArrangement = Arrangement.spacedBy(2.dp)
             ) {
                 IconToggleButton(checked = settings.cloudTranslationEnabled, onCheckedChange = { enabled ->
                     vm.action { vm.container.settings.setCloudTranslationEnabled(enabled) }
-                }) {
+                }, modifier = Modifier.size(40.dp)) {
                     Icon(if (settings.cloudTranslationEnabled) Icons.Default.Cloud else Icons.Default.CloudOff,
                         contentDescription = stringResource(Res.string.ai_model_translation))
                 }
                 TooltipBox(positionProvider = TooltipDefaults.rememberPlainTooltipPositionProvider(),
                     tooltip = { PlainTooltip { Text(stringResource(if (savedState.exactEntry != null) Res.string.accessibility_vocabulary_saved else Res.string.accessibility_save_vocabulary)) } },
                     state = rememberTooltipState()) {
-                    FilledTonalIconButton(onClick = { showWordEditor = !showWordEditor }, modifier = if (compactControls) Modifier.size(40.dp) else Modifier) {
+                    FilledTonalIconButton(onClick = { showWordEditor = !showWordEditor }, modifier = Modifier.size(40.dp)) {
                         Icon(if (savedState.exactEntry != null) Icons.Default.BookmarkAdded else Icons.Default.BookmarkAdd,
                             contentDescription = stringResource(if (savedState.exactEntry != null) Res.string.accessibility_vocabulary_saved else Res.string.accessibility_save_vocabulary))
                     }
@@ -304,7 +310,7 @@ private fun ReferenceDictionaryPane(
                     TooltipBox(positionProvider = TooltipDefaults.rememberPlainTooltipPositionProvider(),
                         tooltip = { PlainTooltip { Text(stringResource(Res.string.dictionary_edit_word)) } },
                         state = rememberTooltipState()) {
-                        IconButton(onClick = { showWordEditor = !showWordEditor }) {
+                        IconButton(onClick = { showWordEditor = !showWordEditor }, modifier = Modifier.size(40.dp)) {
                             Icon(Icons.Default.Edit, contentDescription = stringResource(Res.string.dictionary_edit_word))
                         }
                     }
@@ -312,7 +318,7 @@ private fun ReferenceDictionaryPane(
                 TooltipBox(positionProvider = TooltipDefaults.rememberPlainTooltipPositionProvider(),
                     tooltip = { PlainTooltip { Text(stringResource(Res.string.accessibility_open_in_browser)) } },
                     state = rememberTooltipState()) {
-                    IconButton(onClick = { provider?.let { uri.openUri(it.urlFor(word)) } }, enabled = provider != null, modifier = if (compactControls) Modifier.size(40.dp) else Modifier) {
+                    IconButton(onClick = { provider?.let { uri.openUri(it.urlFor(word)) } }, enabled = provider != null, modifier = Modifier.size(40.dp)) {
                         Icon(Icons.Default.OpenInNew, contentDescription = stringResource(Res.string.accessibility_open_in_browser))
                     }
                 }
@@ -320,7 +326,7 @@ private fun ReferenceDictionaryPane(
                     TooltipBox(positionProvider = TooltipDefaults.rememberPlainTooltipPositionProvider(),
                         tooltip = { PlainTooltip { Text(stringResource(Res.string.selection_action_listen)) } },
                         state = rememberTooltipState()) {
-                        IconButton(onClick = speak, modifier = if (compactControls) Modifier.size(40.dp) else Modifier) { Icon(Icons.Default.VolumeUp, contentDescription = stringResource(Res.string.selection_action_listen)) }
+                        IconButton(onClick = speak, modifier = Modifier.size(40.dp)) { Icon(Icons.Default.VolumeUp, contentDescription = stringResource(Res.string.selection_action_listen)) }
                     }
                 }
                 if (compactControls) {
@@ -371,17 +377,24 @@ private fun ReferenceDictionaryPane(
                     val snapshotWord = word
                     val snapshotMeaning = meaning.trim()
                     val snapshotList = selectedListId
+                    val example = ownLookup.entries.asSequence().flatMap { it.senses.asSequence() }
+                        .firstOrNull { sense -> sense.en == snapshotMeaning || sense.fa == snapshotMeaning }
+                        ?.examples?.firstOrNull()?.text.orEmpty()
+                    val cardSentence = dictionaryCardText(savedState.exactEntry?.sentence?.takeIf { it.isNotBlank() } ?: selection.sentence, example)
                     val entry = savedState.exactEntry?.copy(meaning = snapshotMeaning, meaningLang = meaningTarget, listId = snapshotList)
-                        ?: VocabEntry(lang = lang.code, textId = text.id, word = snapshotWord, sentence = selection.sentence,
+                        ?: VocabEntry(lang = lang.code, textId = text.id.takeIf { it > 0 }, word = snapshotWord, sentence = cardSentence,
                             meaning = snapshotMeaning, meaningLang = meaningTarget, listId = snapshotList)
                     saving = true
                     vm.action {
                         try {
                             // Recheck after dispatch: the first database emission may have arrived
                             // between opening the sheet and this tap.
-                            val existing = dictionarySavedState(vm.container.vocab.getAll(lang.code), lang,
-                                text.id, snapshotWord, selection.sentence).exactEntry
-                            val toSave = existing?.copy(meaning = snapshotMeaning, meaningLang = meaningTarget, listId = snapshotList) ?: entry
+                            val currentEntries = vm.container.vocab.getAll(lang.code)
+                            val existing = dictionarySavedState(currentEntries, lang,
+                                text.id.takeIf { it > 0 }, snapshotWord, selection.sentence).exactEntry
+                            val preservedSentence = existing?.sentence?.takeIf { it.isNotBlank() } ?: cardSentence
+                            val toSave = existing?.copy(meaning = snapshotMeaning, meaningLang = meaningTarget, listId = snapshotList,
+                                sentence = preservedSentence) ?: entry.copy(sentence = preservedSentence)
                             val stored = if (toSave.id == 0L) toSave.copy(id = vm.container.vocab.insert(toSave))
                                 else { vm.container.vocab.update(toSave); toSave }
                             vm.container.cache.put("dictionary:last-list:${lang.code}", snapshotList?.toString().orEmpty())
@@ -505,8 +518,8 @@ private fun ReferenceDictionaryPane(
             }
             if (!compactControls) {
                 FlowRow(
-                    modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
-                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    modifier = Modifier.fillMaxWidth().padding(bottom = 4.dp),
+                    horizontalArrangement = Arrangement.spacedBy(4.dp),
                     verticalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
                     DictionarySourceButton(
@@ -514,26 +527,21 @@ private fun ReferenceDictionaryPane(
                         label = stringResource(Res.string.dictionary_source_own),
                         icon = null,
                         own = true,
-                        onClick = { selectedDictionarySource = "own" }
+                        onClick = { selectSource("own") }
                     )
                     providers.forEach { item ->
                         DictionarySourceButton(
                             selected = selectedDictionarySource == item.name,
                             label = item.name,
                             icon = dictionaryProviderIcon(item.name),
-                            onClick = {
-                                selectedDictionarySource = item.name
-                                selectedProviderName = item.name
-                                vm.action { vm.container.settings.setLastDictionaryProvider(lang.code, item.name) }
-                                webViewFailed = false
-                            }
+                            onClick = { selectSource(item.name) }
                         )
                     }
                 }
             }
             HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
             if (selectedDictionarySource == "own") {
-                OwnDictionaryBlock(ownLookup, lang, meaningTarget, vm, text.id, selection.sentence,
+                OwnDictionaryBlock(ownLookup, lang, meaningTarget, vm, text.id.takeIf { it > 0 } ?: 0, selection.sentence,
                     speak = { tts.togglePronounce(it, lang.code, settings) }, onLookup = { currentWord = it },
                     loading = !ownLoaded, failed = ownLookupFailed)
             }

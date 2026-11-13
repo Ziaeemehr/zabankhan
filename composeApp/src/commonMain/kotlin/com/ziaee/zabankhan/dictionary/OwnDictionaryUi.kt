@@ -49,25 +49,41 @@ fun OwnDictionaryBlock(lookup: DictionaryLookup, lang: LanguageSpec, target: Str
     val vocabEntries by remember(lang.code) { vm.container.vocab.observeAll(lang.code) }.collectAsState(emptyList())
     val lists by remember(lang.code) { vm.container.vocab.observeLists(lang.code) }.collectAsState(emptyList())
     val translations = remember(effectiveTarget, settings) { settings?.let(vm.container::translations) }
-    val meaningsState by produceState(false to emptyMap<Long, List<SenseMeaning>>(), lookup, effectiveTarget, translations) {
-        val repository = translations ?: return@produceState
-        value = true to entries.associate { it.id to vm.container.ownDictionary.senseMeanings(it, effectiveTarget, repository) }
+    val meaningsState = key(lookup, effectiveTarget, translations, vm.container.ownDictionary) {
+        val state by produceState(false to emptyMap<Long, List<SenseMeaning>>(), lookup, effectiveTarget, translations, vm.container.ownDictionary) {
+            value = false to emptyMap()
+            val repository = translations ?: return@produceState
+            value = true to entries.associate { it.id to vm.container.ownDictionary.senseMeanings(it, effectiveTarget, repository) }
+        }
+        state
     }
     val meanings = meaningsState.second
-    if (meaningsState.first && entries.none { entry -> meanings[entry.id].orEmpty().any { it.text.isNotBlank() } }) {
+    val hasMonolingualDefinitions = lang.monolingualPackId != null && entries.any { it.monolingualDefinitions.isNotEmpty() }
+    val monolingualSelected = effectiveTarget == lang.code && lang.monolingualPackId != null
+    if (meaningsState.first && entries.none { entry -> meanings[entry.id].orEmpty().any { it.text.isNotBlank() } } &&
+        !(monolingualSelected && hasMonolingualDefinitions)) {
         DictionaryMachineFallback(lookup.query, lang.code, effectiveTarget, sentence, textId, vm,
             translations, loading = false, failed = false)
         return
     }
-    var monolingualMode by remember(lookup.query) { mutableStateOf(false) }
-    val hasMonolingualDefinitions = lang.monolingualPackId != null && entries.any { it.monolingualDefinitions.isNotEmpty() }
+    var monolingualMode by remember(lookup.query, effectiveTarget) {
+        mutableStateOf(monolingualSelected && hasMonolingualDefinitions)
+    }
     Row(verticalAlignment = Alignment.CenterVertically) {
         Text(stringResource(Res.string.own_dictionary_title), Modifier.weight(1f), style = MaterialTheme.typography.titleSmall)
-        listOf("fa" to "فا", "en" to "EN").forEach { (code, label) ->
-            TextButton(onClick = { monolingualMode = false; vm.action { vm.container.settings.setDictionaryMeaningLang(code) } }, contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp)) { Text(label, color = if (!monolingualMode && effectiveTarget == code) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant) }
+        listOf(Languages.PERSIAN.code to "فا", Languages.ENGLISH.code to "EN").forEach { (code, label) ->
+            TextButton(onClick = {
+                monolingualMode = false
+                vm.action { vm.container.settings.setDictionaryMeaningLang(code) }
+            }, contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp)) {
+                Text(label, color = if (effectiveTarget == code) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant)
+            }
         }
-        if (hasMonolingualDefinitions) TextButton(onClick = { monolingualMode = true }, contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp)) {
-            Text(stringResource(Res.string.own_dictionary_french_definitions), color = if (monolingualMode) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant)
+        if (hasMonolingualDefinitions) TextButton(onClick = {
+            monolingualMode = true
+            vm.action { vm.container.settings.setDictionaryMeaningLang(lang.code) }
+        }, contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp)) {
+            Text(stringResource(Res.string.own_dictionary_french_definitions), color = if (monolingualSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }
     if (lookup.via.isNotEmpty()) {
@@ -139,7 +155,7 @@ private fun DictionaryMachineFallback(
         if (loading || failed || query.isBlank() || repository == null) return@LaunchedEffect
         translating = true
         try {
-            translated = repository.googleDictionaryFallback(query, source, target)
+            translated = repository.dictionaryFallback(query, source, target, sentence.takeIf { it.isNotBlank() })
                 .getOrNull()?.takeIf { it.text.isNotBlank() }
         } catch (cancelled: CancellationException) { throw cancelled }
         catch (_: Exception) { translated = null }
@@ -206,10 +222,11 @@ internal fun OwnDictionarySenseSaveControl(
     var newList by remember(entry.id, index) { mutableStateOf(false) }
     var newListName by remember(entry.id, index) { mutableStateOf("") }
     var pendingListId by remember(entry.id, index) { mutableStateOf<Long?>(null) }
-    val example = sense.examples.firstOrNull()?.text ?: sentence
+    val example = sense.examples.firstOrNull()?.text.orEmpty()
+    val cardSentence = com.ziaee.zabankhan.ui.reader.dictionaryCardText(sentence, example)
     val savedEntry = vocabEntries.firstOrNull {
         it.lang == lang.code && it.word.equals(entry.word, true) && it.meaningLang == target &&
-            it.meaning == meaning && it.sentence == example
+            it.meaning == meaning && it.sentence == cardSentence
     }
     LaunchedEffect(lang.code, lists) {
         val last = vm.container.cache.get("dictionary:last-list:${lang.code}")?.toLongOrNull()
@@ -226,11 +243,11 @@ internal fun OwnDictionarySenseSaveControl(
                             val listId = pendingListId?.takeIf { it >= 0 }
                             val existing = vm.container.vocab.getAll(lang.code).firstOrNull {
                                 it.lang == lang.code && it.word.equals(entry.word, true) && it.meaningLang == target &&
-                                    it.meaning == meaning && it.sentence == example
+                                    it.meaning == meaning && it.sentence == cardSentence
                             }
-                            val item = existing?.copy(textId = textId, meaning = meaning, meaningLang = target, listId = listId)
-                                ?: com.ziaee.zabankhan.data.VocabEntry(lang = lang.code, textId = textId, word = entry.word,
-                                    sentence = example, meaning = meaning, meaningLang = target, listId = listId)
+                            val item = existing?.copy(textId = textId.takeIf { it > 0 }, meaning = meaning, meaningLang = target, listId = listId)
+                                ?: com.ziaee.zabankhan.data.VocabEntry(lang = lang.code, textId = textId.takeIf { it > 0 }, word = entry.word,
+                                    sentence = cardSentence, meaning = meaning, meaningLang = target, listId = listId)
                             if (item.id == 0L) vm.container.vocab.insert(item) else vm.container.vocab.update(item)
                             vm.container.cache.put("dictionary:last-list:${lang.code}", listId?.toString().orEmpty())
                         }
@@ -399,10 +416,25 @@ fun OwnDictionarySettings(vm: AppViewModel, settings: AppSettings, openSearch: (
     var meaningMenu by remember { mutableStateOf(false) }
     ExposedDropdownMenuBox(expanded = meaningMenu, onExpandedChange = { meaningMenu = it }) {
         OutlinedButton(onClick = { meaningMenu = true }, modifier = Modifier.menuAnchor()) {
-            Text(stringResource(Res.string.own_dictionary_meaning_language, when (settings.dictionaryMeaningLang) { "fa" -> stringResource(Res.string.own_dictionary_persian); "en" -> stringResource(Res.string.own_dictionary_english); else -> stringResource(Res.string.own_dictionary_follow_app) }))
+            val selectedLanguage = Languages.byCode(settings.dictionaryMeaningLang)
+            val selectedLanguageLabel = when (selectedLanguage) {
+                Languages.PERSIAN -> stringResource(Res.string.own_dictionary_persian)
+                Languages.ENGLISH -> stringResource(Res.string.own_dictionary_english)
+                else -> selectedLanguage?.let { stringResource(Res.string.own_dictionary_french_definitions) }
+                    ?: stringResource(Res.string.own_dictionary_follow_app)
+            }
+            Text(stringResource(Res.string.own_dictionary_meaning_language, selectedLanguageLabel))
         }
         ExposedDropdownMenu(expanded = meaningMenu, onDismissRequest = { meaningMenu = false }) {
-            listOf("" to Res.string.own_dictionary_follow_app, "fa" to Res.string.own_dictionary_persian, "en" to Res.string.own_dictionary_english).forEach { (code, label) ->
+            val options = listOf("" to Res.string.own_dictionary_follow_app) + Languages.all.mapNotNull { language ->
+                val label = when (language) {
+                    Languages.PERSIAN -> Res.string.own_dictionary_persian
+                    Languages.ENGLISH -> Res.string.own_dictionary_english
+                    else -> Res.string.own_dictionary_french_definitions.takeIf { language.monolingualPackId != null }
+                }
+                label?.let { language.code to it }
+            }
+            options.forEach { (code, label) ->
                 DropdownMenuItem(text = { Text(stringResource(label)) }, onClick = { meaningMenu = false; vm.action { vm.container.settings.setDictionaryMeaningLang(code) } })
             }
         }

@@ -5,7 +5,13 @@ import com.ziaee.zabankhan.lang.*
 import kotlin.test.*
 
 class DictionaryLogicTest {
-    private fun card(id: Long, text: Long, sentence: String, word: String = "Read", lang: String = Languages.ENGLISH.code) =
+    @Test fun manualLookupUsesChosenSenseExampleButSourceSentenceWins() {
+        assertEquals("Source sentence", dictionaryCardText("Source sentence", "Sense example"))
+        assertEquals("Sense example", dictionaryCardText("", "Sense example"))
+        assertEquals("Sense example", dictionaryCardText("  ", "Sense example"))
+        assertEquals("", dictionaryCardText("", ""))
+    }
+    private fun card(id: Long, text: Long?, sentence: String, word: String = "Read", lang: String = Languages.ENGLISH.code) =
         VocabEntry(id = id, textId = text, sentence = sentence, word = word, lang = lang, createdAtMs = 0, nextReviewAtMs = 0)
 
     @Test fun exactContextDoesNotOverwriteOtherTextOrSentence() {
@@ -21,6 +27,16 @@ class DictionaryLogicTest {
         assertEquals(2L, dictionarySavedState(entries, Languages.ENGLISH, 7, "READ", "Read this.").exactEntry?.id)
         assertNull(dictionarySavedState(entries, Languages.ENGLISH, 7, "read", "Read this").exactEntry)
         assertEquals(1, dictionarySavedState(entries, Languages.ENGLISH, 7, "read", "Different.").otherContextCount)
+    }
+
+    @Test fun unsavedDocumentIdsMatchNullCardsButPositiveDocumentIdsStayDistinct() {
+        val entries = listOf(card(1, null, "Read this."), card(2, 7, "Read this."))
+        for (unsavedId in listOf(-1L, 0L, null)) {
+            val state = dictionarySavedState(entries, Languages.ENGLISH, unsavedId, "read", "Read this.")
+            assertEquals(1L, state.exactEntry?.id)
+            assertEquals(1, state.otherContextCount)
+        }
+        assertEquals(2L, dictionarySavedState(entries, Languages.ENGLISH, 7, "read", "Read this.").exactEntry?.id)
     }
 
     @Test fun identityKeepsAccentsAndNormalizesCompatibilityCharacters() {

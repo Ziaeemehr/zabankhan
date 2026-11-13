@@ -13,6 +13,7 @@ sealed interface ShadowPhase {
     data object Playing : ShadowPhase
     data object Recording : ShadowPhase
     data object Saving : ShadowPhase
+    data object Recorded : ShadowPhase
     data class Result(val alignment: AlignmentResult, val pace: PaceResult?) : ShadowPhase
     data class Error(val notHeard: Boolean) : ShadowPhase
 }
@@ -24,6 +25,7 @@ class ShadowingController(
     private val recognizer: SpeechRecognizer,
     private val saveAttempt: suspend (ShadowAttempt) -> Unit,
     private val now: () -> Long = ::nowMs,
+    private val scoreRecording: Boolean = true,
 ) {
     private val mutablePhase = MutableStateFlow<ShadowPhase>(ShadowPhase.Idle)
     val phase: StateFlow<ShadowPhase> = mutablePhase.asStateFlow()
@@ -62,9 +64,15 @@ class ShadowingController(
             try {
                 // Cancellation can suspend while native microphone resources are released.
                 // A retry must not replace the recognizer's engine before that cleanup ends.
-                val recording = microphone.withLock { recognizer.listenOnce(language.code).getOrThrow() }
+                val recording = microphone.withLock {
+                    (if (scoreRecording) recognizer.listenOnce(language.code) else recognizer.recordOnce(language.code)).getOrThrow()
+                }
                 if (token != generation) return@launch
                 if (recording.durationMs < 300) { mutablePhase.value = ShadowPhase.Idle; return@launch }
+                if (!scoreRecording) {
+                    mutablePhase.value = if (recognizer.hasRecording) ShadowPhase.Recorded else ShadowPhase.Idle
+                    return@launch
+                }
                 if (recording.text.isBlank()) { mutablePhase.value = ShadowPhase.Error(true); return@launch }
                 val alignment = TranscriptAligner.align(target, recording.text, language)
                 val pace = if (expectedMs > 0) {

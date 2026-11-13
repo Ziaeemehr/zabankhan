@@ -22,6 +22,9 @@ class WatchHistory(private val cache: KeyValueCache) {
     private val mutex = Mutex()
     private val json = Json { ignoreUnknownKeys = true }
     private fun key(lang: LanguageSpec): String { require(lang in Languages.learnable); return "watch:history:${lang.code}" }
+    private fun shadowKey(lang: LanguageSpec): String { require(lang in Languages.learnable); return "watch:shadow:${lang.code}" }
+    suspend fun readShadow(lang: LanguageSpec): RecentVideo? = cache.get(shadowKey(lang))?.let { raw -> runCatching { json.decodeFromString<RecentVideo>(raw) }.getOrNull() }
+    suspend fun recordShadow(lang: LanguageSpec, entry: RecentVideo) { mutex.withLock { cache.put(shadowKey(lang), json.encodeToString(entry.copy(positionMs = entry.positionMs.coerceAtLeast(0)))) } }
     suspend fun read(lang: LanguageSpec): List<RecentVideo> {
         val raw = cache.get(key(lang)) ?: return emptyList()
         return runCatching { json.decodeFromString<List<RecentVideo>>(raw).take(20) }.getOrDefault(emptyList())

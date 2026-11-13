@@ -67,6 +67,47 @@ data class LibrarySyncShadow(
     @ColumnInfo(defaultValue = "''") val blobs: String = "",
 )
 
+/** User-added video channels; channelId is YouTube's permanent identity. */
+@Entity(tableName = "video_channels", indices = [Index("lang"), Index("syncId", unique = true)])
+data class VideoChannelEntity(
+    @PrimaryKey val channelId: String,
+    val lang: String,
+    val title: String,
+    val category: String,
+    val level: String? = null,
+    val syncId: String = channelId,
+)
+
+/** Video metadata remains saved when [isFavorite] is false so later collections can reuse it. */
+@Entity(tableName = "saved_videos", indices = [Index("lang"), Index("isFavorite")])
+data class SavedVideoEntity(
+    @PrimaryKey val stableKey: String,
+    val lang: String,
+    val videoId: String,
+    val path: String,
+    val subtitlePath: String,
+    val title: String,
+    val channel: String,
+    val isFavorite: Boolean,
+    val updatedAtMs: Long,
+)
+
+@Entity(tableName = "video_playlists", indices = [Index("lang"), Index("syncId", unique = true)])
+data class VideoPlaylistEntity(
+    @PrimaryKey val syncId: String,
+    val lang: String,
+    val name: String,
+    val createdAtMs: Long = nowMs(),
+    val updatedAtMs: Long = createdAtMs,
+)
+
+@Entity(tableName = "video_playlist_memberships", primaryKeys = ["playlistSyncId", "videoKey"], indices = [Index("videoKey")])
+data class VideoPlaylistMembershipEntity(
+    val playlistSyncId: String,
+    val videoKey: String,
+    val addedAtMs: Long = nowMs(),
+)
+
 /** A saved word or phrase with its sentence, meaning and Leitner state. */
 @Entity(tableName = "vocab", indices = [Index("lang"), Index("nextReviewAtMs"), Index("syncId")])
 data class VocabEntry(

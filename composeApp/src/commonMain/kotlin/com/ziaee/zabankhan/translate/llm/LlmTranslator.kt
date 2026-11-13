@@ -49,6 +49,11 @@ internal fun parseOcrFix(response: JsonObject): String =
 
 internal fun meaningPrompt(word: String, sentence: String?, targetLang: String, sourceLang: String): LlmPrompt {
     val lang = languageName(targetLang)
+    if (TranslationService.baseLanguage(sourceLang) == TranslationService.baseLanguage(targetLang)) return LlmPrompt(
+        "You are a $lang learner's dictionary. Define the entry in simple $lang in one short sentence, " +
+            "using its sense in the supplied context. Do not just repeat the entry. Reply with JSON only: {\"meaning\": \"...\"}.",
+        listOfNotNull("ENTRY: $word", sentence?.takeIf { it.isNotBlank() }?.let { "SENTENCE: $it" }).joinToString("\n")
+    )
     val persian = if (lang == "Persian (Farsi)")
         "For Persian, write verbs and verb phrases as the infinitive (مصدر), and nouns without «یک». " +
             "Use standard Persian spelling with half-spaces (ZWNJ). " else ""

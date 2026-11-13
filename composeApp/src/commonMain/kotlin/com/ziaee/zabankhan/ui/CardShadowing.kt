@@ -90,6 +90,7 @@ internal fun CardShadowingRow(
                 ShadowPhase.Playing -> stringResource(Res.string.shadowing_waiting_for_audio)
                 ShadowPhase.Recording -> stringResource(Res.string.shadowing_listening)
                 ShadowPhase.Saving -> stringResource(Res.string.shadowing_recognizing)
+                ShadowPhase.Recorded -> stringResource(Res.string.shadowing_replay_mine)
                 is ShadowPhase.Result -> stringResource(Res.string.shadowing_score, phase.alignment.matched, phase.alignment.total)
                 is ShadowPhase.Error -> stringResource(
                     if (phase.notHeard) Res.string.shadowing_not_heard else Res.string.shadowing_engine_failed)

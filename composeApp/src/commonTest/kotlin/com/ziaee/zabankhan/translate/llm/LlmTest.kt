@@ -4,6 +4,13 @@ import kotlin.test.*
 import kotlin.test.Test
 
 class LlmTest {
+    @Test fun monolingualPromptRequestsDefinitionInLearningLanguage() {
+        val prompt = meaningPrompt("word", "A context", "en", "en")
+        assertTrue(prompt.system.contains("simple English"))
+        assertTrue(prompt.system.contains("Do not just repeat"))
+        assertFalse(prompt.system.contains("1 to 4 words"))
+        assertTrue(prompt.user.contains("SENTENCE: A context"))
+    }
     @Test fun linePromptIncludesTargetsAndContext() {
         val prompt = linesPrompt(listOf("Bonjour", "Au revoir"), "Avant", "Après", "fa", "fr")
         assertTrue(prompt.system.contains("Persian (Farsi)"))

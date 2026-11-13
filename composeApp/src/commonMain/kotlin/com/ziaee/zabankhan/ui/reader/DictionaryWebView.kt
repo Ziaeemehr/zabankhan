@@ -10,7 +10,13 @@ internal fun dictionaryProviders(lang: LanguageSpec, meaningLanguage: String): L
     lang.dictionaryLinks.filter { it.supportsMeaningLanguage(meaningLanguage) }
 
 internal fun selectedDictionaryProvider(providers: List<DictionaryLink>, last: String?): DictionaryLink? =
-    providers.firstOrNull { it.name == last } ?: providers.firstOrNull()
+    if (last == "own") null else providers.firstOrNull { it.name == last } ?: providers.firstOrNull()
+
+internal fun restoredDictionarySource(providers: List<DictionaryLink>, last: String?): String =
+    when {
+        last == null || last == "own" -> "own"
+        else -> selectedDictionaryProvider(providers, last)?.name ?: "own"
+    }
 
 // Copied from French Reader's DictionarySheet.kt; shared by both embedded browsers.
 internal val DICTIONARY_AD_BLOCK_HOSTS = setOf(

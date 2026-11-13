@@ -94,7 +94,7 @@ fun mergeWinners(local: List<LibraryItem>, remotes: List<LibraryItem>): Map<Stri
 }
 
 fun itemsToApply(localByKey: Map<String, LibraryItem>, winners: Map<String, LibraryItem>): List<LibraryItem> {
-    val order = listOf(LibraryKinds.FOLDER, LibraryKinds.TEXT, LibraryKinds.POSITION, LibraryKinds.TAG, LibraryKinds.TEXT_TAG, LibraryKinds.INK, LibraryKinds.NOTE, LibraryKinds.PDF_HIGHLIGHT, LibraryKinds.HIGHLIGHT)
+    val order = listOf(LibraryKinds.FOLDER, LibraryKinds.VIDEO_PLAYLIST, LibraryKinds.TEXT, LibraryKinds.POSITION, LibraryKinds.TAG, LibraryKinds.TEXT_TAG, LibraryKinds.INK, LibraryKinds.NOTE, LibraryKinds.PDF_HIGHLIGHT, LibraryKinds.HIGHLIGHT, LibraryKinds.SAVED_VIDEO, LibraryKinds.VIDEO_PLAYLIST_MEMBER)
     return winners.values.filter { winner ->
         val local = localByKey[winner.key]
         // Compare content, not origin/time: an unchanged item echoed back by another device needs no work.

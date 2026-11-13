@@ -145,7 +145,7 @@ private fun bestExampleContent(entry: Entry, target: String, speak: (String) -> 
 
 @Composable
 private fun ExpandableSection(title: String, count: Int, entryId: Long, section: String, forceExpanded: Boolean = false, icon: androidx.compose.ui.graphics.vector.ImageVector = Icons.Outlined.Lightbulb, content: @Composable () -> Unit) {
-    var expanded by rememberSaveable(entryId, section) { mutableStateOf(false) }
+    var expanded by rememberSaveable(entryId, section) { mutableStateOf(section != "forms") }
     Column {
         if (section != "meanings") HorizontalDivider(Modifier.padding(horizontal = 16.dp), thickness = 1.dp, color = MaterialTheme.colorScheme.outlineVariant)
         val targetExpanded = expanded || forceExpanded

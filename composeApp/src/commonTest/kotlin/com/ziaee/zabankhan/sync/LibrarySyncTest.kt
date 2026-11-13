@@ -56,7 +56,7 @@ class LibrarySyncTest {
         val bytes = LibraryWireFormat.encode(file)
         assertEquals(file, LibraryWireFormat.decode(bytes, "acct", "device_1"))
         assertFailsWith<IllegalArgumentException> { LibraryWireFormat.decode(bytes, "other", "device_1") }
-        assertFailsWith<IllegalArgumentException> { LibraryWireFormat.decode(LibraryWireFormat.json.encodeToString(LibraryStateFile(2, "acct", "device_1", emptyList())).encodeToByteArray(), "acct", "device_1") }
+        assertFailsWith<IllegalArgumentException> { LibraryWireFormat.decode(LibraryWireFormat.json.encodeToString(LibraryStateFile(LIBRARY_SCHEMA_VERSION + 1, "acct", "device_1", emptyList())).encodeToByteArray(), "acct", "device_1") }
         assertFailsWith<IllegalArgumentException> { LibraryWireFormat.decode(bytes, "acct", "other") }
         fun decodeItems(items: List<LibraryItem>) = LibraryWireFormat.decode(LibraryWireFormat.json.encodeToString(file.copy(items = items)).encodeToByteArray(), "acct", "device_1")
         assertFailsWith<IllegalArgumentException> { decodeItems(listOf(item(kind = "other", device = "device_1"))) }

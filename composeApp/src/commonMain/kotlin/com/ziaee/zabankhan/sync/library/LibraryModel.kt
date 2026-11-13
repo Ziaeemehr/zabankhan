@@ -13,11 +13,15 @@ object LibraryKinds {
     const val NOTE = "note"
     const val PDF_HIGHLIGHT = "pdfHighlight"
     const val HIGHLIGHT = "highlight"
-    val all = setOf(FOLDER, TEXT, POSITION, TAG, TEXT_TAG, INK, NOTE, PDF_HIGHLIGHT, HIGHLIGHT)
+    const val VIDEO_CHANNEL = "videoChannel"
+    const val SAVED_VIDEO = "savedVideo"
+    const val VIDEO_PLAYLIST = "videoPlaylist"
+    const val VIDEO_PLAYLIST_MEMBER = "videoPlaylistMember"
+    val all = setOf(FOLDER, TEXT, POSITION, TAG, TEXT_TAG, INK, NOTE, PDF_HIGHLIGHT, HIGHLIGHT, VIDEO_CHANNEL, SAVED_VIDEO, VIDEO_PLAYLIST, VIDEO_PLAYLIST_MEMBER)
 }
 
 const val LIBRARY_FILE_PREFIX = "zabankhan-library-"
-const val LIBRARY_SCHEMA_VERSION = 1
+const val LIBRARY_SCHEMA_VERSION = 2
 const val MAX_LIBRARY_FILE_BYTES = 64 * 1024 * 1024
 const val TOMBSTONE_RETENTION_MS = 30L * 24 * 60 * 60 * 1000
 

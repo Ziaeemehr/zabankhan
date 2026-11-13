@@ -408,9 +408,7 @@ class DriveSyncEngine(
         put("name", list.name); put("createdAtMs", list.createdAtMs)
     })
 
-    private fun sameCard(a: VocabEntry, b: VocabEntry): Boolean =
-        a.lang == b.lang && a.word == b.word && a.sentence == b.sentence && a.meaning == b.meaning &&
-            a.dictionaryUrl == b.dictionaryUrl && a.meaningLang == b.meaningLang && a.syncRevision == b.syncRevision
+    private fun sameCard(a: VocabEntry, b: VocabEntry): Boolean = sameCardContent(a, b)
 
     private fun parsePayload(payload: String?): JsonObject =
         payload?.let { runCatching { json.parseToJsonElement(it).jsonObject }.getOrNull() } ?: JsonObject(emptyMap())
@@ -420,6 +418,10 @@ class DriveSyncEngine(
     private fun JsonObject.boolean(key: String): Boolean? = this[key]?.jsonPrimitive?.booleanOrNull
     private fun JsonObject.rawJson(): String = Json.encodeToString(this)
 }
+
+internal fun sameCardContent(a: VocabEntry, b: VocabEntry): Boolean =
+    a.lang == b.lang && a.word == b.word && a.sentence == b.sentence && a.meaning == b.meaning &&
+        a.dictionaryUrl == b.dictionaryUrl && a.meaningLang == b.meaningLang && a.syncRevision == b.syncRevision
 
 internal fun opsToSkipAfterRestore(
     remote: List<SyncOperation>,

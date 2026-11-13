@@ -9,6 +9,7 @@ import androidx.compose.ui.input.pointer.*
 import androidx.compose.ui.layout.boundsInWindow
 import androidx.compose.ui.layout.positionInWindow
 import androidx.compose.foundation.gestures.animateScrollBy
+import androidx.compose.foundation.interaction.DragInteraction
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.border
@@ -149,6 +150,14 @@ fun ReadingScreen(vm: AppViewModel, settings: AppSettings, textId: Long, onBack:
     val activity = com.ziaee.zabankhan.statistics.TrackActivity(vm.container, textId, lang.code,
         com.ziaee.zabankhan.statistics.ActivityKind.READING, !speaking)
     val listState = key(textId, text.body) { rememberLazyListState(initialFirstVisibleItemIndex = paragraphIndexAt(parts, text.lastOffset)) }
+    val positionSaver = remember(textId, text.body) {
+        ReaderPositionSaver(
+            saveOffset = { offset -> vm.container.texts.savePosition(textId, offset) },
+            markRead = { vm.container.texts.markRead(textId) },
+            initiallyCompleted = com.ziaee.zabankhan.ui.isTextFinished(text) || text.readMark == com.ziaee.zabankhan.ui.READ_MARK_FINISHED ||
+                (text.body.isNotEmpty() && text.lastOffset >= text.body.length),
+        )
+    }
     val readingViewport = remember { ReadingViewport() }
     val scope = rememberCoroutineScope()
     val clipboard = LocalClipboardManager.current
@@ -222,17 +231,31 @@ fun ReadingScreen(vm: AppViewModel, settings: AppSettings, textId: Long, onBack:
     LaunchedEffect(playback) { tts.speakingRange.collect { playback.rangeChanged(it) } }
     LaunchedEffect(playback) { playback.audioStatus.collect { playback.audioStatusChanged(it) } }
     LaunchedEffect(playback, rate, settings.ttsVoices[lang.code]) { playback.configureAudio(rate, settings.ttsVoices[lang.code]) }
-    LaunchedEffect(textId, parts, pageNavigation) {
+    LaunchedEffect(textId, parts, pageNavigation, speechComplete) {
+        if (speechComplete) return@LaunchedEffect
         if (pageNavigation != PageNavigation.SCROLL) return@LaunchedEffect
         snapshotFlow { listState.firstVisibleItemIndex to (listState.layoutInfo.totalItemsCount > 0 && !listState.canScrollForward) }
             .distinctUntilChanged().collect { (index, atEnd) ->
                 // The resume offset is the first visible paragraph; at the bottom store the end so progress reaches 100%.
                 val offset = if (atEnd && parts.isNotEmpty()) text.body.length else parts.getOrNull(index)?.offset ?: return@collect
-                vm.container.texts.savePosition(textId, offset)
+                positionSaver.save(offset)
             }
     }
     LaunchedEffect(textId, speechComplete) {
-        if (speechComplete && parts.isNotEmpty()) vm.container.texts.savePosition(textId, text.body.length)
+        if (speechComplete && parts.isNotEmpty()) positionSaver.complete(text.body.length)
+    }
+    var completedDuringSession by remember(textId, text.body) { mutableStateOf(false) }
+    LaunchedEffect(speechComplete) {
+        if (speechComplete) completedDuringSession = true
+        else if (completedDuringSession) {
+            positionSaver.reset()
+            completedDuringSession = false
+        }
+    }
+    LaunchedEffect(listState, positionSaver) {
+        listState.interactionSource.interactions.collect { interaction ->
+            if (interaction is DragInteraction.Start) positionSaver.reset()
+        }
     }
     LaunchedEffect(listState, activity) {
         snapshotFlow { listState.firstVisibleItemIndex to listState.firstVisibleItemScrollOffset }.collect { activity.interact() }
@@ -245,6 +268,7 @@ fun ReadingScreen(vm: AppViewModel, settings: AppSettings, textId: Long, onBack:
     }
     LaunchedEffect(activeFind, findRevision) {
         activeFind?.let {
+            positionSaver.reset()
             if (pageNavigation == PageNavigation.SCROLL) listState.scrollToItem(it.first)
             else requestedPageAnchor = ReadingAnchor(it.first, it.second.first)
         }
@@ -280,6 +304,7 @@ fun ReadingScreen(vm: AppViewModel, settings: AppSettings, textId: Long, onBack:
     LaunchedEffect(settings.readerAutoFollow, speaking, pageNavigation) { lastFollowedChunk = -1 }
     LaunchedEffect(currentParagraph, spokenSentence, speaking, settings.readerAutoFollow, pageNavigation) {
         val index = currentParagraph ?: return@LaunchedEffect
+        if (!speaking) return@LaunchedEffect
         val findHoldsScroll = findOpen && findQuery.isNotBlank() && !speaking
         if (!settings.readerAutoFollow || findHoldsScroll) return@LaunchedEffect
         if (pageNavigation != PageNavigation.SCROLL) {
@@ -553,6 +578,7 @@ fun ReadingScreen(vm: AppViewModel, settings: AppSettings, textId: Long, onBack:
                         requestedAnchor = requestedPageAnchor,
                         onAnchorConsumed = { requestedPageAnchor = null },
                         userScrollEnabled = !textSelectionActive,
+                        onUserNavigate = { scope.launch { positionSaver.reset() } },
                         onVisiblePage = { page ->
                             visiblePage = page
                             page.fragments.firstOrNull()?.let {
@@ -564,7 +590,7 @@ fun ReadingScreen(vm: AppViewModel, settings: AppSettings, textId: Long, onBack:
                                 val lastPage = end != null && end.chunkIndex == parts.lastIndex &&
                                     end.endOffset >= (parts.getOrNull(end.chunkIndex)?.sourceOffsets?.size ?: 0)
                                 val offset = if (lastPage) text.body.length else part.sourceOffsets.getOrElse(visiblePageAnchor.characterOffset) { part.offset }
-                                vm.action { vm.container.texts.savePosition(textId, offset) }
+                                vm.action { positionSaver.save(offset) }
                             }
                         }
                     ) { page ->
@@ -682,7 +708,7 @@ fun ReadingScreen(vm: AppViewModel, settings: AppSettings, textId: Long, onBack:
     }
     dictionaryTarget?.let { target -> DictionarySheet(vm, settings, text, target, words, highlights, { dictionaryTarget = null }) }
     if (showContentsSheet) ContentsSheet(headings, currentParagraph ?: listState.firstVisibleItemIndex, chunks.size, palette,
-        { index -> if (pageNavigation == PageNavigation.SCROLL) scope.launch { listState.scrollToItem(index) } else requestedPageAnchor = ReadingAnchor(index); showContentsSheet = false }, { showContentsSheet = false })
+        { index -> scope.launch { positionSaver.reset() }; if (pageNavigation == PageNavigation.SCROLL) scope.launch { listState.scrollToItem(index) } else requestedPageAnchor = ReadingAnchor(index); showContentsSheet = false }, { showContentsSheet = false })
     if (showSourceInfoSheet) SourceInfoSheet(text, chunks, currentParagraph ?: if (pageNavigation == PageNavigation.SCROLL) listState.firstVisibleItemIndex else visiblePageAnchor.chunkIndex, palette) { showSourceInfoSheet = false }
 
 }

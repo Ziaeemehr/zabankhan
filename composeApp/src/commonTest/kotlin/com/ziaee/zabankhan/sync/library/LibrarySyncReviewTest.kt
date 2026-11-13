@@ -20,6 +20,7 @@ import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
+import kotlinx.serialization.encodeToString
 import okio.ByteString
 import okio.FileSystem
 import okio.Path.Companion.toPath
@@ -27,6 +28,7 @@ import kotlin.random.Random
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFails
+import kotlin.test.assertFailsWith
 import kotlin.test.assertNotEquals
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
@@ -38,6 +40,32 @@ private fun cur(i: LibraryItem) = contentHash(i) to i
 private fun sh(i: LibraryItem, at: Long = i.updatedAtMs) = LibrarySyncShadow(i.key, contentHash(i), at, i.deleted)
 
 class LibrarySyncReviewLogicTest {
+    @Test fun libraryWireCurrentLegacyAndFutureSchemasHandleVideoChannelItems() {
+        val videoChannel = LibraryItem(LibraryKinds.VIDEO_CHANNEL, "videoChannel:stable-id", 42, payload = buildJsonObject {
+            put("channelId", "UC1234567890123456789012"); put("lang", "fr"); put("title", "Chaîne éducative"); put("category", "education"); put("level", "A2–B1")
+        }, deviceId = "dev")
+        val current = LibraryStateFile(LIBRARY_SCHEMA_VERSION, "acct", "dev", listOf(videoChannel))
+        assertEquals(current, LibraryWireFormat.decode(LibraryWireFormat.encode(current), "acct", "dev"))
+
+        val legacy = current.copy(schemaVersion = 1)
+        val legacyBytes = LibraryWireFormat.json.encodeToString(legacy).encodeToByteArray()
+        assertEquals(legacy, LibraryWireFormat.decode(legacyBytes, "acct", "dev"))
+
+        val futureBytes = LibraryWireFormat.json.encodeToString(current.copy(schemaVersion = LIBRARY_SCHEMA_VERSION + 1)).encodeToByteArray()
+        assertFailsWith<IllegalArgumentException> { LibraryWireFormat.decode(futureBytes, "acct", "dev") }
+    }
+
+    @Test fun savedVideoWireRejectsInvalidYoutubeSourceAndMismatchedKey() {
+        fun savedVideo(id: String, key: String = com.ziaee.zabankhan.data.savedVideoStableKey("fr", id, "")) = LibraryStateFile(
+            LIBRARY_SCHEMA_VERSION, "acct", "dev", listOf(LibraryItem(LibraryKinds.SAVED_VIDEO, key, 1, payload = buildJsonObject {
+                put("lang", "fr"); put("videoId", id); put("path", ""); put("subtitlePath", ""); put("title", "Title"); put("channel", "Channel"); put("isFavorite", true); put("updatedAtMs", 1)
+            }))
+        )
+        assertFailsWith<IllegalArgumentException> { LibraryWireFormat.encode(savedVideo("invalid")) }
+        assertFailsWith<IllegalArgumentException> { LibraryWireFormat.encode(savedVideo("abcdefghijk", "savedVideo:wrong")) }
+        assertEquals(savedVideo("abcdefghijk"), LibraryWireFormat.decode(LibraryWireFormat.encode(savedVideo("abcdefghijk")), "acct", "dev"))
+    }
+
     @Test fun slowClockStillWinsWithItsNewerEdit() {
         val old = it(LibraryKinds.TEXT, "text:a", 1000); val edited = old.copy(payload = buildJsonObject { put("v", 2) })
         val out = detectLocalChanges(mapOf(edited.key to cur(edited)), mapOf(old.key to sh(old)), 100, false, remoteMax = mapOf("text:a" to 5000L)).single()

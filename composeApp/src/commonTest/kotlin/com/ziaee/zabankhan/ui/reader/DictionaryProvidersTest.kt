@@ -32,12 +32,19 @@ class DictionaryProvidersTest {
         val repository = SettingsRepository(store, secrets = FakeSecretStore())
         repository.setLastDictionaryProvider("fr", "Larousse")
         repository.setLastDictionaryProvider("en", "Cambridge")
+        repository.setLastDictionaryProvider("fa", "own")
         val restored = SettingsRepository(store, secrets = FakeSecretStore()).current()
         assertEquals("Larousse", restored.lastDictionaryProviders["fr"])
         assertEquals("Cambridge", restored.lastDictionaryProviders["en"])
+        assertEquals("own", restored.lastDictionaryProviders["fa"])
         assertEquals("Larousse", selectedDictionaryProvider(dictionaryProviders(Languages.FRENCH, "fa"), restored.lastDictionaryProviders["fr"])?.name)
         assertEquals("WordReference", selectedDictionaryProvider(dictionaryProviders(Languages.FRENCH, "fa"), "WordReference")?.name)
         assertNull(selectedDictionaryProvider(emptyList(), "Larousse"))
+        assertEquals("Larousse", restoredDictionarySource(dictionaryProviders(Languages.FRENCH, "fa"), "Larousse"))
+        assertEquals("WordReference", restoredDictionarySource(dictionaryProviders(Languages.FRENCH, "fa"), "missing"))
+        assertEquals("own", restoredDictionarySource(dictionaryProviders(Languages.FRENCH, "fa"), null))
+        assertEquals("own", restoredDictionarySource(dictionaryProviders(Languages.FRENCH, "fa"), "own"))
+        assertNull(selectedDictionaryProvider(dictionaryProviders(Languages.FRENCH, "fa"), "own"))
     }
 
     @Test fun blocksAdDomainsAndSubdomainsWithoutBlockingLookalikes() {

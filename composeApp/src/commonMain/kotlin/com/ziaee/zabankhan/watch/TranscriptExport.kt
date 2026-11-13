@@ -6,6 +6,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.ziaee.zabankhan.app.AppViewModel
+import com.ziaee.zabankhan.data.TextDocument
 import com.ziaee.zabankhan.lang.LanguageSpec
 import com.ziaee.zabankhan.resources.*
 import kotlinx.coroutines.CancellationException
@@ -42,13 +43,21 @@ internal fun transcriptFileName(title: String): String = title.map { char ->
     videoId: String,
     path: String,
     captions: VideoCaptions,
+    existingDocument: TextDocument?,
     dismiss: () -> Unit,
-    added: () -> Unit,
+    added: (TextDocument) -> Unit,
 ) {
     val share = rememberTranscriptShare()
     val scope = rememberCoroutineScope()
     var saving by remember { mutableStateOf(false) }
     var failed by remember { mutableStateOf(false) }
+    var saveDialog by remember { mutableStateOf(false) }
+    var title by remember(existingDocument?.id, captions.title) { mutableStateOf(existingDocument?.title ?: captions.title) }
+    var folderId by remember(existingDocument?.id) { mutableStateOf(existingDocument?.folderId) }
+    var folderMenu by remember { mutableStateOf(false) }
+    var newFolder by remember { mutableStateOf("") }
+    val organizer = vm.container.database.libraryOrganizer()
+    val folders by remember(lang.code) { organizer.observeFolders(lang.code) }.collectAsState(emptyList())
     fun export(action: suspend () -> Unit) {
         scope.launch {
             saving = true; failed = false
@@ -61,11 +70,7 @@ internal fun transcriptFileName(title: String): String = title.map { char ->
     ModalBottomSheet(onDismissRequest = dismiss) {
         Column(Modifier.fillMaxWidth().navigationBarsPadding().padding(24.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text(stringResource(Res.string.watch_export), style = MaterialTheme.typography.titleLarge)
-            TextButton(enabled = !saving, onClick = { export {
-                saveTranscript(vm.container.texts, identity, lang, captions.title,
-                    if (path.isBlank()) "https://www.youtube.com/watch?v=$videoId" else null, mergeSentenceUnits(captions.cues, lang).units, legacyCues = captions.cues)
-                added()
-            } }) { Text(stringResource(Res.string.watch_export_library)) }
+            TextButton(enabled = !saving, onClick = { saveDialog = true }) { Text(stringResource(Res.string.watch_export_library)) }
             TextButton(enabled = !saving, onClick = { export { share(transcriptBody(mergeSentenceUnits(captions.cues, lang).units), null) } }) {
                 Text(stringResource(Res.string.watch_export_share))
             }
@@ -76,4 +81,32 @@ internal fun transcriptFileName(title: String): String = title.map { char ->
             if (failed) Text(stringResource(Res.string.watch_export_failed), color = MaterialTheme.colorScheme.error)
         }
     }
+    if (saveDialog) AlertDialog(
+        onDismissRequest = { saveDialog = false },
+        title = { Text(stringResource(Res.string.watch_export_library)) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedTextField(title, { title = it }, label = { Text(stringResource(Res.string.title)) }, singleLine = true)
+                Box {
+                    TextButton(onClick = { folderMenu = true }) { Text(folders.firstOrNull { it.id == folderId }?.name ?: stringResource(Res.string.folder)) }
+                    DropdownMenu(folderMenu, { folderMenu = false }) {
+                        DropdownMenuItem(text = { Text(stringResource(Res.string.folder)) }, onClick = { folderId = null; folderMenu = false })
+                        folders.forEach { folder -> DropdownMenuItem(text = { Text(folder.name) }, onClick = { folderId = folder.id; folderMenu = false }) }
+                    }
+                }
+                OutlinedTextField(newFolder, { newFolder = it }, label = { Text(stringResource(Res.string.create_folder)) }, singleLine = true)
+                if (saving) LinearProgressIndicator(Modifier.fillMaxWidth())
+                if (failed) Text(stringResource(Res.string.watch_export_failed), color = MaterialTheme.colorScheme.error)
+            }
+        },
+        confirmButton = { TextButton(enabled = !saving && title.isNotBlank(), onClick = { export {
+            val cleanFolder = newFolder.trim()
+            val saved = saveTranscriptToLibrary(vm.container.database, identity, lang, title.trim(),
+                if (path.isBlank()) "https://www.youtube.com/watch?v=$videoId" else null,
+                mergeSentenceUnits(captions.cues, lang).units, folderId = folderId,
+                newFolderName = cleanFolder, legacyCues = captions.cues)
+            added(saved); saveDialog = false
+        } }) { Text(stringResource(Res.string.save)) } },
+        dismissButton = { TextButton(enabled = !saving, onClick = { saveDialog = false }) { Text(stringResource(Res.string.cancel)) } },
+    )
 }

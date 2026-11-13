@@ -42,7 +42,7 @@ class SelectedTts(private val online: EdgeTts, private val device: Tts, private 
     override fun prefetch(text: String, langCode: String, rate: Float) {
         if (settings.voiceEngine != "device") { online.setVoice(voice); online.prefetch(text, langCode, rate) }
     }
-    override fun speak(text: String, langCode: String, rate: Float, onDone: () -> Unit) {
+    override fun speak(text: String, langCode: String, rate: Float, onError: () -> Unit, onDone: () -> Unit) {
         learningSpeechLanguage(langCode)
         val previous = job
         stop()
@@ -72,16 +72,17 @@ class SelectedTts(private val online: EdgeTts, private val device: Tts, private 
                     device.setVoice(requestedVoice?.takeIf { id -> device.voices(langCode).any { it.id == id } })
                     val tracking = launch { device.speakingRange.collect { local -> range.value = local?.let { (it.first + resumeAt)..(it.last + resumeAt) } } }
                     try {
-                        suspendCancellableCoroutine<Unit> { continuation ->
-                            device.speak(remaining, langCode, rate) { if (continuation.isActive) continuation.resume(Unit) }
-                        }
+                    suspendCancellableCoroutine<Boolean> { continuation ->
+                            device.speak(remaining, langCode, rate,
+                                onError = { if (continuation.isActive) continuation.resume(false) },
+                                onDone = { if (continuation.isActive) continuation.resume(true) })
+                        }.also { completed = it }
                     } finally { tracking.cancelAndJoin() }
                 }
-                completed = true
             } finally {
                 if (token == generation) { speaking.value = false; range.value = null }
             }
-            if (completed && token == generation) onDone()
+            if (token == generation) if (completed) onDone() else onError()
         }
     }
     override fun stop() {

@@ -79,6 +79,13 @@ class LibrarySnapshotBuilder(
         dao.notes().forEach { n -> textById[n.textId]?.syncId?.takeIf(String::isNotEmpty)?.let { add(LibraryKinds.NOTE, "note:$it:${n.page}:${n.startWord}:${n.endWord}", obj("page" to n.page, "startWord" to n.startWord, "endWord" to n.endWord, "selectedText" to n.selectedText, "body" to n.body)) } }
         dao.pdfHighlights().forEach { h -> textById[h.textId]?.syncId?.takeIf(String::isNotEmpty)?.let { add(LibraryKinds.PDF_HIGHLIGHT, "pdfHighlight:$it:${h.page}:${h.startWord}:${h.endWord}", obj("page" to h.page, "startWord" to h.startWord, "endWord" to h.endWord, "colorKey" to h.colorKey, "createdAtMs" to h.createdAtMs)) } }
         dao.highlights().forEach { h -> textById[h.textId]?.syncId?.takeIf(String::isNotEmpty)?.let { add(LibraryKinds.HIGHLIGHT, "highlight:$it:${h.startOffset}:${h.endOffset}", obj("startOffset" to h.startOffset, "endOffset" to h.endOffset, "colorKey" to h.colorKey, "createdAtMs" to h.createdAtMs)) } }
+        dao.videoChannels().forEach { c -> add(LibraryKinds.VIDEO_CHANNEL, "videoChannel:${c.syncId}", obj("channelId" to c.channelId, "lang" to c.lang, "title" to c.title, "category" to c.category, "level" to c.level)) }
+        dao.savedVideos().forEach { v -> add(LibraryKinds.SAVED_VIDEO, v.stableKey, obj(
+            "lang" to v.lang, "videoId" to v.videoId, "path" to v.path, "subtitlePath" to v.subtitlePath,
+            "title" to v.title, "channel" to v.channel, "isFavorite" to v.isFavorite, "updatedAtMs" to v.updatedAtMs,
+        )) }
+        dao.videoPlaylists().forEach { p -> add(LibraryKinds.VIDEO_PLAYLIST, "videoPlaylist:${p.syncId}", obj("lang" to p.lang, "name" to p.name, "createdAtMs" to p.createdAtMs, "updatedAtMs" to p.updatedAtMs)) }
+        dao.videoPlaylistMemberships().forEach { m -> add(LibraryKinds.VIDEO_PLAYLIST_MEMBER, "videoPlaylistMember:${m.playlistSyncId}:${m.videoKey}", obj("playlistSyncId" to m.playlistSyncId, "videoKey" to m.videoKey, "addedAtMs" to m.addedAtMs)) }
         return out
     }
 

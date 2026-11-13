@@ -29,6 +29,8 @@ class WatchTranscriptTest {
         val route = watchRoute(path = "/a/video ?&=é.mp4", subs = "/b/s.vtt")
         assertTrue(route.contains("path=%2Fa%2Fvideo%20%3F%26%3D%C3%A9.mp4"))
         assertTrue(route.endsWith("subs=%2Fb%2Fs.vtt"))
+        assertFalse(watchRoute().contains("shadow="))
+        assertTrue(watchRoute(shadow = true).endsWith("&shadow=true"))
     }
     @Test fun iframeValidatesVideoIdentifier() {
         assertFailsWith<IllegalArgumentException> { youtubePlayerHtml("');alert(1)") }

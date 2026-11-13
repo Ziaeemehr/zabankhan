@@ -147,7 +147,7 @@ class SettingsRepository(private val store: DataStore<Preferences>, private val 
             meaningLang = p[K.meaning]?.takeIf {
                 it == Languages.PERSIAN.code || (it == Languages.ENGLISH.code && it != active)
             } ?: Languages.PERSIAN.code,
-            dictionaryMeaningLang = p[K.dictionaryMeaning]?.takeIf { it.isBlank() || it == Languages.PERSIAN.code || it == Languages.ENGLISH.code }.orEmpty(),
+            dictionaryMeaningLang = p[K.dictionaryMeaning]?.takeIf { it.isBlank() || Languages.byCode(it) != null }.orEmpty(),
             uiLang = p[K.ui] ?: "system",
             themeMode = p[K.theme] ?: "SYSTEM",
             dailyNewCards = p[K.newCards] ?: 10,
@@ -244,7 +244,7 @@ class SettingsRepository(private val store: DataStore<Preferences>, private val 
     suspend fun setNewsMatchingFirst(enabled: Boolean) = store.edit { it[K.newsMatchingFirst] = enabled }
     suspend fun setNewsOnlyMatching(enabled: Boolean) = store.edit { it[K.newsOnlyMatching] = enabled }
     suspend fun setMeaningLang(code: String) = store.edit { it[K.meaning] = code }
-    suspend fun setDictionaryMeaningLang(code: String) = store.edit { it[K.dictionaryMeaning] = code.takeIf { it.isBlank() || it == Languages.PERSIAN.code || it == Languages.ENGLISH.code }.orEmpty() }
+    suspend fun setDictionaryMeaningLang(code: String) = store.edit { it[K.dictionaryMeaning] = code.takeIf { it.isBlank() || Languages.byCode(it) != null }.orEmpty() }
     suspend fun setUiLang(code: String) = store.edit { it[K.ui] = code }
     suspend fun setThemeMode(mode: String) = store.edit { it[K.theme] = mode }
     suspend fun setWeeklyPointsGoal(points: Int) = progressPrefs.setGoal(points)

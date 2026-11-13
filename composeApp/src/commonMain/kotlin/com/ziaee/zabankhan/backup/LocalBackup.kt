@@ -30,7 +30,7 @@ import okio.HashingSink
 import okio.blackholeSink
 import kotlin.time.Clock
 
-const val BACKUP_SCHEMA_VERSION = 8
+const val BACKUP_SCHEMA_VERSION = 11
 private const val MAX_BACKUP_BYTES = 256L * 1024 * 1024
 class BackupTooLargeException : IllegalArgumentException("Backup exceeds 256 MiB")
 @Serializable data class BackupPdfRef(val path: String, val size: Long, val sha256: String)
@@ -289,7 +289,7 @@ internal fun mergeBackupPdfs(stageDir: Path, targetDir: Path, added: MutableList
 internal fun rebaseBackupPaths(db: SQLiteConnection, previousRoot: String, newRoot: String) {
     require(previousRoot.isNotBlank() && newRoot.isNotBlank())
     listOf("UPDATE texts SET pdfPath = replace(pdfPath, ?, ?), externalKey = replace(externalKey, ?, ?), imagePath = replace(imagePath, ?, ?), bodyPath = replace(bodyPath, ?, ?)",
-        "UPDATE kv_cache SET value = replace(value, ?, ?) WHERE key LIKE 'watch:history:%'").forEachIndexed { index, sql ->
+        "UPDATE kv_cache SET value = replace(value, ?, ?) WHERE key LIKE 'watch:history:%' OR key LIKE 'watch:shadow:%'").forEachIndexed { index, sql ->
         db.prepare(sql).use { statement ->
             statement.bindText(1, previousRoot.trimEnd('/') + "/")
             statement.bindText(2, newRoot.trimEnd('/') + "/")
@@ -300,6 +300,17 @@ internal fun rebaseBackupPaths(db: SQLiteConnection, previousRoot: String, newRo
                 }
             }
             statement.step()
+        }
+    }
+    db.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'saved_videos'").use { statement ->
+        if (statement.step()) {
+            db.prepare("UPDATE saved_videos SET path = replace(path, ?, ?), subtitlePath = replace(subtitlePath, ?, ?)").use { statement ->
+                statement.bindText(1, previousRoot.trimEnd('/') + "/videos/")
+                statement.bindText(2, newRoot.trimEnd('/') + "/videos/")
+                statement.bindText(3, previousRoot.trimEnd('/') + "/videos/")
+                statement.bindText(4, newRoot.trimEnd('/') + "/videos/")
+                statement.step()
+            }
         }
     }
 }

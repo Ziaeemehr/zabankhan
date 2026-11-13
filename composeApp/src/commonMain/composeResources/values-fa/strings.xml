@@ -185,6 +185,7 @@
     <string name="watch_copy_sentence">کپی جمله</string>
     <string name="watch_added">متن به کتابخانه اضافه شد</string>
     <string name="watch_export_library">افزودن متن به کتابخانه</string>
+    <string name="create_folder">ساخت پوشه</string>
     <string name="watch_export_share">اشتراک‌گذاری متن</string>
     <string name="watch_export_srt">خروجی زیرنویس SRT</string>
     <string name="watch_export_failed">خروجی گرفتن انجام نشد. دوباره تلاش کنید.</string>
@@ -375,4 +376,10 @@
     <string name="translation_source_google">مترجم گوگل</string>
     <string name="translation_source_bundled">ترجمهٔ همراه برنامه</string>
     <string name="translation_source_dictionary">واژه‌نامهٔ آفلاین</string>
+    <string name="video_playlists">فهرست‌های ویدیو</string>
+    <string name="video_playlist_new">فهرست جدید</string>
+    <string name="video_playlist_rename">تغییر نام فهرست</string>
+    <string name="video_playlist_choose">انتخاب فهرست‌ها</string>
+    <string name="done">تمام</string>
+    <string name="videos_playlists">فهرست‌ها</string>
 </resources>

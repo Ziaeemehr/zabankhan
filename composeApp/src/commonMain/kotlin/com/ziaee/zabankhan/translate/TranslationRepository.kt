@@ -23,6 +23,23 @@ class TranslationRepository(private val http: HttpClient, private val cache: Key
     suspend fun translateText(text: String, source: String, target: String, sentenceContext: String? = null): Result<String> =
         translateTextWithSource(text, source, target, sentenceContext).map { it.text }
 
+    suspend fun dictionaryFallback(text: String, source: String, target: String, sentenceContext: String? = null): Result<ExampleTranslation> {
+        if (TranslationService.baseLanguage(source) != TranslationService.baseLanguage(target))
+            return translateTextWithSource(text, source, target, sentenceContext)
+        return result {
+            overrides.getOverride(text, source, target)?.let { return@result ExampleTranslation(it, ExampleSource.EDITED) }
+            val model = requireNotNull(llm) { "Monolingual definition unavailable" }
+            modelCache.getMeaning(text, sentenceContext, source, target, model.cacheId)?.let {
+                return@result ExampleTranslation(it, ExampleSource.MODEL, engine = model.cacheId)
+            }
+            check(cloudEnabled) { "Cloud definitions disabled" }
+            val definition = model.meaning(text, sentenceContext, target, source)
+            check(definition.isNotBlank()) { "Empty definition" }
+            modelCache.putMeaning(text, sentenceContext, source, target, model.cacheId, definition)
+            ExampleTranslation(definition, ExampleSource.MODEL, engine = model.cacheId)
+        }
+    }
+
     suspend fun googleDictionaryFallback(text: String, source: String, target: String): Result<ExampleTranslation> = result {
         for (engine in listOf("google-gtx", "google-clients5")) {
             translations.get(text, source, target, engine)?.let { return@result ExampleTranslation(it, ExampleSource.GOOGLE, engine = engine) }

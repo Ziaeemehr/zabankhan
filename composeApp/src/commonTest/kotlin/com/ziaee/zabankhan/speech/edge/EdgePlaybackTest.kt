@@ -53,7 +53,7 @@ class EdgePlaybackTest {
         override val speakingRange = MutableStateFlow<IntRange?>(null)
         override val isSpeaking = MutableStateFlow(false)
         var spoken: String? = null
-        override fun speak(text: String, langCode: String, rate: Float, onDone: () -> Unit) { spoken = text; onDone() }
+        override fun speak(text: String, langCode: String, rate: Float, onError: () -> Unit, onDone: () -> Unit) { spoken = text; onDone() }
         override fun stop() { isSpeaking.value = false }
         override fun voices(langCode: String) = emptyList<TtsVoice>()
         override fun setVoice(id: String?) = Unit

@@ -6,6 +6,7 @@ import kotlinx.cinterop.*
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.*
 import platform.AVFAudio.*
+import platform.CoreAudioTypes.kAudioFormatMPEG4AAC
 import platform.Foundation.*
 import platform.Speech.*
 import platform.darwin.NSObject
@@ -19,9 +20,10 @@ private class IosTts : Tts {
     override val isSpeaking = speaking.asStateFlow()
     private var current: AVSpeechUtterance? = null
     private var done: (() -> Unit)? = null
+    private var error: (() -> Unit)? = null
     private var voiceId: String? = null
 
-    override fun speak(text: String, langCode: String, rate: Float, onDone: () -> Unit) {
+    override fun speak(text: String, langCode: String, rate: Float, onError: () -> Unit, onDone: () -> Unit) {
         val lang = learningSpeechLanguage(langCode)
         stop()
         AVAudioSession.sharedInstance().setCategory(AVAudioSessionCategoryPlayback, error = null)
@@ -31,10 +33,10 @@ private class IosTts : Tts {
             ?.takeIf { it.language.substringBefore('-') == lang.code }
             ?: bestVoice(lang.ttsLocale, lang.code)
         utterance.rate = (AVSpeechUtteranceDefaultSpeechRate * rate).coerceIn(AVSpeechUtteranceMinimumSpeechRate, AVSpeechUtteranceMaximumSpeechRate)
-        current = utterance; done = onDone; speaking.value = true
+        current = utterance; done = onDone; error = onError; speaking.value = true
         engine.speakUtterance(utterance)
     }
-    override fun stop() { current = null; done = null; engine.stopSpeakingAtBoundary(AVSpeechBoundary.AVSpeechBoundaryImmediate); range.value = null; speaking.value = false }
+    override fun stop() { current = null; done = null; error = null; engine.stopSpeakingAtBoundary(AVSpeechBoundary.AVSpeechBoundaryImmediate); range.value = null; speaking.value = false }
     override fun voices(langCode: String): List<TtsVoice> {
         val code = learningSpeechLanguage(langCode).code
         return AVSpeechSynthesisVoice.speechVoices().filterIsInstance<AVSpeechSynthesisVoice>().filter { it.language.substringBefore('-') == code }
@@ -46,10 +48,18 @@ private class IosTts : Tts {
     override fun speechSynthesizer(synthesizer: AVSpeechSynthesizer, willSpeakRangeOfSpeechString: CValue<NSRange>, utterance: AVSpeechUtterance) {
         if (utterance == current) willSpeakRangeOfSpeechString.useContents { range.value = location.toInt() until (location + length).toInt() }
     }
+    @ObjCSignatureOverride
     override fun speechSynthesizer(synthesizer: AVSpeechSynthesizer, didFinishSpeechUtterance: AVSpeechUtterance) {
         if (didFinishSpeechUtterance == current) {
             current = null; range.value = null; speaking.value = false
-            val callback = done; done = null; callback?.invoke()
+            val callback = done; done = null; error = null; callback?.invoke()
+        }
+    }
+    @ObjCSignatureOverride
+    override fun speechSynthesizer(synthesizer: AVSpeechSynthesizer, didCancelSpeechUtterance: AVSpeechUtterance) {
+        if (didCancelSpeechUtterance == current) {
+            current = null; range.value = null; speaking.value = false
+            val callback = error; done = null; error = null; callback?.invoke()
         }
     }
     }
@@ -87,6 +97,7 @@ private class IosRecognizer : SpeechRecognizer {
     override val hasRecording get() = recorded
     override fun replay() {
         if (!recorded) return
+        stopReplay()
         AVAudioSession.sharedInstance().setCategory(AVAudioSessionCategoryPlayback, error = null)
         AVAudioSession.sharedInstance().setActive(true, error = null)
         replayPlayer = AVAudioPlayer(contentsOfURL = recordingUrl, error = null).also { it.play() }
@@ -163,12 +174,75 @@ private class IosRecognizer : SpeechRecognizer {
     override fun stop() { audio?.stop(); request?.endAudio() }
 }
 actual fun createSpeechRecognizer(): SpeechRecognizer = IosRecognizer()
+private class IosVoiceRecorder : SpeechRecognizer {
+    private val recordingUrl get() = NSURL.fileURLWithPath("${com.ziaee.zabankhan.pdf.AppFiles.cacheDir}/voice-${NSUUID().UUIDString}.m4a")
+    private var recorder: AVAudioRecorder? = null
+    private var stopped: CompletableDeferred<Unit>? = null
+    private var file: NSURL? = null
+    override val hasRecording get() = file != null
+    override suspend fun listenOnce(langCode: String, maxMs: Long) = recordOnce(langCode, maxMs)
+    override suspend fun recordOnce(langCode: String, maxMs: Long): Result<RecognizedSpeech> = withContext(Dispatchers.Main.immediate) {
+        val session = AVAudioSession.sharedInstance()
+        val oldCategory = session.category; val oldMode = session.mode; val oldOptions = session.categoryOptions
+        clearRecording()
+        var output: NSURL? = null
+        var succeeded = false
+        try {
+            check(authorizeVoiceRecording()) { "Microphone permission denied" }
+            session.setCategory(AVAudioSessionCategoryRecord, error = null)
+            session.setMode(AVAudioSessionModeMeasurement, error = null)
+            session.setActive(true, error = null)
+            val path = recordingUrl; output = path
+            val settings = mapOf<Any?, Any?>(AVFormatIDKey to kAudioFormatMPEG4AAC, AVSampleRateKey to 16000.0,
+                AVNumberOfChannelsKey to 1, AVEncoderAudioQualityKey to AVAudioQualityHigh)
+            val native = AVAudioRecorder(uRL = path, settings = settings, error = null) ?: error("Microphone unavailable")
+            check(native.prepareToRecord() && native.record()) { "Microphone unavailable" }
+            val end = CompletableDeferred<Unit>(); recorder = native; stopped = end
+            withTimeoutOrNull(maxMs.coerceAtLeast(1)) { end.await() }
+            val duration = (native.currentTime * 1000).toLong().coerceAtLeast(0)
+            native.stop(); file = path; succeeded = true
+            Result.success(RecognizedSpeech("", duration))
+        } catch (e: CancellationException) { throw e }
+        catch (e: Exception) { Result.failure(e) }
+        finally {
+            recorder?.stop(); recorder = null; stopped = null
+            if (!succeeded) output?.let { NSFileManager.defaultManager.removeItemAtURL(it, error = null) }
+            session.setActive(false, error = null)
+            session.setCategory(oldCategory, mode = oldMode, options = oldOptions, error = null)
+        }
+    }
+    override fun stop() { stopped?.complete(Unit) }
+    private var replayPlayer: AVAudioPlayer? = null
+    override fun replay() { stopReplay(); file?.let { path ->
+        AVAudioSession.sharedInstance().setCategory(AVAudioSessionCategoryPlayback, error = null)
+        AVAudioSession.sharedInstance().setActive(true, error = null)
+        replayPlayer = AVAudioPlayer(contentsOfURL = path, error = null).also { it.play() }
+    } }
+    override fun stopReplay() { replayPlayer?.stop(); replayPlayer = null }
+    override fun clearRecording() { stopReplay(); file?.let { NSFileManager.defaultManager.removeItemAtURL(it, error = null) }; file = null }
+}
+actual fun createVoiceRecorder(): SpeechRecognizer = IosVoiceRecorder()
+private suspend fun authorizeVoiceRecording(): Boolean {
+    val session = AVAudioSession.sharedInstance()
+    if (session.recordPermission == AVAudioSessionRecordPermissionGranted) return true
+    return suspendCancellableCoroutine { continuation ->
+        session.requestRecordPermission { granted -> if (continuation.isActive) continuation.resume(granted) }
+    }
+}
 @Composable actual fun rememberMicPermission(): MicPermission {
     var granted by remember { mutableStateOf(SFSpeechRecognizer.authorizationStatus() == SFSpeechRecognizerAuthorizationStatus.SFSpeechRecognizerAuthorizationStatusAuthorized && AVAudioSession.sharedInstance().recordPermission == AVAudioSessionRecordPermissionGranted) }
     val scope = rememberCoroutineScope()
     return object : MicPermission {
         override val granted = granted
         override fun request() { scope.launch { granted = authorizeMic() } }
+    }
+}
+@Composable actual fun rememberVoiceRecordingPermission(): MicPermission {
+    var granted by remember { mutableStateOf(AVAudioSession.sharedInstance().recordPermission == AVAudioSessionRecordPermissionGranted) }
+    val scope = rememberCoroutineScope()
+    return object : MicPermission {
+        override val granted = granted
+        override fun request() { scope.launch { granted = authorizeVoiceRecording() } }
     }
 }
 

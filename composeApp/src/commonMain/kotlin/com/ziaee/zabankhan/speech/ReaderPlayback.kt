@@ -115,7 +115,9 @@ class ReaderPlayback(private val tts: Tts, private val parts: List<SpokenParagra
         if (repeats > 1) { speakSentence(next, splitSentences(part.text, lang), 0, 1, token); return }
         base = part.offset; spoken = part.text
         rangeChanged(0..0)
-        tts.speak(part.text, lang.code, rate) { completedParagraph(next, token); speakParagraph(next + 1, token) }
+        tts.speak(part.text, lang.code, rate,
+            onDone = { completedParagraph(next, token); speakParagraph(next + 1, token) },
+            onError = { failed(next, token) })
         // Fetch the next paragraph's audio now so there is no pause between paragraphs.
         parts.getOrNull(next + 1)?.let { tts.prefetch(it.text, lang.code, rate) }
     }
@@ -127,18 +129,19 @@ class ReaderPlayback(private val tts: Tts, private val parts: List<SpokenParagra
         val start = startOffset ?: range.first
         base = part.sourceOffset(start); spokenStart = start; mapSpoken = true; this.paragraph.value = paragraph; spoken = part.text.substring(start, range.last + 1)
         rangeChanged(0..0)
-        tts.speak(spoken, lang.code, rate) {
+        tts.speak(spoken, lang.code, rate, onDone = {
             completedParagraph(paragraph, token)
             if (round < repeats) speakSentence(paragraph, sentences, sentence, round + 1, token, startOffset)
             else speakSentence(paragraph, sentences, sentence + 1, 1, token)
-        }
+        }, onError = { failed(paragraph, token) })
         if (round == 1) sentences.getOrNull(sentence + 1)?.let { tts.prefetch(part.text.substring(it), lang.code, rate) }
     }
     fun sentenceOnly(text: String, offset: Int, rate: Float, voiceId: String?) {
         configureAudio(rate, voiceId)
         stop(); completion.value = false; this.rate = rate; this.voiceId = voiceId; val token = generation; index = 0; paragraph.value = null; mapSpoken = false; base = offset; spoken = text
         tts.setVoice(voiceId); rangeChanged(0..0)
-        tts.speak(text, lang.code, rate) { if (token == generation) { current.value = null; index = -1; paragraph.value = null } }
+        tts.speak(text, lang.code, rate,
+            onDone = { if (token == generation) { current.value = null; index = -1; paragraph.value = null } })
     }
     /** Navigation uses the same sentence boundaries as highlighting and repeat playback. */
     fun previousSentence(paragraph: Int = 0, rate: Float = this.rate, voiceId: String? = this.voiceId, repeats: Int = this.repeats) =
@@ -174,9 +177,17 @@ class ReaderPlayback(private val tts: Tts, private val parts: List<SpokenParagra
             base = part.sourceOffset(start); spoken = part.text.substring(start)
             rangeChanged(0..0)
             val token = generation
-            tts.speak(spoken, lang.code, rate) { completedParagraph(paragraph, token); speakParagraph(paragraph + 1, token) }
+            tts.speak(spoken, lang.code, rate,
+                onDone = { completedParagraph(paragraph, token); speakParagraph(paragraph + 1, token) },
+                onError = { failed(paragraph, token) })
             parts.getOrNull(paragraph + 1)?.let { tts.prefetch(it.text, lang.code, rate) }
         }
+    }
+    /** A failed section stops like a pause, so resume retries it and the text is not marked finished. */
+    private fun failed(paragraph: Int, token: Int) {
+        if (token != generation) return
+        sectionStatus.value = sectionStatus.value + (paragraph to SpeechAudioStatus.ERROR)
+        pause()
     }
     /** TTS has no portable pause; resume restarts the interrupted sentence. */
     fun pause() {

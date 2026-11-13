@@ -10,8 +10,9 @@ private class FakeTts : Tts {
     override val isSpeaking = MutableStateFlow(false)
     var text = ""
     var done: () -> Unit = {}
+    var error: () -> Unit = {}
     var rate = 0f
-    override fun speak(text: String, langCode: String, rate: Float, onDone: () -> Unit) { this.text = text; this.rate = rate; done = onDone; isSpeaking.value = true }
+    override fun speak(text: String, langCode: String, rate: Float, onError: () -> Unit, onDone: () -> Unit) { this.text = text; this.rate = rate; done = onDone; error = onError; isSpeaking.value = true }
     override fun stop() { isSpeaking.value = false }
     override fun voices(langCode: String) = emptyList<TtsVoice>()
     override fun setVoice(id: String?) = Unit
@@ -102,6 +103,19 @@ class ReaderPlaybackTest {
         assertFalse(playback.isComplete.value)
         tts.done()
         assertTrue(playback.isComplete.value)
+    }
+    @Test fun playbackErrorDoesNotAdvanceOrCompleteDocument() {
+        val tts = FakeTts()
+        val playback = ReaderPlayback(tts, listOf(SpokenParagraph("Last line.", 0), SpokenParagraph("Next.", 11)), Languages.ENGLISH)
+        playback.start(0, 1f, null)
+        tts.error()
+        assertFalse(playback.isComplete.value)
+        assertEquals(0, playback.currentParagraph.value)
+        assertEquals(SpeechAudioStatus.ERROR, playback.paragraphAudioStatuses.value[0])
+        assertFalse(tts.isSpeaking.value)
+        tts.text = ""
+        playback.resume(0, 1f, null)
+        assertEquals("Last line.", tts.text)
     }
     @Test fun persianNavigationUsesOriginalOffsetsAndEmptyDocumentIsSafe() {
         val tts = FakeTts()

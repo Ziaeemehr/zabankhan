@@ -34,6 +34,8 @@ interface TextDao {
 
     @Query("SELECT * FROM texts WHERE externalKey = :key LIMIT 1")
     suspend fun getByExternalKey(key: String): TextDocument?
+    @Query("SELECT * FROM texts WHERE lang = :lang")
+    suspend fun getAll(lang: String): List<TextDocument>
     @Query("SELECT * FROM texts WHERE lang = :lang ORDER BY pinned DESC, createdAtMs DESC")
     fun observeAll(lang: String): Flow<List<TextDocument>>
 
@@ -56,6 +58,9 @@ interface TextDao {
 
     @Query("UPDATE texts SET lastOffset = :offset, lastAccessedAtMs = :now WHERE id = :id")
     suspend fun savePosition(id: Long, offset: Int, now: Long = nowMs())
+
+    @Query("UPDATE texts SET readMark = 1 WHERE id = :id")
+    suspend fun markRead(id: Long)
 
     @Query("UPDATE texts SET folderId = :folderId WHERE id = :id")
     suspend fun setFolder(id: Long, folderId: Long?)

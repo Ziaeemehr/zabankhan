@@ -38,7 +38,8 @@ class LibraryApplier(private val database: AppDatabase) {
             if (old == null) dao.insertFolder(row) else dao.updateFolder(row)
             applied += item.key
         }
-        for (item in items) {
+        val applyRank = mapOf(LibraryKinds.VIDEO_PLAYLIST to 0, LibraryKinds.SAVED_VIDEO to 1, LibraryKinds.VIDEO_PLAYLIST_MEMBER to 2)
+        for (item in items.sortedBy { applyRank[it.kind] ?: 0 }) {
             val payload = item.payload
             val parts = item.key.split(':')
             when (item.kind) {
@@ -102,6 +103,51 @@ class LibraryApplier(private val database: AppDatabase) {
                 LibraryKinds.HIGHLIGHT -> {
                     val textId = parts.getOrNull(1)?.let { dao.textBySyncId(it)?.id } ?: continue; val start = parts.getOrNull(2)?.toIntOrNull() ?: continue; val end = parts.getOrNull(3)?.toIntOrNull() ?: continue
                     if (item.deleted) { dao.deleteHighlight(textId, start, end); applied += item.key } else if (payload != null) { val old = dao.highlightRow(textId, start, end); val row = HighlightEntry(id = old?.id ?: 0, textId = textId, startOffset = start, endOffset = end, colorKey = payload.string("colorKey").orEmpty(), createdAtMs = payload.long("createdAtMs") ?: 0); if (old == null) dao.insertHighlight(row) else dao.updateHighlight(row); applied += item.key }
+                }
+                LibraryKinds.VIDEO_CHANNEL -> {
+                    val sid = parts.getOrNull(1) ?: continue
+                    val old = dao.videoChannelBySyncId(sid)
+                    if (item.deleted) { if (old != null) { dao.deleteVideoChannel(sid); applied += item.key } }
+                    else if (payload != null) {
+                        val id = payload.string("channelId") ?: continue
+                        val row = com.ziaee.zabankhan.data.VideoChannelEntity(
+                            channelId = id, lang = payload.string("lang").orEmpty(), title = payload.string("title").orEmpty(),
+                            category = payload.string("category").orEmpty(), level = payload.string("level"), syncId = sid,
+                        )
+                        dao.upsertVideoChannel(row); applied += item.key
+                    }
+                }
+                LibraryKinds.SAVED_VIDEO -> {
+                    if (item.deleted) {
+                        if (dao.savedVideoByKey(item.key) != null) { dao.deleteMembershipsForVideo(item.key); dao.deleteSavedVideo(item.key); applied += item.key }
+                    } else if (payload != null) {
+                        val old = dao.savedVideoByKey(item.key)
+                        dao.upsertSavedVideo(com.ziaee.zabankhan.data.SavedVideoEntity(
+                            stableKey = item.key, lang = payload.string("lang").orEmpty(), videoId = payload.string("videoId").orEmpty(),
+                            path = payload.string("path").orEmpty(), subtitlePath = payload.string("subtitlePath").orEmpty(),
+                            title = payload.string("title").orEmpty(), channel = payload.string("channel").orEmpty(),
+                            isFavorite = payload.bool("isFavorite") ?: old?.isFavorite ?: false,
+                            updatedAtMs = payload.long("updatedAtMs") ?: item.updatedAtMs,
+                        ))
+                        applied += item.key
+                    }
+                }
+                LibraryKinds.VIDEO_PLAYLIST -> {
+                    val sid = parts.getOrNull(1) ?: continue
+                    val old = dao.videoPlaylistBySyncId(sid)
+                    if (item.deleted) {
+                        if (old != null) { dao.clearVideoPlaylistMemberships(sid); dao.deleteVideoPlaylist(sid); applied += item.key }
+                    } else if (payload != null) {
+                        dao.upsertVideoPlaylist(com.ziaee.zabankhan.data.VideoPlaylistEntity(sid, payload.string("lang").orEmpty(), payload.string("name").orEmpty(), payload.long("createdAtMs") ?: 0, payload.long("updatedAtMs") ?: item.updatedAtMs))
+                        applied += item.key
+                    }
+                }
+                LibraryKinds.VIDEO_PLAYLIST_MEMBER -> {
+                    val sid = payload?.string("playlistSyncId") ?: parts.getOrNull(1) ?: continue
+                    val videoKey = payload?.string("videoKey") ?: parts.drop(2).joinToString(":")
+                    if (item.deleted) dao.deleteVideoPlaylistMembership(sid, videoKey)
+                    else if (dao.videoPlaylistBySyncId(sid) != null && dao.savedVideoByKey(videoKey) != null) dao.upsertVideoPlaylistMembership(com.ziaee.zabankhan.data.VideoPlaylistMembershipEntity(sid, videoKey, payload?.long("addedAtMs") ?: item.updatedAtMs))
+                    applied += item.key
                 }
             }
         }

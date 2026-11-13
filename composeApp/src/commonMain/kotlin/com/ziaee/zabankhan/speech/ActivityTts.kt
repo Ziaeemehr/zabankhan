@@ -10,9 +10,12 @@ object SpeechActivity {
     internal fun speaking(lang: String) { current.value = lang }
 }
 class ActivityTts(private val engine: Tts) : Tts by engine {
-    override fun speak(text: String, langCode: String, rate: Float, onDone: () -> Unit) {
+    override fun speak(text: String, langCode: String, rate: Float, onDone: () -> Unit) =
+        speak(text, langCode, rate, onError = {}, onDone = onDone)
+
+    override fun speak(text: String, langCode: String, rate: Float, onError: () -> Unit, onDone: () -> Unit) {
         learningSpeechLanguage(langCode)
         SpeechActivity.speaking(langCode)
-        engine.speak(text, langCode, rate, onDone)
+        engine.speak(text, langCode, rate, onError, onDone)
     }
 }

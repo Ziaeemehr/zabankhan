@@ -9,6 +9,37 @@ import kotlinx.coroutines.test.runTest
 import kotlin.test.*
 
 class TranslationRepositoryTest {
+    @Test fun monolingualDictionaryUsesDefinitionAndCachedResultWithoutChangingTranslationIdentity() = runTest {
+        var calls = 0
+        val http = HttpClient(MockEngine {
+            calls++
+            respond("""{"choices":[{"message":{"content":"{\"meaning\":\"A useful definition\"}"}}]}""")
+        })
+        try {
+            val model = LlmTranslator(LlmClient(http, "https://model.test", "m", null, true), "model")
+            val repository = TranslationRepository(http, InMemoryKeyValueCache(), model)
+            assertEquals("word", repository.translateText("word", "en", "en").getOrThrow())
+            val definition = repository.dictionaryFallback("word", "en", "en", "context").getOrThrow()
+            assertEquals("A useful definition", definition.text)
+            assertEquals(ExampleSource.MODEL, definition.source)
+            repository.cloudEnabled = false
+            assertEquals(definition, repository.dictionaryFallback("word", "en", "en", "context").getOrThrow())
+            assertTrue(repository.dictionaryFallback("fresh", "en", "en").isFailure)
+            assertTrue(TranslationRepository(http, InMemoryKeyValueCache(), null).dictionaryFallback("word", "en", "en").isFailure)
+            assertEquals(1, calls)
+        } finally { http.close() }
+    }
+
+    @Test fun monolingualDictionaryPropagatesCancellation() = runTest {
+        val http = HttpClient(MockEngine { throw CancellationException("cancelled") })
+        try {
+            val model = LlmTranslator(LlmClient(http, "https://model.test", "m", null, true), "model")
+            assertFailsWith<CancellationException> {
+                TranslationRepository(http, InMemoryKeyValueCache(), model).dictionaryFallback("word", "en", "en")
+            }
+        } finally { http.close() }
+    }
+
     @Test fun llmWinsAndCachesSeparatelyBySourceAndTarget() = runTest {
         var calls = 0
         val http = HttpClient(MockEngine { request ->
@@ -64,6 +95,57 @@ class TranslationRepositoryTest {
             finally { offline.close() }
             assertEquals(2, calls)
         } finally { http.close() }
+    }
+    @Test fun dictionaryFallbackUsesCloudFirstTranslationWithSentenceContext() = runTest {
+        var modelCalls = 0
+        var googleCalls = 0
+        val http = HttpClient(MockEngine { request ->
+            if (request.url.host == "model.test") {
+                modelCalls++
+                assertTrue(request.url.encodedPath.contains("chat"))
+                respond("""{"choices":[{"message":{"content":"{\"translations\":[\"cloud meaning\"]}"}}]}""")
+            } else {
+                googleCalls++
+                respond("""[[["google meaning","word"]],null,"es"]""")
+            }
+        })
+        try {
+            val model = LlmTranslator(LlmClient(http, "https://model.test/chat/completions", "m", "key", false), "configured-model")
+            val repository = TranslationRepository(http, InMemoryKeyValueCache(), model)
+            val result = repository.translateTextWithSource("word", "es", "fa", "sentence context").getOrThrow()
+            assertEquals("cloud meaning", result.text)
+            assertEquals(ExampleSource.MODEL, result.source)
+            assertEquals("configured-model", result.engine)
+            assertEquals(1, modelCalls)
+            assertEquals(0, googleCalls)
+        } finally { http.close() }
+    }
+    @Test fun dictionaryFallbackUsesGoogleWebWhenCloudFailsAndPropagatesCancellation() = runTest {
+        var googleCalls = 0
+        val http = HttpClient(MockEngine { request ->
+            if (request.url.host == "model.test") respond("{}", HttpStatusCode.Forbidden)
+            else {
+                googleCalls++
+                respond("""[[["google meaning","word"]],null,"es"]""")
+            }
+        })
+        try {
+            val model = LlmTranslator(LlmClient(http, "https://model.test/chat/completions", "m", "key", false), "configured-model")
+            val result = TranslationRepository(http, InMemoryKeyValueCache(), model)
+                .translateTextWithSource("word", "es", "fa", "sentence context").getOrThrow()
+            assertEquals("google meaning", result.text)
+            assertEquals(ExampleSource.GOOGLE, result.source)
+            assertEquals("google-gtx", result.engine)
+            assertEquals(1, googleCalls)
+        } finally { http.close() }
+
+        val cancelled = HttpClient(MockEngine { throw CancellationException("cancelled") })
+        try {
+            val repository = TranslationRepository(cancelled, InMemoryKeyValueCache(), null)
+            assertFailsWith<CancellationException> {
+                repository.translateTextWithSource("word", "es", "fa", "sentence context")
+            }
+        } finally { cancelled.close() }
     }
     @Test fun englishSourceAndTargetSkipHop() = runTest {
         for ((source, target) in listOf("en" to "fa", "es" to "en")) {

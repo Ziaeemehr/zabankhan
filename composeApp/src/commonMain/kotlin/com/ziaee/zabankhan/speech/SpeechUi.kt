@@ -41,10 +41,10 @@ fun Tts.togglePronounce(text: String, lang: String, settings: AppSettings) {
 @Composable fun ShadowingPanel(container: AppContainer, settings: AppSettings, lang: LanguageSpec,
     textId: Long?, sentences: List<String>, startIndex: Int = 0, dismiss: () -> Unit,
     replay: (suspend (Int) -> Long)? = null, rate: Float = 1f, onRateChange: (Float) -> Unit = {},
-    onStep: (Int) -> Unit = {}, modifier: Modifier = Modifier) {
+    onStep: (Int) -> Unit = {}, pauseOriginal: () -> Unit = {}, modifier: Modifier = Modifier) {
     val scope = rememberCoroutineScope()
     val tts = remember { createTts() }
-    val recognizer = remember { createSpeechRecognizer() }
+    val recognizer = remember { createVoiceRecorder() }
     var index by remember { mutableIntStateOf(startIndex.coerceIn(0, sentences.lastIndex.coerceAtLeast(0))) }
     var replayJob by remember { mutableStateOf<Job?>(null) }
     var autoRecord by remember { mutableStateOf(false) }
@@ -53,9 +53,9 @@ fun Tts.togglePronounce(text: String, lang: String, settings: AppSettings) {
     val currentAutoRecord by rememberUpdatedState(autoRecord)
     val controller = remember { ShadowingController(scope, recognizer, { attempt ->
         container.database.shadowAttempts().insert(attempt)
-    }) }
+    }, scoreRecording = false) }
     val phase by controller.phase.collectAsState()
-    val permission = rememberMicPermission()
+    val permission = rememberVoiceRecordingPermission()
     val sentence = sentences.getOrNull(index).orEmpty()
     val speedDescription = stringResource(Res.string.watch_shadow_speed, rate.toString())
     fun requestRecording() {
@@ -63,6 +63,7 @@ fun Tts.togglePronounce(text: String, lang: String, settings: AppSettings) {
             pendingRecording = false
             controller.finishRecording()
         } else if (phase != ShadowPhase.Playing && phase != ShadowPhase.Saving) {
+            pauseOriginal()
             if (permission.granted) controller.listen()
             else { pendingRecording = true; permission.request() }
         }
@@ -75,21 +76,26 @@ fun Tts.togglePronounce(text: String, lang: String, settings: AppSettings) {
                 val duration = if (replay != null) replay(index) else {
                     val started = TimeSource.Monotonic.markNow()
                     suspendCancellableCoroutine<Long> { continuation ->
-                        tts.pronounce(sentence, lang.code, settings) {
-                            if (continuation.isActive) continuation.resume(started.elapsedNow().inWholeMilliseconds)
-                        }
+                        tts.setVoice(settings.ttsVoices[lang.code])
+                        tts.speak(sentence, lang.code, settings.speechRate,
+                            onError = { if (continuation.isActive) continuation.resume(-1L) },
+                            onDone = { if (continuation.isActive) continuation.resume(started.elapsedNow().inWholeMilliseconds) })
                         continuation.invokeOnCancellation { tts.stop() }
                     }
                 }
-                controller.played(duration)
-                if (currentAutoRecord) requestRecording()
+                if (duration < 0) controller.playbackFailed() else {
+                    controller.played(duration)
+                    if (currentAutoRecord) requestRecording()
+                }
             } catch (cancelled: CancellationException) { throw cancelled }
             catch (_: Exception) { controller.playbackFailed() }
         }
     }
     LaunchedEffect(index, lang, textId) {
+        replayJob?.cancel(); tts.stop()
         controller.target(lang, textId, sentence)
     }
+    LaunchedEffect(startIndex) { index = startIndex.coerceIn(0, sentences.lastIndex.coerceAtLeast(0)) }
     LaunchedEffect(permission.granted, pendingRecording) {
         if (permission.granted && pendingRecording) {
             pendingRecording = false
@@ -97,6 +103,10 @@ fun Tts.togglePronounce(text: String, lang: String, settings: AppSettings) {
         }
     }
     DisposableEffect(Unit) { onDispose { replayJob?.cancel(); controller.cancel(); tts.stop() } }
+    androidx.lifecycle.compose.LifecycleEventEffect(androidx.lifecycle.Lifecycle.Event.ON_PAUSE) {
+        pendingRecording = false
+        replayJob?.cancel(); controller.cancel(); tts.stop()
+    }
     Surface(modifier = modifier.fillMaxWidth(), color = MaterialTheme.colorScheme.surfaceVariant,
         shape = MaterialTheme.shapes.large) {
         Column(Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 4.dp)) {
@@ -113,6 +123,7 @@ fun Tts.togglePronounce(text: String, lang: String, settings: AppSettings) {
                 ShadowPhase.Recording -> Text(stringResource(Res.string.shadowing_listening), style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.primary)
                 ShadowPhase.Saving -> Text(stringResource(Res.string.shadowing_recognizing), style = MaterialTheme.typography.bodySmall)
+                ShadowPhase.Recorded -> Text(stringResource(Res.string.shadowing_listening), style = MaterialTheme.typography.bodySmall)
                 is ShadowPhase.Error -> Text(stringResource(if (current.notHeard) Res.string.shadowing_not_heard else Res.string.shadowing_engine_failed),
                     style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
                 is ShadowPhase.Result -> {
@@ -134,8 +145,12 @@ fun Tts.togglePronounce(text: String, lang: String, settings: AppSettings) {
                     IconButton(onClick = { if (index > 0) { index--; onStep(index) } }, enabled = index > 0 && phase != ShadowPhase.Recording && phase != ShadowPhase.Saving, modifier = Modifier.size(40.dp)) {
                         Icon(Icons.Default.SkipPrevious, contentDescription = stringResource(Res.string.watch_shadow_previous))
                     }
-                    IconButton(onClick = ::playOriginal, enabled = phase != ShadowPhase.Recording && phase != ShadowPhase.Saving, modifier = Modifier.size(40.dp)) {
-                        Icon(Icons.Default.PlayArrow, contentDescription = stringResource(Res.string.shadowing_play_original))
+                    IconButton(onClick = {
+                        if (phase == ShadowPhase.Playing) { replayJob?.cancel(); tts.stop(); pauseOriginal(); controller.cancel() }
+                        else playOriginal()
+                    }, enabled = phase != ShadowPhase.Recording && phase != ShadowPhase.Saving, modifier = Modifier.size(40.dp)) {
+                        Icon(if (phase == ShadowPhase.Playing) Icons.Default.Pause else Icons.Default.PlayArrow,
+                            contentDescription = stringResource(if (phase == ShadowPhase.Playing) Res.string.watch_shadow_stop else Res.string.shadowing_play_original))
                     }
                     IconButton(onClick = ::playOriginal, enabled = phase != ShadowPhase.Recording && phase != ShadowPhase.Saving, modifier = Modifier.size(40.dp)) {
                         Icon(Icons.Default.Replay, contentDescription = stringResource(Res.string.watch_shadow_repeat))
@@ -170,8 +185,8 @@ fun Tts.togglePronounce(text: String, lang: String, settings: AppSettings) {
                             contentDescription = stringResource(if (recording) Res.string.watch_shadow_stop else Res.string.watch_shadow_record),
                             tint = if (recording) MaterialTheme.colorScheme.onErrorContainer else MaterialTheme.colorScheme.onPrimaryContainer)
                     }
-                    IconButton(onClick = controller::replayMine,
-                        enabled = controller.hasRecording && phase != ShadowPhase.Recording && phase != ShadowPhase.Saving,
+                    IconButton(onClick = { pauseOriginal(); controller.replayMine() },
+                        enabled = controller.hasRecording && phase != ShadowPhase.Playing && phase != ShadowPhase.Recording && phase != ShadowPhase.Saving,
                         modifier = Modifier.size(40.dp)) {
                         Icon(Icons.Default.Hearing, contentDescription = stringResource(Res.string.shadowing_replay_mine))
                     }

@@ -16,8 +16,38 @@ private class FakeRecognizer(var next: RecognizedSpeech = RecognizedSpeech("le c
     }
     override fun stop() = Unit
 }
+private class FakeVoiceRecorder(var next: RecognizedSpeech = RecognizedSpeech("", 1000)) : SpeechRecognizer {
+    var calls = 0
+    var recorded = false
+    var pending: CompletableDeferred<RecognizedSpeech>? = null
+    override val hasRecording get() = recorded
+    override suspend fun listenOnce(langCode: String, maxMs: Long) = error("ASR must not run")
+    override suspend fun recordOnce(langCode: String, maxMs: Long): Result<RecognizedSpeech> {
+        calls++
+        return Result.success(pending?.await() ?: next).also { recorded = true }
+    }
+    override fun stop() = Unit
+}
 @OptIn(ExperimentalCoroutinesApi::class)
 class ShadowingControllerTest {
+    @Test fun recordingOnlyCompletesWithoutScoringOrSaving() = runTest {
+        val recorder = FakeVoiceRecorder()
+        var saves = 0
+        val c = ShadowingController(this, recorder, { saves++ }, scoreRecording = false)
+        c.target(Languages.ENGLISH, 2, "hello"); c.played(1000)
+        assertTrue(c.listen()); advanceUntilIdle()
+        assertEquals(ShadowPhase.Recorded, c.phase.value)
+        assertTrue(c.hasRecording); assertEquals(1, recorder.calls); assertEquals(0, saves)
+    }
+    @Test fun recordingOnlyIgnoresShortRecordingsAndDropsCancelledGeneration() = runTest {
+        val recorder = FakeVoiceRecorder(RecognizedSpeech("", 200))
+        val c = ShadowingController(this, recorder, {}, scoreRecording = false)
+        c.target(Languages.ENGLISH, null, "hello"); c.listen(); advanceUntilIdle()
+        assertEquals(ShadowPhase.Idle, c.phase.value)
+        recorder.next = RecognizedSpeech("", 1000); recorder.pending = CompletableDeferred()
+        c.listen(); runCurrent(); c.cancel(); recorder.pending!!.complete(RecognizedSpeech("", 1000)); advanceUntilIdle()
+        assertEquals(ShadowPhase.Idle, c.phase.value)
+    }
     @Test fun retryWaitsForCancelledMicrophoneTeardown() = runTest {
         var sessions = 0
         var cleaning = false

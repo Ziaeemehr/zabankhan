@@ -22,7 +22,9 @@ interface Tts {
     fun setAudioPinned(pinned: Boolean) {}
     val speakingRange: StateFlow<IntRange?>
     val isSpeaking: StateFlow<Boolean>
-    fun speak(text: String, langCode: String, rate: Float, onDone: () -> Unit)
+    fun speak(text: String, langCode: String, rate: Float, onDone: () -> Unit) =
+        speak(text, langCode, rate, onError = {}, onDone = onDone)
+    fun speak(text: String, langCode: String, rate: Float, onError: () -> Unit, onDone: () -> Unit)
     fun stop()
     fun voices(langCode: String): List<TtsVoice>
     fun setVoice(id: String?)
@@ -35,6 +37,8 @@ fun createTts(): Tts = SpeechEngine.current ?: createDeviceTts()
 data class RecognizedSpeech(val text: String, val durationMs: Long)
 interface SpeechRecognizer {
     suspend fun listenOnce(langCode: String, maxMs: Long = 15000): Result<RecognizedSpeech>
+    suspend fun recordOnce(langCode: String, maxMs: Long = 15000): Result<RecognizedSpeech> =
+        Result.failure(UnsupportedOperationException("Recording is unavailable"))
     fun stop()
     val hasRecording: Boolean get() = false
     fun replay() {}
@@ -42,11 +46,13 @@ interface SpeechRecognizer {
     fun clearRecording() {}
 }
 expect fun createSpeechRecognizer(): SpeechRecognizer
+expect fun createVoiceRecorder(): SpeechRecognizer
 interface MicPermission {
     val granted: Boolean
     fun request()
 }
 @Composable expect fun rememberMicPermission(): MicPermission
+@Composable expect fun rememberVoiceRecordingPermission(): MicPermission
 
 fun learningSpeechLanguage(code: String) = requireNotNull(Languages.learnable.firstOrNull { it.code == code }) {
     "Speech is available only for learning languages"

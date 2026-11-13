@@ -46,6 +46,7 @@ internal fun PagedReadingContent(
     inkFaded: Color,
     requestedAnchor: ReadingAnchor?,
     userScrollEnabled: Boolean,
+    onUserNavigate: () -> Unit,
     onAnchorConsumed: () -> Unit,
     onVisiblePage: (ReadingPage) -> Unit,
     modifier: Modifier = Modifier,
@@ -99,6 +100,7 @@ internal fun PagedReadingContent(
                         .coerceIn(0, pages.lastIndex)
                     if (target != pagerState.currentPage) {
                         up.consume()
+                        onUserNavigate()
                         animationScope.launch { pagerState.animateScrollToPage(target) }
                     }
                 }

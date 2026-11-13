@@ -18,6 +18,23 @@ interface LibrarySyncDao {
     @Query("SELECT * FROM pdf_text_notes") suspend fun notes(): List<PdfTextNote>
     @Query("SELECT * FROM pdf_highlights") suspend fun pdfHighlights(): List<PdfHighlight>
     @Query("SELECT * FROM highlights") suspend fun highlights(): List<HighlightEntry>
+    @Query("SELECT * FROM video_channels") suspend fun videoChannels(): List<VideoChannelEntity>
+    @Query("SELECT * FROM saved_videos") suspend fun savedVideos(): List<SavedVideoEntity>
+    @Query("SELECT * FROM saved_videos WHERE stableKey = :key LIMIT 1") suspend fun savedVideoByKey(key: String): SavedVideoEntity?
+    @Upsert suspend fun upsertSavedVideo(row: SavedVideoEntity)
+    @Query("DELETE FROM saved_videos WHERE stableKey = :key") suspend fun deleteSavedVideo(key: String)
+    @Query("SELECT * FROM video_playlists") suspend fun videoPlaylists(): List<VideoPlaylistEntity>
+    @Query("SELECT * FROM video_playlists WHERE syncId = :syncId LIMIT 1") suspend fun videoPlaylistBySyncId(syncId: String): VideoPlaylistEntity?
+    @Upsert suspend fun upsertVideoPlaylist(row: VideoPlaylistEntity)
+    @Query("DELETE FROM video_playlists WHERE syncId = :syncId") suspend fun deleteVideoPlaylist(syncId: String)
+    @Query("SELECT * FROM video_playlist_memberships") suspend fun videoPlaylistMemberships(): List<VideoPlaylistMembershipEntity>
+    @Upsert suspend fun upsertVideoPlaylistMembership(row: VideoPlaylistMembershipEntity)
+    @Query("DELETE FROM video_playlist_memberships WHERE playlistSyncId = :playlistSyncId AND videoKey = :videoKey") suspend fun deleteVideoPlaylistMembership(playlistSyncId: String, videoKey: String)
+    @Query("DELETE FROM video_playlist_memberships WHERE playlistSyncId = :playlistSyncId") suspend fun clearVideoPlaylistMemberships(playlistSyncId: String)
+    @Query("DELETE FROM video_playlist_memberships WHERE videoKey = :videoKey") suspend fun deleteMembershipsForVideo(videoKey: String)
+    @Query("SELECT * FROM video_channels WHERE syncId = :syncId LIMIT 1") suspend fun videoChannelBySyncId(syncId: String): VideoChannelEntity?
+    @Upsert suspend fun upsertVideoChannel(row: VideoChannelEntity)
+    @Query("DELETE FROM video_channels WHERE syncId = :syncId") suspend fun deleteVideoChannel(syncId: String)
     @Query("SELECT * FROM library_sync_shadow") suspend fun getAll(): List<LibrarySyncShadow>
     @Upsert suspend fun upsertAll(rows: List<LibrarySyncShadow>)
     @Query("DELETE FROM library_sync_shadow") suspend fun deleteAll()
@@ -28,7 +45,11 @@ interface LibrarySyncDao {
         (SELECT COUNT(*) FROM library_tags) || '|' || (SELECT COUNT(*) FROM text_tags) || '|' ||
         (SELECT COUNT(*) || ':' || IFNULL(SUM(length(strokes)),0) FROM pdf_ink) || '|' ||
         (SELECT COUNT(*) || ':' || IFNULL(SUM(length(body)),0) FROM pdf_text_notes) || '|' ||
-        (SELECT COUNT(*) FROM pdf_highlights) || '|' || (SELECT COUNT(*) FROM highlights)""") fun observeLibraryStamp(): Flow<String>
+        (SELECT COUNT(*) FROM pdf_highlights) || '|' || (SELECT COUNT(*) FROM highlights) || '|' ||
+        IFNULL((SELECT GROUP_CONCAT(rowStamp, ',') FROM (SELECT hex(channelId) || ':' || hex(lang) || ':' || hex(title) || ':' || hex(category) || ':' || IFNULL(hex(level),'!') || ':' || hex(syncId) AS rowStamp FROM video_channels ORDER BY channelId)), '') || '|' ||
+        IFNULL((SELECT GROUP_CONCAT(rowStamp, ',') FROM (SELECT hex(stableKey) || ':' || hex(lang) || ':' || hex(videoId) || ':' || hex(path) || ':' || hex(subtitlePath) || ':' || hex(title) || ':' || hex(channel) || ':' || isFavorite || ':' || updatedAtMs AS rowStamp FROM saved_videos ORDER BY stableKey)), '') || '|' ||
+        IFNULL((SELECT GROUP_CONCAT(rowStamp, ',') FROM (SELECT hex(syncId) || ':' || hex(lang) || ':' || hex(name) || ':' || createdAtMs || ':' || updatedAtMs AS rowStamp FROM video_playlists ORDER BY syncId)), '') || '|' ||
+        IFNULL((SELECT GROUP_CONCAT(rowStamp, ',') FROM (SELECT hex(playlistSyncId) || ':' || hex(videoKey) || ':' || addedAtMs AS rowStamp FROM video_playlist_memberships ORDER BY playlistSyncId, videoKey)), '')""") fun observeLibraryStamp(): Flow<String>
     @Query("SELECT * FROM texts WHERE syncId = :syncId LIMIT 1") suspend fun textBySyncId(syncId: String): TextDocument?
     @Query("SELECT * FROM library_folders WHERE syncId = :syncId LIMIT 1") suspend fun folderBySyncId(syncId: String): LibraryFolder?
     @Query("SELECT * FROM library_tags WHERE lang = :lang AND name = :name LIMIT 1") suspend fun tagByName(lang: String, name: String): LibraryTag?

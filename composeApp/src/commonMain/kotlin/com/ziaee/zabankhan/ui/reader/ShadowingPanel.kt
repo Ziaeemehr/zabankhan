@@ -66,6 +66,7 @@ private fun ShadowingPanel(
             ShadowPhase.Recording -> stringResource(Res.string.shadowing_listening)
             ShadowPhase.Saving -> stringResource(Res.string.shadowing_recognizing)
             is ShadowPhase.Result -> stringResource(Res.string.shadowing_score, p.alignment.matched, p.alignment.total)
+            ShadowPhase.Recorded -> stringResource(Res.string.shadowing_replay_mine)
             is ShadowPhase.Error -> stringResource(
                 if (p.notHeard) Res.string.shadowing_not_heard else Res.string.shadowing_engine_failed
             )
@@ -176,7 +177,9 @@ internal fun ReaderShadowingPanel(container: com.ziaee.zabankhan.app.AppContaine
             controller.preparePlayback()
             val started = kotlin.time.TimeSource.Monotonic.markNow()
             tts.setVoice(settings.ttsVoices[lang.code])
-            tts.speak(sentence, lang.code, settings.speechRate) { controller.played(started.elapsedNow().inWholeMilliseconds) }
+            tts.speak(sentence, lang.code, settings.speechRate,
+                onError = { controller.playbackFailed() },
+                onDone = { controller.played(started.elapsedNow().inWholeMilliseconds) })
         }
     }
     androidx.compose.runtime.LaunchedEffect(index) { controller.target(lang, textId, sentence); play() }

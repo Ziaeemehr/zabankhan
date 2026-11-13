@@ -49,6 +49,12 @@ class SettingsLearningLanguageTest {
         assertTrue(repository.current().learningLangs.isEmpty())
     }
 
+    @Test fun frenchDictionaryMeaningLanguageSurvivesSettingsReload() = runTest {
+        val store = MemoryStore()
+        SettingsRepository(store, secrets = FakeSecretStore()).setDictionaryMeaningLang(Languages.FRENCH.code)
+        assertEquals(Languages.FRENCH.code, SettingsRepository(store, secrets = FakeSecretStore()).current().dictionaryMeaningLang)
+    }
+
     @Test fun persianCannotBeAddedOrActivatedAsLearningLanguage() = runTest {
         val repository = SettingsRepository(MemoryStore(), secrets = FakeSecretStore())
         assertFailsWith<IllegalArgumentException> { repository.addLearningLang(Languages.PERSIAN.code) }

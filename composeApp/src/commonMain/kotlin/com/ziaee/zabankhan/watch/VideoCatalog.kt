@@ -4,20 +4,33 @@ import com.ziaee.zabankhan.lang.*
 import io.ktor.client.HttpClient
 import io.ktor.client.request.get
 import io.ktor.client.statement.bodyAsText
+import io.ktor.http.decodeURLPart
 import kotlinx.serialization.json.*
 
 /** Permanent channel IDs keep suggestions valid when a channel renames its handle.
  * [description] is keyed by interface language ("en", "fr", "fa"); [level] is a CEFR range such as "A2–B1". */
-data class VideoChannel(val channelId: String, val title: String, val level: String? = null, val description: Map<String, String> = emptyMap())
+data class VideoChannel(val channelId: String, val title: String, val level: String? = null, val description: Map<String, String> = emptyMap(), val category: String = "education", val personal: Boolean = false)
 private fun d(en: String, fr: String, fa: String) = mapOf("en" to en, "fr" to fr, "fa" to fa)
 data class ChannelVideo(val videoId: String, val title: String, val published: String, val thumbnail: String)
 
 object VideoCatalog {
     fun channels(lang: LanguageSpec): List<VideoChannel> = when (lang.code) {
-        Languages.FRENCH.code -> frenchChannels
+        Languages.FRENCH.code -> (frenchChannels + streamTvFilms).map { channel ->
+            val title = channel.title.lowercase()
+            val category = when {
+                listOf("hugo", "monde", "brut", "france 24", "info", "bfmtv", "afp", "news", "actu", "cnews", "lc i").any(title::contains) -> "news"
+                listOf("documentaire", "documentary", "reportage", "arte", "histoire", "documentaires").any(title::contains) -> "documentaries"
+                listOf("série", "serie", "films", "film", "streamtvfilms", "peppa", "caillou", "masha", "disney", "miraculous").any(title::contains) -> "films"
+                else -> "education"
+            }
+            channel.copy(category = category)
+        }
         Languages.ENGLISH.code -> englishChannels
         else -> emptyList()
     }
+    val categories = listOf("education", "films", "news", "documentaries", "other")
+    private val streamTvFilms = listOf(VideoChannel("UCKqmnQFF2PgokPDdX-L2fwQ", "StreamTVFilms", null,
+        d("French films and series.", "Films et séries en français.", "فیلم‌ها و سریال‌های فرانسوی."), "films"))
     private val englishChannels = listOf(
         VideoChannel("UCHaHD477h-FeBbVh9Sh7syA", "BBC Learning English", "A2–B2", d("Short lessons on grammar, vocabulary and pronunciation, plus English in the news.",
             "Courtes leçons de grammaire, de vocabulaire et de prononciation, et l'anglais de l'actualité.", "درس‌های کوتاه دستور، واژگان و تلفظ، همراه با انگلیسیِ اخبار.")),
@@ -32,6 +45,62 @@ object VideoCatalog {
         VideoChannel("UCvn_XCl_mgQmt3sD753zdJA", "Rachel's English", "B1–C1", d("American English pronunciation: sounds, rhythm and connected speech.",
             "Prononciation de l'anglais américain : sons, rythme et enchaînements.", "تلفظ انگلیسی آمریکایی: صداها، ریتم و پیوستگی گفتار.")),
     )
+}
+
+fun mergeVideoChannels(curated: List<VideoChannel>, personal: List<VideoChannel>): List<VideoChannel> =
+    (curated + personal).distinctBy { it.channelId }
+
+fun filterVideoChannelsByCategory(channels: List<VideoChannel>, category: String?): List<VideoChannel> =
+    if (category == null) channels else channels.filter { it.category == category }
+
+private const val YOUTUBE_CHANNEL_ID = "UC[A-Za-z0-9_-]{22}"
+
+private data class YoutubeChannelAddress(val explicitId: String?, val fetchUrl: String)
+
+private fun channelAddress(input: String): YoutubeChannelAddress? = runCatching {
+    val value = input.trim()
+    val candidate = when {
+        value.startsWith("@") -> "https://www.youtube.com/$value"
+        "://" in value -> value
+        else -> "https://$value"
+    }
+    val url = io.ktor.http.Url(candidate)
+    if (url.protocol.name !in listOf("http", "https") || url.host.lowercase() !in setOf("youtube.com", "www.youtube.com", "m.youtube.com")) return null
+    if (!url.user.isNullOrEmpty() || !url.password.isNullOrEmpty()) return null
+    if (url.port != url.protocol.defaultPort) return null
+    val path = url.encodedPath.removePrefix("/").removeSuffix("/").split('/')
+    val explicitId = if (path.size == 2 && path[0] == "channel" && Regex(YOUTUBE_CHANNEL_ID).matches(path[1])) path[1] else null
+    val isHandle = path.size == 1 && runCatching {
+        val handle = path[0].decodeURLPart()
+        handle.startsWith('@') && handle.length in 4..31 && handle.drop(1).all { ch ->
+            ch.isLetterOrDigit() || ch == '.' || ch == '_' || ch == '-' || ch.code > 127 && !ch.isWhitespace() && ch.code !in 0..31 && ch.code != 127
+        }
+    }.getOrDefault(false)
+    if (explicitId == null && !isHandle) return null
+    val canonicalHost = "www.youtube.com"
+    val canonicalPath = if (explicitId != null) "/channel/$explicitId" else "/${path.single()}"
+    YoutubeChannelAddress(explicitId, "https://$canonicalHost$canonicalPath")
+}.getOrNull()
+
+fun youtubeChannelId(input: String): String? = channelAddress(input)?.explicitId
+
+fun validateYoutubeChannelUrl(input: String): Boolean = channelAddress(input) != null
+
+/** Resolve both permanent IDs and handles from YouTube's canonical channel metadata. */
+suspend fun resolveYoutubeChannel(http: HttpClient, input: String): VideoChannel {
+    val address = channelAddress(input) ?: throw IllegalArgumentException("Invalid YouTube channel URL")
+    val response = http.get(address.fetchUrl)
+    require(response.status.value in 200..299) { "Could not resolve YouTube channel" }
+    val root = parseYoutubeInitialData(response.bodyAsText())
+    val metadata = root.jsonObject["metadata"]?.jsonObject?.get("channelMetadataRenderer")?.jsonObject
+        ?: error("YouTube channel metadata not found")
+    val resolvedId = metadata["externalId"]?.jsonPrimitive?.contentOrNull
+        ?.takeIf { Regex(YOUTUBE_CHANNEL_ID).matches(it) }
+        ?: error("YouTube channel ID not found")
+    require(address.explicitId == null || address.explicitId == resolvedId) { "YouTube channel ID does not match metadata" }
+    val title = metadata["title"]?.jsonPrimitive?.contentOrNull?.takeIf { it.isNotBlank() }
+        ?: error("YouTube channel title not found")
+    return VideoChannel(resolvedId, title)
 }
 
 /** Missing levels match All only; a range includes its intermediate CEFR levels. */
@@ -85,31 +154,7 @@ fun parseYoutubeFeed(xml: String): List<ChannelVideo> {
 
 /** YouTube's public channel feed can return 404 while the channel page is still available. */
 fun parseYoutubeChannelPage(html: String): List<ChannelVideo> {
-    val marker = "ytInitialData = "
-    val start = html.indexOf(marker)
-    require(start >= 0) { "YouTube channel data not found" }
-    val jsonStart = start + marker.length
-    var depth = 0
-    var inString = false
-    var escaped = false
-    var jsonEnd = -1
-    for (index in jsonStart until html.length) {
-        val char = html[index]
-        if (inString) {
-            if (escaped) escaped = false
-            else if (char == '\\') escaped = true
-            else if (char == '"') inString = false
-        } else when (char) {
-            '"' -> inString = true
-            '{' -> depth++
-            '}' -> {
-                depth--
-                if (depth == 0) { jsonEnd = index + 1; break }
-            }
-        }
-    }
-    require(jsonEnd > jsonStart) { "YouTube channel data is incomplete" }
-    val initialData = Json.parseToJsonElement(html.substring(jsonStart, jsonEnd))
+    val initialData = parseYoutubeInitialData(html)
     val videos = mutableListOf<ChannelVideo>()
     fun JsonObject.text(key: String): String? = this[key]?.jsonPrimitive?.contentOrNull
     fun JsonObject?.displayText(): String? = this?.let { text("simpleText") ?: it["content"]?.jsonPrimitive?.contentOrNull
@@ -153,6 +198,35 @@ fun parseYoutubeChannelPage(html: String): List<ChannelVideo> {
     }
     collect(initialData)
     return videos.distinctBy { it.videoId }
+}
+
+/** Extract and parse the balanced ytInitialData object shared by video and channel metadata readers. */
+private fun parseYoutubeInitialData(html: String): JsonElement {
+    val marker = "ytInitialData = "
+    val start = html.indexOf(marker)
+    require(start >= 0) { "YouTube channel data not found" }
+    val jsonStart = start + marker.length
+    var depth = 0
+    var inString = false
+    var escaped = false
+    var jsonEnd = -1
+    for (index in jsonStart until html.length) {
+        val char = html[index]
+        if (inString) {
+            if (escaped) escaped = false
+            else if (char == '\\') escaped = true
+            else if (char == '"') inString = false
+        } else when (char) {
+            '"' -> inString = true
+            '{' -> depth++
+            '}' -> {
+                depth--
+                if (depth == 0) { jsonEnd = index + 1; break }
+            }
+        }
+    }
+    require(jsonEnd > jsonStart) { "YouTube channel data is incomplete" }
+    return Json.parseToJsonElement(html.substring(jsonStart, jsonEnd))
 }
 
 suspend fun fetchChannelVideos(http: HttpClient, channelId: String): List<ChannelVideo> {

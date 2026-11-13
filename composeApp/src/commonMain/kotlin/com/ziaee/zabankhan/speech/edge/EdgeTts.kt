@@ -75,7 +75,7 @@ class EdgeTts(
         catch (e: Exception) { Result.failure(e) }
         finally { progress.value = null }
     }
-    override fun speak(text: String, langCode: String, rate: Float, onDone: () -> Unit) {
+    override fun speak(text: String, langCode: String, rate: Float, onError: () -> Unit, onDone: () -> Unit) {
         val previous = job
         stop()
         job = scope.launch {
@@ -83,7 +83,7 @@ class EdgeTts(
             ensureActive()
             try { playText(text, langCode, rate); onDone() }
             catch (e: CancellationException) { throw e }
-            catch (_: Exception) { status.value = SpeechAudioStatus.ERROR; onDone() }
+            catch (_: Exception) { status.value = SpeechAudioStatus.ERROR; onError() }
         }
     }
     /** Timing metadata gives each clip its place in this utterance's audio timeline. */

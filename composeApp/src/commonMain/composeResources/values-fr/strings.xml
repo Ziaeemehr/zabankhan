@@ -185,6 +185,7 @@
     <string name="watch_copy_sentence">Copier la phrase</string>
     <string name="watch_added">Transcription ajoutée à la bibliothèque</string>
     <string name="watch_export_library">Ajouter la transcription à la bibliothèque</string>
+    <string name="create_folder">Créer un dossier</string>
     <string name="watch_export_share">Partager le texte de la transcription</string>
     <string name="watch_export_srt">Exporter les sous-titres SRT</string>
     <string name="watch_export_failed">Échec de l’exportation. Veuillez réessayer.</string>
@@ -371,4 +372,10 @@
     <string name="translation_source_google">Google Traduction</string>
     <string name="translation_source_bundled">Traduction intégrée</string>
     <string name="translation_source_dictionary">Dictionnaire hors ligne</string>
+    <string name="video_playlists">Listes de vidéos</string>
+    <string name="video_playlist_new">Nouvelle liste</string>
+    <string name="video_playlist_rename">Renommer la liste</string>
+    <string name="video_playlist_choose">Choisir les listes</string>
+    <string name="done">Terminé</string>
+    <string name="videos_playlists">Listes</string>
 </resources>
