@@ -39,6 +39,16 @@ class ShadowingControllerTest {
         assertEquals(ShadowPhase.Recorded, c.phase.value)
         assertTrue(c.hasRecording); assertEquals(1, recorder.calls); assertEquals(0, saves)
     }
+    @Test fun scoredStopAlwaysReachesFinalState() = runTest {
+        val recorder = FakeRecognizer(); recorder.pending = CompletableDeferred()
+        val c = ShadowingController(this, recorder, {})
+        c.target(Languages.FRENCH, null, "le chat"); c.listen(); runCurrent()
+        c.finishRecording(); recorder.pending!!.complete(RecognizedSpeech("le chat", 1000)); advanceUntilIdle()
+        assertTrue(c.phase.value is ShadowPhase.Result)
+        recorder.pending = CompletableDeferred(); c.cancel(); c.listen(); runCurrent()
+        c.finishRecording(); recorder.pending!!.complete(RecognizedSpeech("", 1000)); advanceUntilIdle()
+        assertEquals(ShadowPhase.Error(true), c.phase.value)
+    }
     @Test fun recordingOnlyIgnoresShortRecordingsAndDropsCancelledGeneration() = runTest {
         val recorder = FakeVoiceRecorder(RecognizedSpeech("", 200))
         val c = ShadowingController(this, recorder, {}, scoreRecording = false)

@@ -12,8 +12,11 @@ suspend fun replayShadowCue(player: VideoController, startMs: Long, endMs: Long,
         player.seekTo(startMs); player.play()
         withTimeout(duration + 5000) {
             player.positionMs.first { it in startMs until endMs }
-            player.positionMs.first { it >= endMs }
+            // Position updates arrive every ~200 ms and pausing lags; stop a little early so the next sentence never starts.
+            player.positionMs.first { it >= endMs - END_LEAD_MS }
         }
         return duration
     } finally { player.pause() }
 }
+
+private const val END_LEAD_MS = 250L

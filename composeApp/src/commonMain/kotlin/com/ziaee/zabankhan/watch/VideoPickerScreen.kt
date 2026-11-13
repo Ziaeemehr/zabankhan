@@ -7,6 +7,15 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Link
+import androidx.compose.material.icons.filled.Mic
+import androidx.compose.material.icons.filled.Hearing
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.VideoLibrary
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.PlayCircle
 import androidx.compose.material.icons.filled.Favorite
@@ -41,16 +50,44 @@ fun watchRoute(videoId: String = "", path: String = "", subs: String = "", shado
     LaunchedEffect(lang) { recent = WatchHistory(vm.container.cache).readShadow(lang) }
     Column(Modifier.fillMaxSize()) {
         EditorialTopAppBar(stringResource(Res.string.shadow_entry_title), back = back)
-        Column(Modifier.fillMaxWidth().padding(20.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-            Text(stringResource(Res.string.shadow_entry_guide), style = MaterialTheme.typography.bodyLarge)
+        Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+            Surface(Modifier.fillMaxWidth(), shape = MaterialTheme.shapes.extraLarge, color = MaterialTheme.colorScheme.primaryContainer) {
+                Column(Modifier.padding(20.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Box(Modifier.size(64.dp).clip(CircleShape).background(MaterialTheme.colorScheme.primary), contentAlignment = Alignment.Center) {
+                        Icon(Icons.Default.Mic, null, tint = MaterialTheme.colorScheme.onPrimary, modifier = Modifier.size(34.dp))
+                    }
+                    Text(stringResource(Res.string.shadow_entry_intro), style = MaterialTheme.typography.bodyLarge, textAlign = TextAlign.Center,
+                        color = MaterialTheme.colorScheme.onPrimaryContainer)
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        listOf(Res.string.shadow_step_listen to Icons.Default.Hearing, Res.string.shadow_step_repeat to Icons.Default.Mic,
+                            Res.string.shadow_step_compare to Icons.Default.CheckCircle).forEach { (label, icon) ->
+                            Column(Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                Icon(icon, null, tint = MaterialTheme.colorScheme.primary)
+                                Text(stringResource(label), style = MaterialTheme.typography.labelMedium, textAlign = TextAlign.Center,
+                                    color = MaterialTheme.colorScheme.onPrimaryContainer)
+                            }
+                        }
+                    }
+                }
+            }
             recent?.let { video ->
-                EditorialPrimaryButton(stringResource(Res.string.shadow_entry_continue, video.title.ifBlank { video.videoId }), onClick = {
+                Text(stringResource(Res.string.shadow_entry_resume_label), style = MaterialTheme.typography.titleSmall)
+                Card(onClick = {
                     resume(video.copy(
                         path = video.path?.let { com.ziaee.zabankhan.data.rebaseSavedVideoPath(it, com.ziaee.zabankhan.pdf.AppFiles.filesDir) },
                         subs = video.subs?.let { com.ziaee.zabankhan.data.rebaseSavedVideoPath(it, com.ziaee.zabankhan.pdf.AppFiles.filesDir) }))
-                })
+                }, modifier = Modifier.fillMaxWidth()) {
+                    Row(Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        Icon(Icons.Default.PlayCircle, null, Modifier.size(40.dp), tint = MaterialTheme.colorScheme.primary)
+                        Text(video.title.ifBlank { video.videoId }, Modifier.weight(1f), style = MaterialTheme.typography.titleMedium, maxLines = 2,
+                            overflow = TextOverflow.Ellipsis)
+                    }
+                }
             }
-            EditorialPrimaryButton(stringResource(Res.string.shadow_entry_choose), choose)
+            Text(stringResource(Res.string.shadow_entry_new_label), style = MaterialTheme.typography.titleSmall)
+            Button(onClick = choose, modifier = Modifier.fillMaxWidth().height(52.dp)) {
+                Icon(Icons.Default.VideoLibrary, null); Spacer(Modifier.width(8.dp)); Text(stringResource(Res.string.shadow_entry_choose))
+            }
         }
     }
 }

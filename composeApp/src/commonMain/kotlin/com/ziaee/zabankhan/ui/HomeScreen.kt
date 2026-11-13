@@ -124,7 +124,7 @@ import com.ziaee.zabankhan.watch.WatchHistory
             }
             if (statsReady) item { DailyReviewCard(due, review, itemModifier) }
             item { WatchVideosCard(languageLabel, watch, itemModifier) }
-            item { TextButton(onClick = shadow, modifier = itemModifier) { Text(stringResource(Res.string.shadow_entry_title)) } }
+            item { ShadowingCard(shadow, itemModifier) }
             item { TodayNewsCard(headlineCount, languageLabel, news, Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) }
             item { GrammarCard(languageLabel, grammar, itemModifier) }
             item { DatasetEntryCard(lang, datasets, itemModifier) }

@@ -24,8 +24,8 @@ class CueReplayTest {
         runCurrent(); assertEquals(1000, player.sought); assertTrue(player.isPlaying.value)
         assertFalse(result.isCompleted) // cached position is already beyond the cue
         player.positionMs.value = 1000; runCurrent()
-        player.positionMs.value = 1999; runCurrent(); assertFalse(result.isCompleted)
-        player.positionMs.value = 2000; runCurrent()
+        player.positionMs.value = 1700; runCurrent(); assertFalse(result.isCompleted)
+        player.positionMs.value = 1750; runCurrent() // stops 250 ms early to absorb position lag
         assertEquals(800, result.await()); assertEquals(1, player.paused)
     }
     @Test fun cancellationAndStalledPlaybackPause() = runTest {

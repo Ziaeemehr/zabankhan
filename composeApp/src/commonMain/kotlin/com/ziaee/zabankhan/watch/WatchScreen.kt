@@ -262,7 +262,7 @@ import kotlin.time.TimeSource
         }
     }
     BoxWithConstraints(Modifier.fillMaxSize()) {
-        val playerHeight = if (settings.watchCompactPlayer) 96.dp else maxOf(96.dp, minOf(maxWidth * 9f / 16f, maxHeight * .35f))
+        val playerHeight = if (settings.watchCompactPlayer) 96.dp else maxOf(96.dp, minOf(maxWidth * 9f / 16f, maxHeight * if (shadowMode) .26f else .35f))
         val playerWidth = if (settings.watchCompactPlayer) minOf(playerHeight * 16f / 9f, maxWidth * .55f) else minOf(maxWidth, playerHeight * 16f / 9f)
         Column(Modifier.fillMaxSize()) {
             var optionsOpen by remember { mutableStateOf(false) }
@@ -331,7 +331,7 @@ import kotlin.time.TimeSource
                     player(Modifier.size(playerWidth, playerHeight).clip(RoundedCornerShape(16.dp)))
                 }
             }
-            FlowRow(
+            if (!shadowMode) FlowRow(
                 Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 2.dp),
                 horizontalArrangement = Arrangement.spacedBy(4.dp),
                 verticalArrangement = Arrangement.spacedBy(2.dp),
@@ -365,7 +365,42 @@ import kotlin.time.TimeSource
             Box(Modifier.weight(1f).fillMaxWidth()) {
                 val lineHeight = with(density) { subtitleStyle.lineHeight.toPx().toInt() }
                 val itemHeight = with(density) { transcriptItemHeight(viewport, lineHeight, 32.dp.roundToPx(), 8.dp.roundToPx()).toDp() }
-                LazyColumn(state = list, contentPadding = PaddingValues(vertical = padding), verticalArrangement = Arrangement.spacedBy(8.dp),
+                if (shadowMode) {
+                    if (shadowSentences.isNotEmpty()) {
+                        val shadowIdx = (shadowIndex ?: shadowSentenceIndex).coerceIn(0, shadowSentences.lastIndex)
+                        ShadowStage(
+                            vm.container, lang, document?.id?.takeIf { it > 0 }, shadowSentences.map { it.text }, shadowIdx,
+                            onIndexChange = { next ->
+                                shadowIndex = next; following = true
+                                controller?.pause(); controller?.seekTo(shadowSentences[next].startMs)
+                            },
+                            replay = { i -> shadowIndex = i; val cue = shadowSentences[i]; replayShadowCue(checkNotNull(controller), cue.startMs, cue.endMs, rate) },
+                            rate = rate, onRateChange = { rate = it }, autoPause = autoPauseShadow, onAutoPauseChange = { autoPauseShadow = it },
+                            translationOn = settings.watchTranslationEnabled,
+                            onTranslationToggle = { val enable = !settings.watchTranslationEnabled; scope.launch { vm.container.settings.setWatchTranslationEnabled(enable) } },
+                            pauseOriginal = { controller?.pause() },
+                            sentenceContent = { text ->
+                                val unit = shadowSentences[shadowIdx]
+                                val mi = merged.unitIndex(findCueIndex(cueList, unit.startMs).coerceAtLeast(0)).coerceIn(0, (sentences.size - 1).coerceAtLeast(0))
+                                val big = MaterialTheme.typography.titleLarge.copy(textAlign = TextAlign.Center, textDirection = TextDirection.Content)
+                                TranscriptSentence(text, lang, highlighter, idiomMatcher, big, false, null, onLayout = {}, onLookup = { query ->
+                                    controller?.pause()
+                                    sentences.getOrNull(mi)?.let { selection = ReaderSelection(query, it.text, offsets[mi] until offsets[mi] + it.text.length, false) }
+                                }, onCopy = null)
+                            },
+                            translation = { text ->
+                                LaunchedEffect(text, settings.watchTranslationEnabled) { if (settings.watchTranslationEnabled) translations.load(text) }
+                                val state = translations.states[text]
+                                if (settings.watchTranslationEnabled && state?.text != null) Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically) {
+                                    Text(state.text, Modifier.weight(1f, fill = false), textAlign = TextAlign.Center,
+                                        style = translationStyle.merge(contentStyle(state.text)), color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                    if (!state.corrected) { Spacer(Modifier.width(6.dp)); TranslationSourceIcon(state.provenance) }
+                                }
+                                else if (settings.watchTranslationEnabled && state?.failed == true) TextButton(onClick = { scope.launch { translations.load(text, retry = true) } }) { Text(stringResource(Res.string.retry)) }
+                            },
+                        )
+                    }
+                } else LazyColumn(state = list, contentPadding = PaddingValues(vertical = padding), verticalArrangement = Arrangement.spacedBy(8.dp),
                     modifier = Modifier.fillMaxSize().padding(horizontal = 12.dp)
                         .graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }
                         .drawWithContent {
@@ -454,7 +489,7 @@ import kotlin.time.TimeSource
                     }
                 }
             }
-            if (shadowIndex != null && selection == null) {
+            if (!shadowMode && shadowIndex != null && selection == null) {
                 val start = shadowIndex ?: shadowSentenceIndex
                 ShadowingPanel(
                     vm.container, settings, lang, document?.id?.takeIf { it > 0 }, shadowSentences.map { it.text }, start,
@@ -477,7 +512,7 @@ import kotlin.time.TimeSource
                     modifier = Modifier,
                 )
             }
-            if (selection == null && shadowIndex == null) WatchPlaybackBar(playing, sentenceIndex > 0, sentenceIndex < sentences.lastIndex && sentences.isNotEmpty(),
+            if (selection == null && shadowIndex == null && !shadowMode) WatchPlaybackBar(playing, sentenceIndex > 0, sentenceIndex < sentences.lastIndex && sentences.isNotEmpty(),
                 previous = { playFromLine(sentenceIndex - 1) }, backward = { skip(-5_000) },
                 playPause = { if (playing) controller?.pause() else { freeze = freeze.resume(); gestureActive = false; following = true; controller?.play() } },
                 forward = { skip(5_000) }, next = { playFromLine(sentenceIndex + 1) })

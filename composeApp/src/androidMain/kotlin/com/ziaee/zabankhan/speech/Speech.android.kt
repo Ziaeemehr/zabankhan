@@ -112,7 +112,8 @@ private class SelectedRecognizer : SpeechRecognizer {
     override suspend fun listenOnce(langCode: String, maxMs: Long): Result<RecognizedSpeech> {
         current?.clearRecording()
         val language = learningSpeechLanguage(langCode)
-        val next = if (RecognitionSettings.engine == "offline" && language.offlineSpeechModel != null) VoskRecognizer() else AndroidRecognizer()
+        // Offline selected but model not downloaded yet: use the system recognizer instead of failing.
+        val next = if (RecognitionSettings.engine == "offline" && language.offlineSpeechModel != null && VoskModelManager(language).isInstalled()) VoskRecognizer() else AndroidRecognizer()
         current = next
         return next.listenOnce(langCode, maxMs)
     }

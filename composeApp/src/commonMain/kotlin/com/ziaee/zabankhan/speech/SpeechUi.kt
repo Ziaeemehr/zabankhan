@@ -44,7 +44,7 @@ fun Tts.togglePronounce(text: String, lang: String, settings: AppSettings) {
     onStep: (Int) -> Unit = {}, pauseOriginal: () -> Unit = {}, modifier: Modifier = Modifier) {
     val scope = rememberCoroutineScope()
     val tts = remember { createTts() }
-    val recognizer = remember { createVoiceRecorder() }
+    val recognizer = remember { createSpeechRecognizer() }
     var index by remember { mutableIntStateOf(startIndex.coerceIn(0, sentences.lastIndex.coerceAtLeast(0))) }
     var replayJob by remember { mutableStateOf<Job?>(null) }
     var autoRecord by remember { mutableStateOf(false) }
@@ -53,9 +53,9 @@ fun Tts.togglePronounce(text: String, lang: String, settings: AppSettings) {
     val currentAutoRecord by rememberUpdatedState(autoRecord)
     val controller = remember { ShadowingController(scope, recognizer, { attempt ->
         container.database.shadowAttempts().insert(attempt)
-    }, scoreRecording = false) }
+    }) }
     val phase by controller.phase.collectAsState()
-    val permission = rememberVoiceRecordingPermission()
+    val permission = rememberMicPermission()
     val sentence = sentences.getOrNull(index).orEmpty()
     val speedDescription = stringResource(Res.string.watch_shadow_speed, rate.toString())
     fun requestRecording() {
@@ -123,7 +123,7 @@ fun Tts.togglePronounce(text: String, lang: String, settings: AppSettings) {
                 ShadowPhase.Recording -> Text(stringResource(Res.string.shadowing_listening), style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.primary)
                 ShadowPhase.Saving -> Text(stringResource(Res.string.shadowing_recognizing), style = MaterialTheme.typography.bodySmall)
-                ShadowPhase.Recorded -> Text(stringResource(Res.string.shadowing_listening), style = MaterialTheme.typography.bodySmall)
+                ShadowPhase.Recorded -> Text(stringResource(Res.string.shadowing_replay_mine), style = MaterialTheme.typography.bodySmall)
                 is ShadowPhase.Error -> Text(stringResource(if (current.notHeard) Res.string.shadowing_not_heard else Res.string.shadowing_engine_failed),
                     style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
                 is ShadowPhase.Result -> {

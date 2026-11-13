@@ -176,8 +176,14 @@ fun TodayNewsCard(headlineCount: Int, language: String, onOpen: () -> Unit, modi
 
 @Composable
 fun WatchVideosCard(language: String, onOpen: () -> Unit, modifier: Modifier = Modifier) {
-    HomeEntryCard(Icons.Default.PlayCircle, MaterialTheme.colorScheme.secondary, stringResource(Res.string.videos_title, language),
+    HomeEntryCard(Icons.Default.PlayCircle, MaterialTheme.colorScheme.secondary, stringResource(Res.string.home_watch_videos),
         stringResource(Res.string.videos_home_support), onOpen, modifier)
+}
+
+@Composable
+fun ShadowingCard(onOpen: () -> Unit, modifier: Modifier = Modifier) {
+    HomeEntryCard(Icons.Default.Mic, MaterialTheme.colorScheme.tertiary, stringResource(Res.string.shadow_entry_title),
+        stringResource(Res.string.shadow_home_support), onOpen, modifier)
 }
 
 /** Copied from French Reader's ui/home/HomeComponents.kt; local images decode on both platforms. */

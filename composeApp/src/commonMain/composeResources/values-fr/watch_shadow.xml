@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="shadow_tap_record">Appuyez pour enregistrer</string>
+    <string name="shadow_listening_tap_stop">J'écoute… appuyez pour arrêter</string>
+    <string name="shadow_repeat_count">Répétitions : %1$d×</string>
+    <string name="shadow_counter">%1$d / %2$d</string>
+    <string name="shadow_speed_label">Vitesse : %1$s×</string>
+    <string name="shadow_auto_pause_short">Pause auto</string>
+    <string name="shadow_entry_resume_label">Reprendre où vous étiez</string>
+    <string name="shadow_entry_new_label">Commencer une nouvelle vidéo</string>
+    <string name="shadow_entry_intro">Shadowing : écoutez une phrase, répétez-la de la même façon, voyez votre score.</string>
+    <string name="shadow_step_listen">1. Écouter</string>
+    <string name="shadow_step_repeat">2. Répéter</string>
+    <string name="shadow_step_compare">3. Comparer</string>
+</resources>

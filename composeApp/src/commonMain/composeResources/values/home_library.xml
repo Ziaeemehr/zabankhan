@@ -114,4 +114,6 @@
     <string name="shadow_entry_choose">Choose a video</string>
     <string name="watch_shadow_auto_pause">Pause automatically at the end of the sentence</string>
     <string name="watch_shadow_no_captions">Shadowing needs captions. Choose another video or open a subtitle file.</string>
+    <string name="home_watch_videos">Watch videos</string>
+    <string name="shadow_home_support">Listen to one sentence, repeat it, compare your voice</string>
 </resources>

@@ -113,4 +113,6 @@
     <string name="shadow_entry_choose">انتخاب ویدیو</string>
     <string name="watch_shadow_auto_pause">مکث خودکار در پایان جمله</string>
     <string name="watch_shadow_no_captions">تمرین سایه به زیرنویس نیاز دارد. ویدیوی دیگری انتخاب کنید یا فایل زیرنویس باز کنید.</string>
+    <string name="home_watch_videos">تماشای ویدیو</string>
+    <string name="shadow_home_support">یک جمله را بشنوید، تکرار کنید و صدایتان را مقایسه کنید</string>
 </resources>

@@ -113,4 +113,6 @@
     <string name="shadow_entry_choose">Choisir une vidéo</string>
     <string name="watch_shadow_auto_pause">Pause automatique à la fin de la phrase</string>
     <string name="watch_shadow_no_captions">Le shadowing nécessite des sous-titres. Choisissez une autre vidéo ou ouvrez un fichier de sous-titres.</string>
+    <string name="home_watch_videos">Regarder des vidéos</string>
+    <string name="shadow_home_support">Écoutez une phrase, répétez-la, comparez votre voix</string>
 </resources>

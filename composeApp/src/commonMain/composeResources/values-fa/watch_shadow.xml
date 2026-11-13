@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="shadow_tap_record">برای ضبط ضربه بزنید</string>
+    <string name="shadow_listening_tap_stop">در حال گوش دادن… برای توقف ضربه بزنید</string>
+    <string name="shadow_repeat_count">تکرار: %1$d×</string>
+    <string name="shadow_counter">%1$d / %2$d</string>
+    <string name="shadow_speed_label">سرعت: %1$s×</string>
+    <string name="shadow_auto_pause_short">توقف خودکار</string>
+    <string name="shadow_entry_resume_label">ادامه از همان‌جا</string>
+    <string name="shadow_entry_new_label">شروع با ویدیوی جدید</string>
+    <string name="shadow_entry_intro">سایه‌گویی: یک جمله را بشنوید، همان‌طور بگویید و امتیازتان را ببینید.</string>
+    <string name="shadow_step_listen">۱. گوش دهید</string>
+    <string name="shadow_step_repeat">۲. تکرار کنید</string>
+    <string name="shadow_step_compare">۳. مقایسه کنید</string>
+</resources>

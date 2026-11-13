@@ -127,9 +127,8 @@ private class IosRecognizer : SpeechRecognizer {
                     val engine = AVAudioEngine().also { audio = it }
                     val buffer = SFSpeechAudioBufferRecognitionRequest().also { request = it }
                     buffer.shouldReportPartialResults = true
-                    val offline = RecognitionSettings.engine == "offline"
-                    check(!offline || recognizer.supportsOnDeviceRecognition) { "On-device recognition unavailable for this language" }
-                    buffer.requiresOnDeviceRecognition = offline
+                    // Offline preferred but unsupported for this language: use server recognition instead of failing.
+                    buffer.requiresOnDeviceRecognition = RecognitionSettings.engine == "offline" && recognizer.supportsOnDeviceRecognition
                     task = recognizer.recognitionTaskWithRequest(buffer) { result, error ->
                         if (result != null) {
                             val segments = result.bestTranscription.segments.filterIsInstance<SFTranscriptionSegment>()
