@@ -4,7 +4,11 @@
 
 <h1 align="center">زبان‌خوان · Zabankhan</h1>
 
-<p align="center">Android · iOS</p>
+<p align="center">
+  <a href="https://github.com/Ziaeemehr/zabankhan/releases/latest"><img alt="Latest release" src="https://img.shields.io/github/v/release/Ziaeemehr/zabankhan?style=for-the-badge&label=%D8%AF%D8%A7%D9%86%D9%84%D9%88%D8%AF%20%C2%B7%20Download&color=2e7d32"></a>
+  <a href="https://github.com/Ziaeemehr/zabankhan/releases/latest"><img alt="Android" src="https://img.shields.io/badge/Android-APK-3DDC84?style=for-the-badge&logo=android&logoColor=white"></a>
+  <a href="docs/INSTALL-iOS.md"><img alt="iOS" src="https://img.shields.io/badge/iOS-IPA-000000?style=for-the-badge&logo=apple&logoColor=white"></a>
+</p>
 
 [English](README.md#english) · [معرفی دوزبانه](README.md)
 
@@ -19,6 +23,8 @@
 - **یادگیری واژه در متن:** ذخیرهٔ واژه‌ها همراه با جمله و مرور فاصله‌دار با جعبهٔ لایتنر.
 - **یادگیری با ویدیو و صدا:** یوتیوب و ویدیوی محلی با زیرنویس قابل‌لمس، همراه با تمرین شنیدن و تلفظ.
 - **کتابخانهٔ شخصی:** سازمان‌دهی مطالب، واردکردن واژه‌های Anki و CSV و پشتیبان‌گیری از داده‌ها.
+
+**نصب آی‌اواس:** فایل `ipa` امضا ندارد؛ [راهنمای نصب](docs/INSTALL-iOS.md).
 
 [دریافت نسخه‌ها](https://github.com/Ziaeemehr/zabankhan/releases) · [راهنمای ساخت و انتشار](docs/STORE.md) · [حریم خصوصی](PRIVACY.md)
 
