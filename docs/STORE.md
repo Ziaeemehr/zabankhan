@@ -1,6 +1,6 @@
 # Store preparation
 
-Version is defined once in `gradle.properties`: `APP_VERSION_NAME=0.1.0`, `APP_VERSION_CODE=1`. Android reads these directly. `iosApp/project.yml` has XcodeGen extract them to ignored `Version.xcconfig`, then sets `MARKETING_VERSION` and `CURRENT_PROJECT_VERSION`; Info.plist expands those settings. Run `xcodegen` again after changing versions. Increase the build number for each store upload.
+Version is defined once in `gradle.properties`: `APP_VERSION_NAME=1.0.0`, `APP_VERSION_CODE=1`. Android reads these directly. `iosApp/project.yml` has XcodeGen extract them to `Version.xcconfig`, then sets `MARKETING_VERSION` and `CURRENT_PROJECT_VERSION`; Info.plist expands those settings. Run `xcodegen` again after changing versions. Increase the build number for each store upload.
 
 ## Android signing and artifacts
 
@@ -14,6 +14,30 @@ keyPassword=YOUR_KEY_PASSWORD
 ```
 
 Never commit these credentials. With no properties file, release artifacts are unsigned. An existing but invalid signing configuration should fail the build rather than silently switch keys.
+
+### GitHub Releases
+
+The `Release` workflow in `.github/workflows/release.yml` builds a signed Play APK and Play AAB, and attaches them to a GitHub release with the Play R8 mapping and `SHA256SUMS`. Users can install the APK directly; the AAB is for Google Play submission. It does not upload to stores.
+
+For iOS, GitHub automatically provides **Source code (zip)** and **Source code (tar.gz)** for the published version. Users can download the source and build with Xcode using the instructions below and their own Apple signing setup. No IPA is published: general iOS distribution requires TestFlight/App Store, or an Ad Hoc profile covering each registered device. Source archives are not installable apps.
+
+Before running it, add these repository secrets under **Settings → Secrets and variables → Actions** using your existing release keystore:
+
+| Secret | Value |
+|---|---|
+| `ANDROID_KEYSTORE_BASE64` | The keystore encoded with `base64 -i /path/to/zabankhan-release.jks \| pbcopy` on macOS |
+| `ANDROID_KEYSTORE_PASSWORD` | Keystore password (`storePassword`) |
+| `ANDROID_KEY_ALIAS` | Signing key alias (`keyAlias`) |
+| `ANDROID_KEY_PASSWORD` | Signing key password (`keyPassword`) |
+
+Missing secrets stop the workflow before building. Signing files are temporary and removed after the job.
+
+For the first release, use `APP_VERSION_NAME=1.0.0` and `APP_VERSION_CODE=1`. For subsequent releases, update both values in `gradle.properties` and push those changes; use a higher build number for every store upload.
+
+- **Manual:** open **Actions → Release → Run workflow**, select the branch containing the version to release, and run. **Create a draft release for review** defaults to enabled. Review the assets in **Releases**, then publish the draft. Uncheck the option to publish immediately. The workflow derives `v<APP_VERSION_NAME>` and creates the tag for the selected commit when the release is published.
+- **Tag:** push a tag matching the committed version, for example `git tag v1.0.0` then `git push origin v1.0.0`. This builds and publishes the release automatically.
+
+The tag must match the version in `gradle.properties`. An existing tag must point to the selected commit; an existing release (including a draft) stops the workflow to prevent overwriting its files. If a run fails after creating a draft, inspect that draft before deciding whether to delete it and retry. The workflow needs permission to write repository contents through its automatic `GITHUB_TOKEN`; no personal access token is needed.
 
 ```sh
 export JAVA_HOME=/opt/homebrew/opt/openjdk@17

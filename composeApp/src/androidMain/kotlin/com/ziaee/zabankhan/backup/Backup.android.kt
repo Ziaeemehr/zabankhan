@@ -27,7 +27,7 @@ actual fun backupPaths(): BackupPaths = BackupPaths(
     File(appContext.getExternalFilesDir(null) ?: appContext.filesDir, "Backups").absolutePath,
     File(appContext.cacheDir, "backups").absolutePath,
 )
-actual fun appVersion(): String = appContext.packageManager.getPackageInfo(appContext.packageName, 0).versionName ?: "0.1.0"
+actual fun appVersion(): String = appContext.packageManager.getPackageInfo(appContext.packageName, 0).versionName ?: "1.0.0"
 actual fun shareBackup(path: String) {
     val uri = FileProvider.getUriForFile(appContext, "${appContext.packageName}.backupfiles", File(path))
     val intent = Intent(Intent.ACTION_SEND).apply {

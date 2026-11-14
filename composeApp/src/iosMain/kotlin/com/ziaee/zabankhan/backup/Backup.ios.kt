@@ -19,7 +19,7 @@ actual fun backupPaths(): BackupPaths {
     val base = iosDocumentsDir()
     return BackupPaths("$base/$DB_NAME", base, "$base/Backups", "$base/BackupExports")
 }
-actual fun appVersion(): String = NSBundle.mainBundle.objectForInfoDictionaryKey("CFBundleShortVersionString") as? String ?: "0.1.0"
+actual fun appVersion(): String = NSBundle.mainBundle.objectForInfoDictionaryKey("CFBundleShortVersionString") as? String ?: "1.0.0"
 actual fun shareBackup(path: String) {
     val controller = UIActivityViewController(listOf(NSURL.fileURLWithPath(path)), null)
     var presenter: UIViewController = UIApplication.sharedApplication.keyWindow?.rootViewController ?: return

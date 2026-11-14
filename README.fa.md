@@ -1,28 +1,37 @@
-# زبان‌خوان · Zabankhan
+<p align="center">
+  <img src="design/icon-crop.png" alt="Zabankhan · لوگوی زبان‌خوان" width="120">
+</p>
 
-اپ مطالعه و یادگیری زبان برای اندروید و iOS، ساخته‌شده با Kotlin Multiplatform و Compose Multiplatform و جانشین French Reader. زبان یادگیری فرانسوی یا انگلیسی است؛ معنی‌ها به فارسی یا انگلیسی نمایش داده می‌شوند.
+<h1 align="center">زبان‌خوان · Zabankhan</h1>
 
-- خواندن متن، Markdown، EPUB و PDF با ترجمه، دیکشنری، هایلایت و تشخیص متن تصویر.
-- ذخیرهٔ واژه و مرور لایتنر، همراه با آمار مطالعه.
-- پخش یوتیوب و ویدیوی محلی با زیرنویس قابل‌لمس و تمرین تلفظ.
-- دریافت اخبار و مطالب دانشنامه، واردکردن واژه‌های Anki و CSV و پشتیبان محلی.
+<p align="center">Android · iOS</p>
 
-## ساخت
+[English](README.md#english) · [معرفی دوزبانه](README.md)
 
-JDK 17 و Android SDK لازم‌اند. برای iOS به macOS، Xcode و XcodeGen نیاز دارید.
+<div dir="rtl">
 
-```sh
-export JAVA_HOME=/opt/homebrew/opt/openjdk@17
-./gradlew :composeApp:assemblePlayDebug :composeApp:assembleBazaarDebug
-./gradlew :composeApp:testPlayDebugUnitTest :composeApp:iosSimulatorArm64Test :composeApp:linkDebugFrameworkIosArm64
-./gradlew :composeApp:bundlePlayRelease :composeApp:assembleBazaarRelease
-cd iosApp
-xcodegen
-xcodebuild -project iosApp.xcodeproj -scheme iosApp -configuration Release -destination 'generic/platform=iOS' -derivedDataPath build/rel CODE_SIGNING_ALLOWED=NO build
-```
+## فارسی
 
-بستهٔ دیباگ پسوند `.debug` دارد. نسخهٔ `bazaar` به نصب Google Play services نیاز ندارد، ولی ML Kit کتابخانه‌های کمکی گوگل و گزارش تشخیصی دارد؛ جزئیات در راهنمای انتشار آمده است. بدون فایل تنظیمات امضا، خروجی انتشار اندروید بدون امضا ساخته می‌شود. نسخهٔ هر دو سیستم از `APP_VERSION_NAME` و `APP_VERSION_CODE` در `gradle.properties` می‌آید؛ پس از تغییر تنظیمات، پروژهٔ Xcode را دوباره با `xcodegen` بسازید.
+زبان‌خوان، همراه مطالعه و یادگیری فرانسوی و انگلیسی است؛ متن دلخواهت را بخوان، معنی واژه‌ها را به فارسی یا انگلیسی ببین و آن‌ها را مرور کن.
 
-[راهنمای انتشار](docs/STORE.md) شامل امضا و مراحل فروشگاه‌هاست. [سیاست حریم خصوصی](PRIVACY.md) سرویس‌های آنلاین و محتوای پشتیبان‌ها را توضیح می‌دهد. حساب کاربری و سرور توسعه‌دهنده وجود ندارد.
+- **مطالعه با ترجمه و دیکشنری:** لمس واژه برای دیدن معنی، ترجمهٔ جمله و شنیدن تلفظ.
+- **کتاب‌ها و فایل‌های خودت:** پشتیبانی از متن، Markdown، EPUB و PDF، همراه با هایلایت و تشخیص متن تصویر (OCR).
+- **یادگیری واژه در متن:** ذخیرهٔ واژه‌ها همراه با جمله و مرور فاصله‌دار با جعبهٔ لایتنر.
+- **یادگیری با ویدیو و صدا:** یوتیوب و ویدیوی محلی با زیرنویس قابل‌لمس، همراه با تمرین شنیدن و تلفظ.
+- **کتابخانهٔ شخصی:** سازمان‌دهی مطالب، واردکردن واژه‌های Anki و CSV و پشتیبان‌گیری از داده‌ها.
 
-کلید API در فضای امن دستگاه ذخیره می‌شود، در پشتیبان نیست و پس از بازیابی باید دوباره وارد شود.
+[دریافت نسخه‌ها](https://github.com/Ziaeemehr/zabankhan/releases) · [راهنمای ساخت و انتشار](docs/STORE.md) · [حریم خصوصی](PRIVACY.md)
+
+</div>
+
+## تصاویر برنامه
+
+تصاویر واقعی نسخهٔ دیباگ روی گوشی سامسونگ.
+
+| پخش ویدیو | تمرین سایه‌گویی |
+| :---: | :---: |
+| <img src="design/screenshots/phone-2026-11-14/video.png" alt="پخش ویدیوی فرانسوی با زیرنویس و ترجمهٔ فارسی" width="260"> | <img src="design/screenshots/phone-2026-11-14/shadowing.png" alt="تمرین سایه‌گویی جمله با کنترل شنیدن، تکرار و ضبط تلفظ" width="260"> |
+
+| مطالعهٔ متن | مرور واژه‌ها | دیکشنری |
+| :---: | :---: | :---: |
+| <img src="design/screenshots/phone-2026-11-14/reader.png" alt="مطالعهٔ متن فرانسوی با کنترل پخش صوت" width="230"> | <img src="design/screenshots/phone-2026-11-14/review.png" alt="کارت مرور واژه با معنی فارسی" width="230"> | <img src="design/screenshots/phone-2026-11-14/dictionary.png" alt="دیکشنری با تلفظ، معنی فارسی و مثال‌های فرانسوی" width="230"> |
