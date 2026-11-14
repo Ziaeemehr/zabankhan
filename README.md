@@ -18,6 +18,8 @@
 
 زبان‌خوان، همراه مطالعه و یادگیری فرانسوی و انگلیسی است؛ متن دلخواهت را بخوان، معنی واژه‌ها را به فارسی یا انگلیسی ببین و آن‌ها را مرور کن.
 
+> فعلاً منابع آماده (دیکشنری، دستور زبان، آزمون‌ها و مجموعه‌داده‌ها) فقط برای فرانسوی اضافه شده‌اند؛ منابع زبان‌های دیگر بعداً می‌آیند.
+
 - **مطالعه با ترجمه و دیکشنری:** لمس واژه برای دیدن معنی، ترجمهٔ جمله و شنیدن تلفظ.
 - **کتاب‌ها و فایل‌های خودت:** پشتیبانی از متن، Markdown، EPUB و PDF، همراه با هایلایت و تشخیص متن تصویر (OCR).
 - **یادگیری واژه در متن:** ذخیرهٔ واژه‌ها همراه با جمله و مرور فاصله‌دار با جعبهٔ لایتنر.
@@ -33,6 +35,8 @@
 ## English
 
 Zabankhan helps you learn French and English through reading. Bring your own texts, look up words with Persian or English meanings, and review what you learn.
+
+> Built-in resources (dictionary, grammar, exams, datasets) are currently available for French only; other languages will follow later.
 
 - **Read with translation and dictionaries:** tap a word for its meaning, translate sentences, and listen to pronunciation.
 - **Bring your own books and files:** read text, Markdown, EPUB, and PDF with highlights and image text recognition (OCR).
