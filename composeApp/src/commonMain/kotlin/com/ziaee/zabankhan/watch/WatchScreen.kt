@@ -12,8 +12,6 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.foundation.text.InlineTextContent
@@ -102,7 +100,6 @@ import kotlin.time.TimeSource
     val offsets = remember(sentences) { transcriptOffsets(sentences) }
     val position by (controller?.positionMs ?: remember { kotlinx.coroutines.flow.MutableStateFlow(0L) }).collectAsState()
     val playing by (controller?.isPlaying ?: remember { kotlinx.coroutines.flow.MutableStateFlow(false) }).collectAsState()
-    val latestPosition by rememberUpdatedState(position)
     val latestPlaying by rememberUpdatedState(playing)
     com.ziaee.zabankhan.statistics.TrackActivity(vm.container, identity, lang.code, com.ziaee.zabankhan.statistics.ActivityKind.WATCHING, playing)
     val playerError by ((controller as? VideoStatus)?.error ?: remember { kotlinx.coroutines.flow.MutableStateFlow<String?>(null) }).collectAsState()
@@ -123,6 +120,7 @@ import kotlin.time.TimeSource
     val density = LocalDensity.current
     val padding = with(density) { transcriptEdgePadding(viewport, 8.dp.roundToPx()).toDp() }
     val heights = remember(sentences) { mutableStateMapOf<Int, Int>() }
+    val sentenceLayouts = remember(sentences) { mutableStateMapOf<Int, TextLayoutResult>() }
     val sizes = remember { listOf(85, 100, 115, 130, 150, 175) }
     val percent = settings.watchSubtitleSizePercent
     val scale = percent / 100f
@@ -132,6 +130,12 @@ import kotlin.time.TimeSource
     val repository = vm.container.translations(settings)
     val translations = remember(identity, lang.code, meaningLang.code, repository) {
         WatchTranslations(TranslationOverrides(vm.container.cache), lang.code, meaningLang.code, translateWithSource = { repository.translateTextWithSource(it, lang.code, meaningLang.code) }) { text -> repository.translateText(text, lang.code, meaningLang.code) }
+    }
+    val currentSentenceText = sentences.getOrNull(sentenceIndex)?.text
+    LaunchedEffect(translations, shadowMode, settings.watchTranslationEnabled, currentSentenceText) {
+        if (!shadowMode && settings.watchTranslationEnabled && currentSentenceText != null) {
+            translations.load(currentSentenceText)
+        }
     }
     var editingTranslation by remember(identity) { mutableStateOf<String?>(null) }
     var exportOpen by remember(identity) { mutableStateOf(false) }
@@ -227,14 +231,24 @@ import kotlin.time.TimeSource
     LaunchedEffect(lastTouch, gestureActive) {
         if (lastTouch >= 0 && !gestureActive) { delay(4_000); following = true }
     }
-    LaunchedEffect(sentenceIndex, following, gestureActive, viewport, heights[sentenceIndex], percent,
+    LaunchedEffect(sentenceIndex, activeRange, sentenceLayouts[sentenceIndex], following, gestureActive, viewport, heights[sentenceIndex], percent,
         settings.watchTranslationEnabled, translations.states[sentences.getOrNull(sentenceIndex)?.text], selection) {
         if (following && !gestureActive && selection == null && sentenceIndex in sentences.indices && viewport > 0) {
             withFrameNanos { }
-            if (list.layoutInfo.visibleItemsInfo.none { it.index == sentenceIndex }) list.scrollToItem(sentenceIndex)
+            if (list.layoutInfo.visibleItemsInfo.none { it.index == sentenceIndex }) list.animateScrollToItem(sentenceIndex)
             val info = snapshotFlow { list.layoutInfo }.first { layout -> layout.visibleItemsInfo.any { it.index == sentenceIndex } }
             val item = info.visibleItemsInfo.first { it.index == sentenceIndex }
-            list.animateScrollToItem(sentenceIndex, transcriptCenterOffset(info.viewportSize.height, item.size, info.beforeContentPadding))
+            val layout = sentenceLayouts[sentenceIndex]
+            val range = activeRange
+            val offset = if (item.size > info.viewportSize.height && layout != null && range != null && layout.layoutInput.text.isNotEmpty()) {
+                val first = layout.getLineForOffset(range.first.coerceIn(0, layout.layoutInput.text.lastIndex))
+                val last = layout.getLineForOffset(range.last.coerceIn(0, layout.layoutInput.text.lastIndex))
+                val topPadding = with(density) { 10.dp.roundToPx() }
+                info.beforeContentPadding + transcriptActiveOffset(
+                    topPadding + layout.getLineTop(first).toInt(), topPadding + layout.getLineBottom(last).toInt(),
+                    info.viewportSize.height, item.size)
+            } else transcriptCenterOffset(info.viewportSize.height, item.size, info.beforeContentPadding)
+            list.animateScrollToItem(sentenceIndex, offset)
         }
     }
     fun playFromLine(index: Int) {
@@ -363,8 +377,6 @@ import kotlin.time.TimeSource
             }
             playerError?.let { Text(stringResource(Res.string.watch_player_error, it), Modifier.padding(horizontal = 12.dp), color = MaterialTheme.colorScheme.error) }
             Box(Modifier.weight(1f).fillMaxWidth()) {
-                val lineHeight = with(density) { subtitleStyle.lineHeight.toPx().toInt() }
-                val itemHeight = with(density) { transcriptItemHeight(viewport, lineHeight, 32.dp.roundToPx(), 8.dp.roundToPx()).toDp() }
                 if (shadowMode) {
                     if (shadowSentences.isNotEmpty()) {
                         val shadowIdx = (shadowIndex ?: shadowSentenceIndex).coerceIn(0, shadowSentences.lastIndex)
@@ -413,8 +425,6 @@ import kotlin.time.TimeSource
                                 awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Initial)
                                 playingBeforeTouch = latestPlaying && freeze.cueTimeMs == null && shadowIndex == null
                                 gestureActive = true; lastTouch = now()
-                                freeze = PlaybackFreeze(freeze.cueTimeMs ?: latestPosition, lastTouch)
-                                controller?.pause()
                                 try {
                                     do { val event = awaitPointerEvent(PointerEventPass.Initial); lastTouch = now() } while (event.changes.any { it.pressed })
                                 } finally { lastTouch = now(); gestureActive = false }
@@ -423,33 +433,21 @@ import kotlin.time.TimeSource
                     if (sentences.isEmpty()) item { Text(stringResource(Res.string.watch_no_captions)) }
                     itemsIndexed(sentences) { index, sentence ->
                         val current = index == sentenceIndex
-                        val scroll = rememberScrollState()
-                        var layout by remember(sentence.text) { mutableStateOf<TextLayoutResult?>(null) }
-                        var innerHeight by remember { mutableIntStateOf(0) }
-                        LaunchedEffect(scroll) { scroll.interactionSource.interactions.collect { if (it is DragInteraction.Start) following = false } }
-                        LaunchedEffect(current, activeRange, layout, innerHeight, scroll.maxValue, following, gestureActive, selection) {
-                            val value = layout; val range = activeRange
-                            if (current && following && !gestureActive && selection == null && value != null && range != null && sentence.text.isNotEmpty()) {
-                                val first = value.getLineForOffset(range.first.coerceIn(0, sentence.text.lastIndex))
-                                val last = value.getLineForOffset(range.last.coerceIn(0, sentence.text.lastIndex))
-                                scroll.animateScrollTo(transcriptActiveOffset(value.getLineTop(first).toInt(), value.getLineBottom(last).toInt(), innerHeight, innerHeight + scroll.maxValue))
-                            }
-                        }
                         fun lookup(query: String) {
                             resumeAfterDictionary = playingBeforeTouch; playingBeforeTouch = false
                             controller?.pause()
                             selection = ReaderSelection(query, sentence.text, offsets[index] until offsets[index] + sentence.text.length, false)
                         }
                         Column(
-                            Modifier.fillMaxWidth().heightIn(max = itemHeight)
+                            Modifier.fillMaxWidth()
                                 .then(if (current) Modifier.clip(RoundedCornerShape(16.dp)).background(MaterialTheme.colorScheme.secondaryContainer) else Modifier)
                                 .padding(horizontal = if (current) 12.dp else 4.dp, vertical = if (current) 10.dp else 2.dp)
-                                .onSizeChanged { innerHeight = it.height; heights[index] = it.height }.verticalScroll(scroll)
+                                .onSizeChanged { heights[index] = it.height }
                         ) {
                             if (!current) Text(videoTime(sentence.startMs), Modifier.clickable { playFromLine(index) }.padding(vertical = 2.dp),
                                 style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = .6f))
                             TranscriptSentence(sentence.text, lang, highlighter, idiomMatcher, subtitleStyle, current,
-                                if (current) activeRange else null, onLayout = { layout = it }, onLookup = ::lookup,
+                                if (current) activeRange else null, onLayout = { sentenceLayouts[index] = it }, onLookup = ::lookup,
                                 onCopy = if (!current) null else ({
                                     clipboard.setText(AnnotatedString(sentence.text))
                                     if (playingBeforeTouch && shadowIndex == null) { freeze = freeze.resume(); gestureActive = false; controller?.play() }
@@ -465,8 +463,8 @@ import kotlin.time.TimeSource
                                                 if (state.failed) scope.launch { translations.load(sentence.text, retry = true) }
                                             })
                                         }, style = translationStyle.merge(contentStyle(state.text)), color = MaterialTheme.colorScheme.onSurface.copy(alpha = .65f))
-                                    } else TextButton(onClick = { scope.launch { translations.load(sentence.text) } }, enabled = state?.loading != true) {
-                                        Text(stringResource(if (state?.failed == true) Res.string.retry else Res.string.watch_toolbar_translate))
+                                    } else if (state?.failed == true) TextButton(onClick = { scope.launch { translations.load(sentence.text, retry = true) } }) {
+                                        Text(stringResource(Res.string.retry))
                                     }
                                     if (state?.loading == true) CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp)
                                 }
