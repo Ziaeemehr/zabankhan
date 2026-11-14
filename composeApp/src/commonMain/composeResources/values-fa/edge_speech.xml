@@ -2,7 +2,24 @@
     <string name="edge_engine">موتور صدا</string>
     <string name="edge_online">صدای طبیعی آنلاین (مایکروسافت اج، نیازمند اینترنت)</string>
     <string name="edge_device">صدای دستگاه (آفلاین)</string>
+    <string name="local_tts_engine">صدای رایانهٔ محلی (وای‌فای)</string>
     <string name="edge_preview">پیش‌شنوی</string>
     <string name="edge_fallback">صدای آنلاین در دسترس نیست؛ از صدای دستگاه استفاده می‌شود</string>
     <string name="edge_privacy">برای صدای آنلاین، متن به مایکروسافت فرستاده می‌شود.</string>
+
+    <string name="local_tts_find">پیدا کردن رایانه‌ها در وای‌فای</string>
+    <string name="local_tts_searching">در حال جست‌وجو در شبکهٔ محلی…</string>
+    <string name="local_tts_not_found">رایانهٔ سازگاری پیدا نشد</string>
+    <string name="local_tts_pair">جفت‌سازی</string>
+    <string name="local_tts_forget">فراموش کردن</string>
+    <string name="local_tts_paired">جفت‌شده: %1$s</string>
+    <string name="local_tts_use_paired">استفاده از رایانهٔ جفت‌شده</string>
+    <string name="local_tts_server_url">نشانی سرور XTTS</string>
+    <string name="local_tts_token">توکن دسترسی (اختیاری)</string>
+    <string name="local_tts_speaker">گوینده</string>
+    <string name="local_tts_choose_speaker">انتخاب گوینده</string>
+    <string name="local_tts_refresh_speakers">به‌روزرسانی گویندگان</string>
+    <string name="local_tts_failed">اتصال به سرور XTTS محلی ممکن نشد</string>
+    <string name="local_tts_preview_play">شنیدن نمونهٔ %1$s</string>
+    <string name="local_tts_preview_stop">توقف نمونهٔ %1$s</string>
 </resources>

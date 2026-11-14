@@ -2,7 +2,24 @@
     <string name="edge_engine">Voice engine</string>
     <string name="edge_online">Online natural voice (Microsoft Edge, needs internet)</string>
     <string name="edge_device">Device voice (offline)</string>
+    <string name="local_tts_engine">Local computer voice (Wi-Fi)</string>
     <string name="edge_preview">Preview</string>
     <string name="edge_fallback">Online voice unavailable, using device voice</string>
     <string name="edge_privacy">For online voice, text is sent to Microsoft.</string>
+
+    <string name="local_tts_find">Find computers on Wi-Fi</string>
+    <string name="local_tts_searching">Searching local network…</string>
+    <string name="local_tts_not_found">No compatible computer found</string>
+    <string name="local_tts_pair">Pair</string>
+    <string name="local_tts_forget">Forget</string>
+    <string name="local_tts_paired">Paired: %1$s</string>
+    <string name="local_tts_use_paired">Use paired computer</string>
+    <string name="local_tts_server_url">XTTS server URL</string>
+    <string name="local_tts_token">Access token (optional)</string>
+    <string name="local_tts_speaker">Speaker</string>
+    <string name="local_tts_choose_speaker">Choose speaker</string>
+    <string name="local_tts_refresh_speakers">Refresh speakers</string>
+    <string name="local_tts_failed">Could not connect to local XTTS server</string>
+    <string name="local_tts_preview_play">Preview %1$s</string>
+    <string name="local_tts_preview_stop">Stop preview of %1$s</string>
 </resources>

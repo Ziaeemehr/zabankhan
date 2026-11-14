@@ -32,6 +32,7 @@ interface Tts {
     fun prefetch(text: String, langCode: String, rate: Float) {}
 }
 expect fun createDeviceTts(): Tts
+expect fun createLocalTts(): Tts?
 fun createTts(): Tts = SpeechEngine.current ?: createDeviceTts()
 
 data class RecognizedSpeech(val text: String, val durationMs: Long)

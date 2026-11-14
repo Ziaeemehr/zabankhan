@@ -28,6 +28,20 @@ fun HelpGuidesScreen(
                 leadingContent = { Icon(Icons.Default.HelpOutline, contentDescription = null) }
             )
         }
+        Card(modifier = Modifier.fillMaxWidth()) {
+            ListItem(
+                headlineContent = { Text(stringResource(Res.string.help_optional_drive_title)) },
+                supportingContent = { Text(stringResource(Res.string.help_optional_drive_body)) },
+                leadingContent = { Icon(Icons.Default.HelpOutline, contentDescription = null) }
+            )
+        }
+        Card(modifier = Modifier.fillMaxWidth()) {
+            ListItem(
+                headlineContent = { Text(stringResource(Res.string.help_french_only_title)) },
+                supportingContent = { Text(stringResource(Res.string.help_french_only_body)) },
+                leadingContent = { Icon(Icons.Default.HelpOutline, contentDescription = null) }
+            )
+        }
 
     }
 }

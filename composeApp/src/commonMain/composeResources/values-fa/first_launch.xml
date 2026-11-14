@@ -1,0 +1,16 @@
+<resources>
+    <string name="language_temporarily_unavailable">فعلاً در دسترس نیست</string>
+    <string name="onboarding_drive_optional">اختیاری: اتصال به گوگل درایو</string>
+    <string name="onboarding_drive_description">برای پشتیبان‌گیری از داده‌ها متصل شوید. می‌توانید بدون حساب ادامه دهید و بعداً از تنظیمات متصل شوید.</string>
+    <string name="onboarding_drive_connect">اتصال به گوگل درایو</string>
+    <string name="onboarding_drive_connected">گوگل درایو متصل است</string>
+    <string name="onboarding_no_backup_title">بدون پشتیبان‌گیری درایو ادامه می‌دهید؟</string>
+    <string name="onboarding_no_backup_message">داده‌های شما روی این دستگاه می‌مانند و در گوگل درایو پشتیبان‌گیری نمی‌شوند. بعداً می‌توانید از تنظیمات متصل شوید.</string>
+    <string name="help_optional_drive_title">پشتیبان‌گیری اختیاری گوگل درایو</string>
+    <string name="help_optional_drive_body">در دستگاه‌های پشتیبانی‌شده، برای پشتیبان‌گیری ابری هنگام شروع یا از تنظیمات به گوگل درایو متصل شوید. بدون اتصال هم می‌توانید از برنامه استفاده کنید.</string>
+    <string name="help_french_only_title">یادگیری زبان فرانسه در دسترس است</string>
+    <string name="help_french_only_body">انگلیسی همچنان نمایش داده می‌شود، اما فعلاً برای یادگیری در دسترس نیست. گزینه‌های معنی، واژه‌نامه و زبان رابط انگلیسی تغییری نکرده‌اند.</string>
+    <string name="onboarding_drive_error">ورود به گوگل انجام نشد. دوباره تلاش کنید یا بدون حساب ادامه دهید.</string>
+    <string name="onboarding_drive_unavailable">پشتیبان‌گیری گوگل درایو در این نسخه در دسترس نیست. می‌توانید ادامه دهید و از پشتیبان‌گیری محلی در تنظیمات استفاده کنید.</string>
+    <string name="onboarding_continue_without_account">ادامه بدون حساب</string>
+</resources>

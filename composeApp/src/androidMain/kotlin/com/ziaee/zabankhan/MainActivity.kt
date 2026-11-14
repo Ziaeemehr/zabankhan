@@ -6,6 +6,7 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.lifecycle.lifecycleScope
 import androidx.compose.runtime.*
 import com.ziaee.zabankhan.app.AppContainer
 import com.ziaee.zabankhan.backup.*
@@ -15,6 +16,11 @@ import io.ktor.client.engine.okhttp.OkHttp
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import com.ziaee.zabankhan.files.*
 
 class ZabankhanApp : Application() {
     override fun onCreate() {
@@ -44,6 +50,7 @@ class ZabankhanApp : Application() {
 }
 class MainActivity : ComponentActivity() {
     private var request by mutableStateOf<AppOpenRequest?>(null)
+    private var incomingFileJob: Job? = null
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
@@ -68,20 +75,47 @@ class MainActivity : ComponentActivity() {
         readIntent(intent)
     }
     private fun readIntent(intent: Intent?) {
+        incomingFileJob?.cancel()
+        val uri = incomingTextUri(intent)
+        val fileShare = uri != null && (intent?.action == Intent.ACTION_VIEW || intent?.type?.startsWith("text/") == true)
         val sharedVideo = intent?.dataString?.let(com.ziaee.zabankhan.watch.YoutubeUrl::videoId)
         val text = when (intent?.action) {
             Intent.ACTION_SEND -> if (intent.type == "text/plain") intent.getCharSequenceExtra(Intent.EXTRA_TEXT)?.toString() else null
             Intent.ACTION_PROCESS_TEXT -> intent.getCharSequenceExtra(Intent.EXTRA_PROCESS_TEXT)?.toString()
             else -> null
         }
-        request = when {
+        val base = when {
             intent?.getBooleanExtra("open_review", false) == true -> AppOpenRequest(review = true, id = android.os.SystemClock.elapsedRealtime())
             sharedVideo != null -> AppOpenRequest(youtubeVideoId = sharedVideo, id = android.os.SystemClock.elapsedRealtime())
             !text.isNullOrBlank() -> AppOpenRequest(text = text, id = android.os.SystemClock.elapsedRealtime())
             else -> null
         }
+        request = if (fileShare) null else base
+        if (fileShare) incomingFileJob = lifecycleScope.launch {
+            val picked = try { withContext(Dispatchers.IO) { copyPickedFile(this@MainActivity, uri!!, listOf(FileKind.TEXT)) } }
+            catch (cancelled: CancellationException) { throw cancelled }
+            catch (_: Exception) { null }
+            request = AppOpenRequest(file = picked, importFailed = picked == null, id = android.os.SystemClock.elapsedRealtime())
+        }
         intent?.removeExtra("open_review")
         intent?.removeExtra(Intent.EXTRA_TEXT)
         intent?.removeExtra(Intent.EXTRA_PROCESS_TEXT)
+        intent?.removeExtra(Intent.EXTRA_STREAM)
+        intent?.data = null
+        intent?.clipData = null
     }
+
 }
+
+internal fun incomingTextUri(intent: Intent?): android.net.Uri? {
+    if (intent == null) return null
+    if (intent.action == Intent.ACTION_SEND) {
+        val stream = if (android.os.Build.VERSION.SDK_INT >= 33) intent.getParcelableExtra(Intent.EXTRA_STREAM, android.net.Uri::class.java)
+            else legacyStream(intent)
+        return stream ?: intent.clipData?.takeIf { it.itemCount > 0 }?.getItemAt(0)?.uri
+    }
+    return intent.data?.takeIf { intent.action == Intent.ACTION_VIEW && it.scheme == "content" }
+}
+
+@Suppress("DEPRECATION")
+private fun legacyStream(intent: Intent): android.net.Uri? = intent.getParcelableExtra(Intent.EXTRA_STREAM) as? android.net.Uri

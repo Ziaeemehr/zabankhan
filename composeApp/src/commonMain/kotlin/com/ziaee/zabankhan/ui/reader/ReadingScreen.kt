@@ -1197,6 +1197,13 @@ private fun SentenceFlowText(
             val full = sourceText.substring(sliceStart, sliceEnd)
             append(full)
             ranges.addAll(visibleSentences.map { it.second })
+            for (span in chunk.block.emphasisSpans) {
+                val start = maxOf(span.start, sliceStart)
+                val end = minOf(span.end, sliceEnd)
+                if (span.colorArgb != null && start < end) {
+                    addStyle(SpanStyle(color = Color(span.colorArgb)), start - sliceStart, end - sliceStart)
+                }
+            }
             if (savedVocabStatuses.isNotEmpty()) {
                 for (match in vocabHighlighter.findMatches(full)) {
                     val style = vocabStyles.getValue(match.status)

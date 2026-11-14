@@ -21,12 +21,27 @@ import com.ziaee.zabankhan.ui.reader.readerRoute
 import com.ziaee.zabankhan.watch.*
 import com.ziaee.zabankhan.ui.theme.*
 import org.jetbrains.compose.resources.stringResource
+import com.ziaee.zabankhan.content.ImportRepository
+import com.ziaee.zabankhan.files.PickedFile
+import com.ziaee.zabankhan.lang.Languages
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.IO
+import kotlinx.coroutines.withContext
+import okio.FileSystem
+import okio.Path.Companion.toPath
 
 @Composable fun App(container: AppContainer, request: AppOpenRequest? = null, onRequestHandled: () -> Unit = {}) {
     key(container) { AppContent(container, request, onRequestHandled) }
 }
 
-data class AppOpenRequest(val text: String? = null, val review: Boolean = false, val id: Long = 0, val youtubeVideoId: String? = null)
+data class AppOpenRequest(
+    val text: String? = null,
+    val review: Boolean = false,
+    val id: Long = 0,
+    val youtubeVideoId: String? = null,
+    val file: PickedFile? = null,
+    val importFailed: Boolean = false
+)
 
 private fun NavHostController.navigateToTab(route: String) {
     when (route) {
@@ -76,6 +91,16 @@ private fun NavHostController.navigateToTab(route: String) {
                     when {
                         request.review -> nav.navigate("review") { launchSingleTop = true }
                         request.youtubeVideoId != null -> nav.navigate(watchRoute(videoId = request.youtubeVideoId)) { launchSingleTop = true }
+                        request.importFailed -> vm.action { throw IllegalArgumentException("Could not import file") }
+                        request.file != null -> vm.action {
+                            val language = requireNotNull(Languages.byCode(requireNotNull(prefs.learningLang)))
+                            val copied = request.file
+                            val id = withContext(Dispatchers.IO) {
+                                val body = FileSystem.SYSTEM.read(copied.path.toPath()) { readUtf8() }
+                                ImportRepository(container.database, language, prefs.meaningLang).text(body, copied.displayName)
+                            }
+                            nav.navigate(readerRoute(id)) { launchSingleTop = true }
+                        }
                         request.text != null -> { sharedText = request.text; nav.navigate("add") { launchSingleTop = true } }
                     }
                     onRequestHandled()

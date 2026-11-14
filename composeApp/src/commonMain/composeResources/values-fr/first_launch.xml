@@ -1,0 +1,16 @@
+<resources>
+    <string name="language_temporarily_unavailable">Temporairement indisponible</string>
+    <string name="onboarding_drive_optional">Facultatif : connecter Google Drive</string>
+    <string name="onboarding_drive_description">Connectez-vous pour sauvegarder vos données. Vous pouvez continuer sans compte et vous connecter plus tard dans les paramètres.</string>
+    <string name="onboarding_drive_connect">Connecter Google Drive</string>
+    <string name="onboarding_drive_connected">Google Drive est connecté</string>
+    <string name="onboarding_no_backup_title">Continuer sans sauvegarde Drive ?</string>
+    <string name="onboarding_no_backup_message">Vos données resteront sur cet appareil et ne seront pas sauvegardées sur Google Drive. Vous pourrez vous connecter plus tard dans les paramètres.</string>
+    <string name="help_optional_drive_title">Sauvegarde Google Drive facultative</string>
+    <string name="help_optional_drive_body">Sur les appareils compatibles, connectez Google Drive depuis l’accueil ou les paramètres pour utiliser la sauvegarde cloud. Vous pouvez continuer sans connexion.</string>
+    <string name="help_french_only_title">L’apprentissage du français est disponible</string>
+    <string name="help_french_only_body">L’anglais reste visible, mais est temporairement indisponible comme langue d’apprentissage. Les options de sens, de dictionnaire et d’interface en anglais restent inchangées.</string>
+    <string name="onboarding_drive_error">La connexion Google a échoué. Réessayez ou continuez sans compte.</string>
+    <string name="onboarding_drive_unavailable">La sauvegarde Google Drive est indisponible dans cette version. Vous pouvez continuer et utiliser les sauvegardes locales dans les paramètres.</string>
+    <string name="onboarding_continue_without_account">Continuer sans compte</string>
+</resources>

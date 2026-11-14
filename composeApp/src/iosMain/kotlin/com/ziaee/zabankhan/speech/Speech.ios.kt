@@ -67,6 +67,7 @@ private class IosTts : Tts {
 }
 private val sharedTts: Tts by lazy { ActivityTts(IosTts()) }
 actual fun createDeviceTts(): Tts = sharedTts
+actual fun createLocalTts(): Tts? = null
 
 private suspend fun authorizeMic(): Boolean {
     if (SFSpeechRecognizer.authorizationStatus() == SFSpeechRecognizerAuthorizationStatus.SFSpeechRecognizerAuthorizationStatusAuthorized &&
@@ -257,3 +258,5 @@ private fun qualityLabel(q: AVSpeechSynthesisVoiceQuality): String = when (q) {
     AVSpeechSynthesisVoiceQualityEnhanced -> " (Enhanced)"
     else -> ""
 }
+actual val localTtsSupported: Boolean = false
+@androidx.compose.runtime.Composable actual fun LocalTtsSettings(language: com.ziaee.zabankhan.lang.LanguageSpec) {}

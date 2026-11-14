@@ -22,7 +22,7 @@ class AppContainer(val database: AppDatabase, val settings: SettingsRepository, 
     private val speechScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     val syncDeviceId: String = loadOrCreateSyncDeviceId()
     val ttsCache = TtsCache("${AppFiles.cacheDir}/tts")
-    private val tts = SelectedTts(EdgeTts(EdgeTtsClient(this.http), ttsCache, createAudioPlayer(), speechScope), createDeviceTts(), speechScope)
+    private val tts = SelectedTts(EdgeTts(EdgeTtsClient(this.http), ttsCache, createAudioPlayer(), speechScope), createDeviceTts(), speechScope, createLocalTts())
     val driveSync: DriveSyncCoordinator? by lazy { if (driveSyncSupported()) DriveSyncCoordinator(this) else null }
     init {
         SpeechEngine.current?.stop()

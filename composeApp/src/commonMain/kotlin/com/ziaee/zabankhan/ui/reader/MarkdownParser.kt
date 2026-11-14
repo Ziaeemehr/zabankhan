@@ -8,11 +8,11 @@ package com.ziaee.zabankhan.ui.reader
 enum class BlockType { HEADER, LIST_ITEM, PARAGRAPH, IMAGE, TABLE }
 
 /**
- * A bold/italic run, measured as a [start, end) character range against the
+ * A bold/italic/color run, measured as a [start, end) character range against the
  * block's plain (Markdown-syntax-stripped) display text, not against the
  * original Markdown source.
  */
-data class EmphasisSpan(val start: Int, val end: Int, val bold: Boolean, val italic: Boolean)
+data class EmphasisSpan(val start: Int, val end: Int, val bold: Boolean, val italic: Boolean, val colorArgb: Int? = null)
 
 /** One table cell: a [start, end) range into the TABLE block's [ParsedBlock.plainText]. */
 data class TableCell(val start: Int, val end: Int)
@@ -46,13 +46,41 @@ data class ParsedBlock(
  * This is a small, pragmatic Markdown subset -- headings, unordered/ordered
  * list items, bold ("**x**" or "__x__"), italic ("*x*" or "_x_"), and
  * [text](url) links (kept as their visible text; the URL is dropped, never
- * auto-fetched).
+ * auto-fetched), and inline span style colors (CSS names or #RGB/#RRGGBB).
  * Standalone EPUB image markers become image blocks. All other images are
  * dropped entirely, so remote images are never auto-loaded. Anything else
  * (tables, code fences, footnotes) just falls through to plain paragraph
  * text.
  */
 object MarkdownParser {
+    internal val SPAN_TAG = Regex("""</?span(?=\s|>)(?:"[^"]*"|'[^']*'|[^'">])*>""", RegexOption.IGNORE_CASE)
+    private val STYLE_ATTRIBUTE = Regex("""(?:^|\s)style\s*=\s*(?:"([^"]*)"|'([^']*)')""", RegexOption.IGNORE_CASE)
+    private val NAMED_COLORS = mapOf(
+        "black" to 0x000000, "white" to 0xFFFFFF, "red" to 0xFF0000,
+        "green" to 0x008000, "blue" to 0x0000FF, "yellow" to 0xFFFF00,
+        "orange" to 0xFFA500, "purple" to 0x800080, "gray" to 0x808080,
+        "grey" to 0x808080, "pink" to 0xFFC0CB, "cyan" to 0x00FFFF,
+        "aqua" to 0x00FFFF, "magenta" to 0xFF00FF, "fuchsia" to 0xFF00FF,
+        "navy" to 0x000080, "teal" to 0x008080, "maroon" to 0x800000,
+        "lime" to 0x00FF00, "silver" to 0xC0C0C0, "olive" to 0x808000
+    )
+
+    private fun spanColor(tag: String): Int? {
+        val attribute = STYLE_ATTRIBUTE.find(tag) ?: return null
+        val style = attribute.groupValues[1].ifEmpty { attribute.groupValues[2] }
+        return style.split(';').mapNotNull { declaration ->
+            if (!declaration.substringBefore(':').trim().equals("color", ignoreCase = true)) return@mapNotNull null
+            val value = declaration.substringAfter(':', "").trim().lowercase()
+                .removeSurrounding("'").removeSurrounding("\"")
+            val rgb = if (value.startsWith("#")) {
+                val digits = value.drop(1)
+                if (digits.length !in listOf(3, 6) || digits.any { it !in "0123456789abcdef" }) return@mapNotNull null
+                val expanded = if (digits.length == 3) digits.flatMap { listOf(it, it) }.joinToString("") else digits
+                expanded.toIntOrNull(16)
+            } else NAMED_COLORS[value]
+            rgb?.let { it or 0xFF000000.toInt() }
+        }.lastOrNull()
+    }
     private val HEADER = Regex("^(#{1,6})\\s+(.*)$")
     private val LIST_ITEM = Regex("^([-*+•▪◦‣●■►▶✓✔➤→]|\\d+\\.)\\s+(.*)$")
     private val EPUB_IMAGE = Regex("^!\\[([^]]*)]\\(epubimg:([^)]+)\\)$")
@@ -162,14 +190,38 @@ object MarkdownParser {
      * Unmatched delimiters (e.g. a lone "*" in normal prose) are left as
      * literal characters rather than risk mangling ordinary text.
      */
-    private fun stripInlineEmphasis(raw: String): Pair<String, List<EmphasisSpan>> {
+    private fun stripInlineEmphasis(raw: String, inheritedColor: Int? = null): Pair<String, List<EmphasisSpan>> {
         val out = StringBuilder()
         val spans = mutableListOf<EmphasisSpan>()
         var i = 0
         val n = raw.length
+        val colorStack = mutableListOf<Int?>()
+        var color = inheritedColor
+        var colorStart = 0
+        fun flushColor() {
+            if (color != null && out.length > colorStart) {
+                spans.add(EmphasisSpan(colorStart, out.length, bold = false, italic = false, colorArgb = color))
+            }
+            colorStart = out.length
+        }
 
         while (i < n) {
             val c = raw[i]
+
+            if (c == '<') {
+                val tag = SPAN_TAG.matchAt(raw, i)
+                if (tag != null) {
+                    flushColor()
+                    if (tag.value.startsWith("</")) {
+                        color = if (colorStack.isEmpty()) inheritedColor else colorStack.removeAt(colorStack.lastIndex)
+                    } else {
+                        colorStack.add(color)
+                        color = spanColor(tag.value) ?: color
+                    }
+                    i = tag.range.last + 1
+                    continue
+                }
+            }
 
             // Image: ![alt](url) -- dropped entirely, no placeholder text.
             if (c == '!' && i + 1 < n && raw[i + 1] == '[') {
@@ -188,10 +240,12 @@ object MarkdownParser {
                 val closeParen = if (closeBracket >= 0 && closeBracket + 1 < n && raw[closeBracket + 1] == '(')
                     raw.indexOf(')', closeBracket + 2) else -1
                 if (closeBracket >= 0 && closeParen >= 0) {
-                    val (innerText, innerSpans) = stripInlineEmphasis(raw.substring(i + 1, closeBracket))
+                    flushColor()
+                    val (innerText, innerSpans) = stripInlineEmphasis(raw.substring(i + 1, closeBracket), color)
                     val start = out.length
                     out.append(innerText)
                     innerSpans.forEach { spans.add(it.copy(start = it.start + start, end = it.end + start)) }
+                    colorStart = out.length
                     i = closeParen + 1
                     continue
                 }
@@ -203,8 +257,12 @@ object MarkdownParser {
                 val close = raw.indexOf(boldDelim, i + boldDelim.length)
                 if (close > i) {
                     val start = out.length
-                    out.append(raw.substring(i + boldDelim.length, close))
+                    flushColor()
+                    val (inner, innerSpans) = stripInlineEmphasis(raw.substring(i + boldDelim.length, close), color)
+                    out.append(inner)
+                    innerSpans.forEach { spans += it.copy(start = it.start + start, end = it.end + start) }
                     if (out.length > start) spans.add(EmphasisSpan(start, out.length, bold = true, italic = false))
+                    colorStart = out.length
                     i = close + boldDelim.length
                     continue
                 }
@@ -216,8 +274,12 @@ object MarkdownParser {
                 val close = raw.indexOf(delim, i + 1)
                 if (close > i) {
                     val start = out.length
-                    out.append(raw.substring(i + 1, close))
+                    flushColor()
+                    val (inner, innerSpans) = stripInlineEmphasis(raw.substring(i + 1, close), color)
+                    out.append(inner)
+                    innerSpans.forEach { spans += it.copy(start = it.start + start, end = it.end + start) }
                     if (out.length > start) spans.add(EmphasisSpan(start, out.length, bold = false, italic = true))
+                    colorStart = out.length
                     i = close + 1
                     continue
                 }
@@ -226,6 +288,7 @@ object MarkdownParser {
             out.append(c)
             i++
         }
+        flushColor()
         return out.toString() to spans
     }
 }

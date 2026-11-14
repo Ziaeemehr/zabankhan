@@ -165,3 +165,7 @@ actual fun recognitionSupport(language: com.ziaee.zabankhan.lang.LanguageSpec) =
     }
 }
 @Composable actual fun rememberVoiceRecordingPermission(): MicPermission = rememberMicPermission()
+
+actual fun createLocalTts(): Tts? = com.ziaee.zabankhan.speech.local.LocalTts(speechContext, CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate))
+actual val localTtsSupported: Boolean = true
+@Composable actual fun LocalTtsSettings(language: com.ziaee.zabankhan.lang.LanguageSpec) = com.ziaee.zabankhan.speech.local.LocalTtsSettings(language)

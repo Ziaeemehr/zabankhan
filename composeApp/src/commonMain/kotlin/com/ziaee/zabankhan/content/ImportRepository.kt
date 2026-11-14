@@ -11,8 +11,7 @@ class ImportRepository(private val db: AppDatabase, private val spec: LanguageSp
     init { require(spec in Languages.learnable) { "Not a learning language" } }
     suspend fun text(raw: String, fileName: String): Long {
         val parsed = parseFrontMatter(raw)
-        val markdown = fileName.substringAfterLast('.').lowercase() in listOf("md", "markdown")
-        val body = if (markdown) markdownToPlainText(parsed.body) else parsed.body.trim()
+        val body = parsed.body.trim()
         require(body.isNotBlank()) { "No readable text" }
         return db.texts().insert(TextDocument(lang = spec.code, title = parsed.title ?: fileName.substringBeforeLast('.'), body = body, level = parsed.level))
     }

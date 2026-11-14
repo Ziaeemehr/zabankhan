@@ -51,6 +51,7 @@ internal fun displaySourceOffsets(raw: String, block: ParsedBlock): List<Int> {
         if (raw[match.range.first] == '!') hide(match.range.first, match.range.last + 1)
         else { hide(match.range.first, match.range.first + 1); hide(bracket, match.range.last + 1) }
     }
+    MarkdownParser.SPAN_TAG.findAll(raw).forEach { hide(it.range.first, it.range.last + 1) }
     var cursor = 0
     return block.plainText.map { character ->
         var at = cursor

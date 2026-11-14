@@ -13,7 +13,7 @@ object SpeechEngine {
 }
 
 /** A single router is used by every speech caller, including dictionary and shadowing. */
-class SelectedTts(private val online: EdgeTts, private val device: Tts, private val scope: CoroutineScope) : Tts {
+class SelectedTts(private val online: EdgeTts, private val device: Tts, private val scope: CoroutineScope, private val local: Tts? = null) : Tts {
     private val range = MutableStateFlow<IntRange?>(null)
     private val speaking = MutableStateFlow(false)
     override val speakingRange = range.asStateFlow()
@@ -22,25 +22,27 @@ class SelectedTts(private val online: EdgeTts, private val device: Tts, private 
     private var voice: String? = null
     private var job: Job? = null
     private var generation = 0
-    override val audioStatus get() = if (settings.voiceEngine == "device") device.audioStatus else online.audioStatus
-    override val synthesisProgress get() = online.synthesisProgress
-    override fun seekBy(deltaMs: Long): Boolean = settings.voiceEngine != "device" && online.seekBy(deltaMs)
-    override fun setAudioDocument(owner: String?) = online.setAudioDocument(owner)
-    override fun releaseAudioDocument(owner: String) = online.releaseAudioDocument(owner)
-    override fun setAudioPinned(pinned: Boolean) = online.setAudioPinned(pinned)
+    private val selected get() = when (settings.voiceEngine) { "device" -> device; "local" -> local ?: device; else -> online }
+    override val audioStatus get() = selected.audioStatus
+    override val synthesisProgress get() = selected.synthesisProgress
+    override fun seekBy(deltaMs: Long): Boolean = settings.voiceEngine == "online" && online.seekBy(deltaMs)
+    override fun setAudioDocument(owner: String?) { if (settings.voiceEngine == "online") online.setAudioDocument(owner) }
+    override fun releaseAudioDocument(owner: String) { if (settings.voiceEngine == "online") online.releaseAudioDocument(owner) }
+    override fun setAudioPinned(pinned: Boolean) { if (settings.voiceEngine == "online") online.setAudioPinned(pinned) }
     override suspend fun prepare(text: String, langCode: String, rate: Float): Result<Unit> {
-        if (settings.voiceEngine == "device") return Result.failure(IllegalStateException("Device speech has no downloadable audio"))
+        if (settings.voiceEngine == "device" || settings.voiceEngine == "local") return Result.failure(IllegalStateException("This voice engine has no downloadable audio"))
         online.setVoice(voice)
         return online.prepare(text, langCode, rate)
     }
     fun configure(value: AppSettings) {
-        if (value.voiceEngine != settings.voiceEngine) stop()
+        // configure runs on every App recomposition; only an engine switch invalidates the voice id.
+        if (value.voiceEngine != settings.voiceEngine) { stop(); voice = null }
         settings = value
     }
-    override fun voices(langCode: String) = if (settings.voiceEngine == "device") device.voices(langCode) else online.voices(langCode)
+    override fun voices(langCode: String) = selected.voices(langCode)
     override fun setVoice(id: String?) { voice = id }
     override fun prefetch(text: String, langCode: String, rate: Float) {
-        if (settings.voiceEngine != "device") { online.setVoice(voice); online.prefetch(text, langCode, rate) }
+        if (settings.voiceEngine == "online") { online.setVoice(voice); online.prefetch(text, langCode, rate) }
     }
     override fun speak(text: String, langCode: String, rate: Float, onError: () -> Unit, onDone: () -> Unit) {
         learningSpeechLanguage(langCode)
@@ -56,7 +58,18 @@ class SelectedTts(private val online: EdgeTts, private val device: Tts, private 
             var completed = false
             var resumeAt = 0
             try {
-                if (settings.voiceEngine != "device") {
+                if (settings.voiceEngine == "local") {
+                    val active = local ?: device
+                    val tracking = launch { active.speakingRange.collect { range.value = it } }
+                    try {
+                        suspendCancellableCoroutine<Boolean> { continuation ->
+                            active.setVoice(requestedVoice?.takeIf { id -> active.voices(langCode).any { it.id == id } })
+                            active.speak(text, langCode, rate,
+                                onError = { if (continuation.isActive) continuation.resume(false) },
+                                onDone = { if (continuation.isActive) continuation.resume(true) })
+                        }.also { completed = it }
+                    } finally { tracking.cancelAndJoin() }
+                } else if (settings.voiceEngine == "online") {
                     online.setVoice(requestedVoice)
                     val tracking = launch { online.speakingRange.collect { range.value = it } }
                     try {
@@ -66,14 +79,15 @@ class SelectedTts(private val online: EdgeTts, private val device: Tts, private 
                     catch (_: Exception) { SpeechEngine.onlineUnavailable.value = true }
                     finally { tracking.cancelAndJoin(); range.value = null }
                 }
-                if (!completed) {
+                if (!completed && settings.voiceEngine != "local") {
                     val remaining = text.substring(resumeAt)
                     // Device and online identifiers have different formats; validate against its catalog.
-                    device.setVoice(requestedVoice?.takeIf { id -> device.voices(langCode).any { it.id == id } })
-                    val tracking = launch { device.speakingRange.collect { local -> range.value = local?.let { (it.first + resumeAt)..(it.last + resumeAt) } } }
+                    val active = device
+                    active.setVoice(requestedVoice?.takeIf { id -> active.voices(langCode).any { it.id == id } })
+                    val tracking = launch { active.speakingRange.collect { localRange -> range.value = localRange?.let { (it.first + resumeAt)..(it.last + resumeAt) } } }
                     try {
                     suspendCancellableCoroutine<Boolean> { continuation ->
-                            device.speak(remaining, langCode, rate,
+                            active.speak(remaining, langCode, rate,
                                 onError = { if (continuation.isActive) continuation.resume(false) },
                                 onDone = { if (continuation.isActive) continuation.resume(true) })
                         }.also { completed = it }
@@ -87,6 +101,6 @@ class SelectedTts(private val online: EdgeTts, private val device: Tts, private 
     }
     override fun stop() {
         generation++; job?.cancel(); job = null
-        online.stop(); device.stop(); range.value = null; speaking.value = false
+        online.stop(); device.stop(); local?.stop(); range.value = null; speaking.value = false
     }
 }

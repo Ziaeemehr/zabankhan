@@ -2,7 +2,24 @@
     <string name="edge_engine">Moteur vocal</string>
     <string name="edge_online">Voix naturelle en ligne (Microsoft Edge, connexion requise)</string>
     <string name="edge_device">Voix de l’appareil (hors ligne)</string>
+    <string name="local_tts_engine">Voix de l’ordinateur local (Wi-Fi)</string>
     <string name="edge_preview">Écouter un extrait</string>
     <string name="edge_fallback">Voix en ligne indisponible, utilisation de la voix de l’appareil</string>
     <string name="edge_privacy">Pour la voix en ligne, le texte est envoyé à Microsoft.</string>
+
+    <string name="local_tts_find">Rechercher des ordinateurs sur le Wi-Fi</string>
+    <string name="local_tts_searching">Recherche sur le réseau local…</string>
+    <string name="local_tts_not_found">Aucun ordinateur compatible trouvé</string>
+    <string name="local_tts_pair">Associer</string>
+    <string name="local_tts_forget">Oublier</string>
+    <string name="local_tts_paired">Associé : %1$s</string>
+    <string name="local_tts_use_paired">Utiliser l’ordinateur associé</string>
+    <string name="local_tts_server_url">URL du serveur XTTS</string>
+    <string name="local_tts_token">Jeton d’accès (facultatif)</string>
+    <string name="local_tts_speaker">Voix</string>
+    <string name="local_tts_choose_speaker">Choisir une voix</string>
+    <string name="local_tts_refresh_speakers">Actualiser les voix</string>
+    <string name="local_tts_failed">Connexion au serveur XTTS local impossible</string>
+    <string name="local_tts_preview_play">Écouter %1$s</string>
+    <string name="local_tts_preview_stop">Arrêter l’extrait de %1$s</string>
 </resources>

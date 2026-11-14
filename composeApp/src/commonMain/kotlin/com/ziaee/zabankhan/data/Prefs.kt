@@ -138,9 +138,17 @@ class SettingsRepository(private val store: DataStore<Preferences>, private val 
     }
 
     val settings: Flow<AppSettings> = store.data.onStart { migrateSecret() }.combine(secretRevision) { p, _ ->
-        val allowed = Languages.learnable.map { it.code }.toSet()
-        val langs = p[K.langs]?.split(',')?.filter { it in allowed }?.distinct().orEmpty()
-        val active = p[K.lang]?.takeIf { it in allowed } ?: langs.firstOrNull()
+        val allowed = Languages.enabledLearning.map { it.code }.toSet()
+        val storedLangs = p[K.langs]?.split(',')?.filter { it.isNotBlank() }.orEmpty()
+        val storedActive = p[K.lang]
+        // Keep the original values intact for a future language release, but restore active
+        // English installations to French while English learning is temporarily unavailable.
+        val active = when {
+            storedActive != null && storedActive in allowed -> storedActive
+            storedActive == Languages.ENGLISH.code || Languages.ENGLISH.code in storedLangs -> Languages.FRENCH.code
+            else -> storedLangs.firstOrNull { it in allowed }
+        }
+        val langs = (storedLangs.filter { it in allowed } + listOfNotNull(active)).distinct()
         AppSettings(
             learningLang = active,
             learningLangs = (langs + listOfNotNull(active)).distinct(),
@@ -167,7 +175,7 @@ class SettingsRepository(private val store: DataStore<Preferences>, private val 
             watchCompactPlayer = p[K.watchCompact] ?: false,
             speechRate = p[K.speechRate] ?: 1f,
             speechRepeat = (p[K.speechRepeat] ?: 1).coerceIn(1, 3),
-            voiceEngine = p[K.engine]?.takeIf { it == "device" } ?: "online",
+            voiceEngine = p[K.engine]?.takeIf { it in setOf("device", "local") } ?: "online",
             reviewAudioAutoplay = AudioAutoplay.restored(p[K.autoplay], p[K.autoCards] ?: false),
             speechRecognitionEngine = p[K.recognitionEngine]?.takeIf { it in listOf("offline", "system") } ?: "offline",
             cardPronunciationPractice = p[K.cardPractice] ?: false,
@@ -208,13 +216,14 @@ class SettingsRepository(private val store: DataStore<Preferences>, private val 
     suspend fun current(): AppSettings = settings.first()
 
     suspend fun addLearningLang(code: String) = store.edit { p ->
-        require(Languages.learnable.any { it.code == code }) { "Unsupported learning language" }
+        require(Languages.enabledLearning.any { it.code == code }) { "Unsupported learning language" }
         val list = p[K.langs]?.split(',')?.filter { it.isNotBlank() }.orEmpty()
         if (code !in list) p[K.langs] = (list + code).joinToString(",")
         p[K.lang] = code
     }
 
     suspend fun removeLearningLang(code: String) = store.edit { p ->
+        require(Languages.enabledLearning.any { it.code == code }) { "Unsupported learning language" }
         val list = p[K.langs]?.split(',')?.filter { it.isNotBlank() && it != code }.orEmpty()
         p[K.langs] = list.joinToString(",")
         if (p[K.lang] == code) { if (list.isEmpty()) p.remove(K.lang) else p[K.lang] = list.first() }
@@ -226,7 +235,7 @@ class SettingsRepository(private val store: DataStore<Preferences>, private val 
         it[K.reminderHour] = hour; it[K.reminderMinute] = minute
     }
     suspend fun setLearningLang(code: String) = store.edit {
-        require(Languages.learnable.any { it.code == code }) { "Unsupported learning language" }
+        require(Languages.enabledLearning.any { it.code == code }) { "Unsupported learning language" }
         it[K.lang] = code
     }
     suspend fun setLastDictionaryProvider(lang: String, provider: String) = store.edit {
@@ -297,7 +306,7 @@ class SettingsRepository(private val store: DataStore<Preferences>, private val 
     suspend fun setTtsCacheMaxSizeMb(value: Int) = store.edit { it[K.cacheSize] = value.coerceIn(50, 5000) }
     suspend fun setTtsCacheMaxAgeDays(value: Int) = store.edit { it[K.cacheAge] = value.coerceIn(1, 365) }
     suspend fun setVoiceEngine(engine: String) = store.edit {
-        require(engine == "online" || engine == "device")
+        require(engine == "online" || engine == "device" || engine == "local")
         it[K.engine] = engine
     }
     suspend fun setTtsVoice(lang: String, id: String?) = store.edit {

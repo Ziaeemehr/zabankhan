@@ -38,12 +38,21 @@ import com.ziaee.zabankhan.lang.*
 import com.ziaee.zabankhan.speech.*
 import com.ziaee.zabankhan.resources.*
 import org.jetbrains.compose.resources.stringResource
+import com.ziaee.zabankhan.backup.rememberDriveAuth
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable fun Onboarding(vm: AppViewModel) {
     var selected by rememberSaveable { mutableStateOf(emptyList<String>()) }
     var meaning by rememberSaveable { mutableStateOf(Languages.PERSIAN.code) }
     var busy by remember { mutableStateOf(false) }
+    var showOfflineConfirmation by rememberSaveable { mutableStateOf(false) }
+    var offlineAcknowledged by rememberSaveable { mutableStateOf(false) }
+    var signInFailed by remember { mutableStateOf(false) }
+    val drive = rememberDriveAuth()
+    var connected by remember { mutableStateOf(drive.connected) }
+    val scope = rememberCoroutineScope()
     val scroll = rememberScrollState()
     val colors = MaterialTheme.colorScheme
     val enabled = selected.isNotEmpty() && !busy
@@ -77,7 +86,8 @@ import org.jetbrains.compose.resources.stringResource
                             FlowRow(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalArrangement = Arrangement.spacedBy(12.dp), maxItemsInEachRow = if (wide) 2 else 1) {
                                 Languages.learnable.forEach { lang ->
                                     val isSelected = lang.code in selected
-                                    Surface(onClick = {
+                                    Surface(enabled = !busy && lang in Languages.enabledLearning, onClick = {
+                                        if (lang !in Languages.enabledLearning) return@Surface
                                         selected = if (isSelected) selected - lang.code else selected + lang.code
                                         if (selected.firstOrNull() == meaning) meaning = if (meaning == Languages.PERSIAN.code) Languages.ENGLISH.code else Languages.PERSIAN.code
                                     }, modifier = Modifier.fillMaxWidth(if (wide) .485f else 1f), shape = RoundedCornerShape(20.dp), color = if (isSelected) colors.primaryContainer else colors.surface.copy(alpha = .88f), border = androidx.compose.foundation.BorderStroke(if (isSelected) 2.dp else 1.dp, if (isSelected) colors.primary else colors.outlineVariant), tonalElevation = if (isSelected) 2.dp else 0.dp) {
@@ -85,6 +95,7 @@ import org.jetbrains.compose.resources.stringResource
                                             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
                                                 Text(lang.nativeName, style = MaterialTheme.typography.titleMedium)
                                                 Text(languageName(lang), style = MaterialTheme.typography.bodyMedium, color = colors.onSurfaceVariant)
+                                                if (lang !in Languages.enabledLearning) Text(stringResource(Res.string.language_temporarily_unavailable), style = MaterialTheme.typography.labelSmall, color = colors.onSurfaceVariant)
                                             }
                                             Surface(shape = RoundedCornerShape(50), color = colors.secondaryContainer) { Text(lang.code.uppercase(), Modifier.padding(horizontal = 9.dp, vertical = 5.dp), style = MaterialTheme.typography.labelMedium, color = colors.onSecondaryContainer) }
                                             if (isSelected) Icon(Icons.Default.CheckCircle, contentDescription = null, tint = colors.primary)
@@ -105,14 +116,23 @@ import org.jetbrains.compose.resources.stringResource
                     }
                     androidx.compose.animation.AnimatedVisibility(true, enter = androidx.compose.animation.fadeIn(androidx.compose.animation.core.tween(260, delayMillis = 240)) + androidx.compose.animation.slideInVertically(androidx.compose.animation.core.tween(260, delayMillis = 240)) { it / 10 }) {
                         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            if (drive.configured) {
+                                Text(stringResource(Res.string.onboarding_drive_optional), style = MaterialTheme.typography.titleMedium)
+                                Text(stringResource(Res.string.onboarding_drive_description), style = MaterialTheme.typography.bodyMedium, color = colors.onSurfaceVariant)
+                                OutlinedButton(enabled = !busy && !connected, onClick = {
+                                    busy = true
+                                    signInFailed = false
+                                    scope.launch {
+                                        try { connected = drive.accessToken() != null } catch (cancelled: CancellationException) { throw cancelled } catch (_: Exception) { signInFailed = true }
+                                        finally { busy = false }
+                                    }
+                                }, modifier = Modifier.fillMaxWidth()) { Text(stringResource(if (connected) Res.string.onboarding_drive_connected else Res.string.onboarding_drive_connect)) }
+                                if (signInFailed) Text(stringResource(Res.string.onboarding_drive_error), color = colors.error, style = MaterialTheme.typography.bodySmall)
+                            } else {
+                                Text(stringResource(Res.string.onboarding_drive_unavailable), style = MaterialTheme.typography.bodySmall, color = colors.onSurfaceVariant)
+                            }
                             Button(enabled = enabled, onClick = {
-                                busy = true
-                                vm.action {
-                                    try {
-                                        vm.container.settings.setMeaningLang(meaning)
-                                        selected.reversed().forEach { vm.container.settings.addLearningLang(it) }
-                                    } finally { busy = false }
-                                }
+                                if (drive.configured && !connected && !offlineAcknowledged) showOfflineConfirmation = true else startOnboarding(vm, selected, meaning) { busy = it }
                             }, modifier = Modifier.fillMaxWidth().graphicsLayer { scaleX = buttonScale; scaleY = buttonScale }, contentPadding = PaddingValues(vertical = 16.dp), shape = RoundedCornerShape(18.dp)) { Text(stringResource(Res.string.onboarding_start), style = MaterialTheme.typography.titleMedium) }
                             if (vm.failed) Text(stringResource(Res.string.error_save), color = colors.error, style = MaterialTheme.typography.bodyMedium)
                         }
@@ -120,6 +140,23 @@ import org.jetbrains.compose.resources.stringResource
                 }
             }
         }
+    }
+    if (showOfflineConfirmation) AlertDialog(
+        onDismissRequest = { showOfflineConfirmation = false },
+        title = { Text(stringResource(Res.string.onboarding_no_backup_title)) },
+        text = { Text(stringResource(Res.string.onboarding_no_backup_message)) },
+        confirmButton = { TextButton(onClick = { showOfflineConfirmation = false; offlineAcknowledged = true; startOnboarding(vm, selected, meaning) { busy = it } }) { Text(stringResource(Res.string.onboarding_continue_without_account)) } },
+        dismissButton = { TextButton(onClick = { showOfflineConfirmation = false }) { Text(stringResource(Res.string.cancel)) } },
+    )
+}
+
+private fun startOnboarding(vm: AppViewModel, selected: List<String>, meaning: String, setBusy: (Boolean) -> Unit) {
+    setBusy(true)
+    vm.action {
+        try {
+            vm.container.settings.setMeaningLang(meaning)
+            selected.reversed().forEach { vm.container.settings.addLearningLang(it) }
+        } finally { setBusy(false) }
     }
 }
 
@@ -159,9 +196,17 @@ fun SettingsScreen(vm: AppViewModel, settings: AppSettings, progress: () -> Unit
         Res.string.ed_settings_dictionary,
         Res.string.ed_settings_review,
         Res.string.ed_settings_backup,
-        Res.string.about
+        Res.string.about,
+        Res.string.help_guides_title
     )
     var selectedTab by rememberSaveable { mutableIntStateOf(-1) }
+    BackHandler(enabled = selectedTab >= 0 || guideScreen != null) {
+        when (guideScreen) {
+            "gestures" -> guideScreen = "help"
+            "help" -> guideScreen = null
+            else -> selectedTab = -1
+        }
+    }
     when (guideScreen) {
         "help" -> { HelpGuidesScreen(onOpenGestures = { guideScreen = "gestures" }, onBack = { guideScreen = null }); return }
         "gestures" -> { com.ziaee.zabankhan.ui.reader.GestureGuideScreen(learningLanguage) { guideScreen = "help" }; return }
@@ -170,7 +215,6 @@ fun SettingsScreen(vm: AppViewModel, settings: AppSettings, progress: () -> Unit
         AboutScreen(learningLanguage, onBack = { selectedTab = -1 }, onHelp = { guideScreen = "help" })
         return
     }
-    BackHandler(enabled = selectedTab >= 0) { selectedTab = -1 }
     Scaffold(
         snackbarHost = { SnackbarHost(speechSettingsSnackbar) },
         topBar = {
@@ -186,7 +230,7 @@ fun SettingsScreen(vm: AppViewModel, settings: AppSettings, progress: () -> Unit
     ) { padding ->
         Column(Modifier.fillMaxWidth().padding(padding)) {
             if (selectedTab < 0) {
-                SettingsTabRow(tabTitles = tabTitles, selectedTab = selectedTab, onSelect = { selectedTab = it })
+                SettingsTabRow(tabTitles = tabTitles, selectedTab = selectedTab, onSelect = { if (it == 7) guideScreen = "help" else selectedTab = it })
             } else {
                 key(selectedTab) {
                     Column(
@@ -200,12 +244,12 @@ fun SettingsScreen(vm: AppViewModel, settings: AppSettings, progress: () -> Unit
                                 FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                     Languages.learnable.forEach { lang ->
                                         val selected = lang.code in settings.learningLangs
-                                        FilterChip(selected, onClick = { if (!selected || settings.learningLangs.size > 1) vm.action {
+                                        FilterChip(selected, enabled = lang in Languages.enabledLearning, onClick = { if (!selected || settings.learningLangs.size > 1) vm.action {
                                             if (selected && settings.learningLangs.size > 1) repository.removeLearningLang(lang.code)
                                             else if (!selected) repository.addLearningLang(lang.code)
                                             val active = repository.current().learningLang
                                             if (active == settings.meaningLang) repository.setMeaningLang(if (active == Languages.PERSIAN.code) Languages.ENGLISH.code else Languages.PERSIAN.code)
-                                        } }, label = { Text(languageName(lang)) },
+                                        } }, label = { Text(if (lang in Languages.enabledLearning) languageName(lang) else "${languageName(lang)} · ${stringResource(Res.string.language_temporarily_unavailable)}") },
                                             leadingIcon = if (selected) ({ Icon(Icons.Default.Check, stringResource(Res.string.learning_languages), Modifier.size(18.dp)) }) else null,
                                             colors = FilterChipDefaults.filterChipColors(selectedContainerColor = MaterialTheme.colorScheme.primaryContainer, selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer, selectedLeadingIconColor = MaterialTheme.colorScheme.onPrimaryContainer))
                                     }
@@ -257,9 +301,10 @@ fun SettingsScreen(vm: AppViewModel, settings: AppSettings, progress: () -> Unit
                             2 -> {
 
                                 SettingsChoice(stringResource(Res.string.edge_engine), settings.voiceEngine,
-                                    listOf("online" to stringResource(Res.string.edge_online), "device" to stringResource(Res.string.edge_device))) {
+                                    listOf("online" to stringResource(Res.string.edge_online), "device" to stringResource(Res.string.edge_device)) + listOfNotNull(("local" to stringResource(Res.string.local_tts_engine)).takeIf { localTtsSupported })) {
                                     vm.action { repository.setVoiceEngine(it) }
                                 }
+                                if (settings.voiceEngine == "local") LocalTtsSettings(learningLanguage)
                                 SettingsChoice(stringResource(Res.string.speech_rate), settings.speechRate, listOf(.75f, 1f, 1.25f).map { it to "${it}×" }) { vm.action { repository.setSpeechRate(it) } }
                                 SettingsChoice(stringResource(Res.string.speech_repeat), settings.speechRepeat, (1..3).map { it to "${it}×" }) { vm.action { repository.setSpeechRepeat(it) } }
                                 Languages.learnable.filter { it.code in settings.learningLangs }.forEach { lang ->

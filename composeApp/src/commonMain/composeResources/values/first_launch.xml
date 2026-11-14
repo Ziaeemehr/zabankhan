@@ -1,0 +1,16 @@
+<resources>
+    <string name="language_temporarily_unavailable">Temporarily unavailable</string>
+    <string name="onboarding_drive_optional">Optional: connect Google Drive</string>
+    <string name="onboarding_drive_description">Connect to back up your data. You can continue without an account and connect later in Settings.</string>
+    <string name="onboarding_drive_connect">Connect Google Drive</string>
+    <string name="onboarding_drive_connected">Google Drive connected</string>
+    <string name="onboarding_no_backup_title">Continue without Drive backup?</string>
+    <string name="onboarding_no_backup_message">Your data will stay on this device and will not be backed up to Google Drive. You can connect later in Settings.</string>
+    <string name="help_optional_drive_title">Optional Google Drive backup</string>
+    <string name="help_optional_drive_body">On supported devices, connect Google Drive from onboarding or Settings to use cloud backup. You can keep using the app without connecting.</string>
+    <string name="help_french_only_title">French learning is available</string>
+    <string name="help_french_only_body">English remains visible but is temporarily unavailable as a learning language. English meaning, dictionary, and interface options are unchanged.</string>
+    <string name="onboarding_drive_error">Google sign-in failed. Try again or continue without an account.</string>
+    <string name="onboarding_drive_unavailable">Google Drive backup is unavailable in this version. You can continue and use local backups in Settings.</string>
+    <string name="onboarding_continue_without_account">Continue without an account</string>
+</resources>
