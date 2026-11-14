@@ -134,10 +134,16 @@ jobs:
           mkdir release-assets
           cp composeApp/build/outputs/apk/play/release/composeApp-play-release.apk \
             "release-assets/zabankhan-$VERSION-play.apk"
-          cp composeApp/build/outputs/mapping/playRelease/mapping.txt \
-            "release-assets/zabankhan-$VERSION-play-mapping.txt"
           cp composeApp/build/outputs/bundle/playRelease/composeApp-play-release.aab \
             "release-assets/zabankhan-$VERSION-play.aab"
+
+      # Kept as a workflow artifact only (not a release asset) to decode crash stack traces.
+      - uses: actions/upload-artifact@v4
+        with:
+          name: android-mapping
+          path: composeApp/build/outputs/mapping/playRelease/mapping.txt
+          if-no-files-found: error
+          retention-days: 90
 
       - uses: actions/upload-artifact@v4
         with:
