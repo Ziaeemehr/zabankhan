@@ -4,6 +4,9 @@ import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.jsonObject
 import com.ziaee.zabankhan.lang.Languages
 import com.ziaee.zabankhan.lang.loadLemmaLexicon
+import com.ziaee.zabankhan.translate.ExampleSource
+import com.ziaee.zabankhan.translate.TranslationRepository
+import com.ziaee.zabankhan.translate.TranslationOverrides
 import com.ziaee.zabankhan.translate.InMemoryKeyValueCache
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.mock.MockEngine
@@ -19,6 +22,30 @@ import kotlin.test.assertTrue
 import kotlin.test.assertFails
 
 class OwnDictionaryTest {
+    @Test fun packPersianIsMachineGeneratedButUserOverrideIsNot() = runTest {
+        val http = HttpClient(MockEngine { error("Meanings should not require the network") })
+        val cache = InMemoryKeyValueCache()
+        val repository = TranslationRepository(http, cache, null)
+        val dictionary = OwnDictionary(http, cache, FileSystem.SYSTEM_TEMPORARY_DIRECTORY / "meaning-provenance")
+        val entry = decodeDictionaryShard(Json.parseToJsonElement("""{"entries":[[7,"prendre","verb",5,"","","",[["to take","گرفتن",[],[],[]]],{},[],[]]],"form_labels":[],"redirects":{},"targets":{}}"""), emptyList()).entries.single()
+        try {
+            val persian = dictionary.meaning(entry, Languages.FRENCH, Languages.PERSIAN.code, repository)
+            assertEquals(listOf("گرفتن"), persian.meanings)
+            assertTrue(persian.machineTranslated)
+            assertEquals(ExampleSource.MODEL, persian.translations.single().source)
+            assertEquals(persian.translations.single(), dictionary.senseMeanings(entry, Languages.PERSIAN.code, repository).single().translation)
+            assertFalse(dictionary.meaning(entry, Languages.FRENCH, Languages.ENGLISH.code, repository).machineTranslated)
+
+            TranslationOverrides(cache).putOverride(
+                "to take", Languages.ENGLISH.code, Languages.PERSIAN.code, "برداشتن")
+            val withoutPersian = entry.copy(senses = entry.senses.map { it.copy(fa = "") })
+            val edited = dictionary.meaning(withoutPersian, Languages.FRENCH, Languages.PERSIAN.code, repository)
+            assertEquals(listOf("برداشتن"), edited.meanings)
+            assertFalse(edited.machineTranslated)
+            assertEquals(ExampleSource.EDITED, edited.translations.single().source)
+        } finally { http.close() }
+    }
+
     @Test fun monolingualPackParsesAndResolvesInflectedForms() = runTest {
         val indexJson = """{"lang":"fr","format":1,"version":1,"entries":3,"shards":["al","be","ch"],"sources":"French Wiktionnaire via Kaikki Wiktextract (CC BY-SA 4.0)","license":"https://creativecommons.org/licenses/by-sa/4.0/"}"""
         val alJson = """{"entries":[{"word":"aller","pos":"verb","gender":"","senses":[{"definition":"Se déplacer d'un lieu à un autre.","tags":[],"example":"Nous allons au marché."},{"definition":"Convenir, être dans un état donné.","tags":["informal"],"example":"Comment allez-vous ?"},{"definition":"Se mouvoir vers un lieu.","tags":["dated"],"example":""}]}]}"""

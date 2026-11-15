@@ -6,6 +6,7 @@ import com.ziaee.zabankhan.lang.LemmaLexicon
 import com.ziaee.zabankhan.lang.normalizeForMatch
 import com.ziaee.zabankhan.datapack.LanguageDataPacks
 import com.ziaee.zabankhan.pdf.AppFiles
+import com.ziaee.zabankhan.translate.ExampleSource
 import com.ziaee.zabankhan.translate.ExampleTranslation
 import com.ziaee.zabankhan.translate.TranslationRepository
 import io.ktor.client.HttpClient
@@ -353,7 +354,8 @@ class OwnDictionary(private val http: HttpClient, @Suppress("UNUSED_PARAMETER") 
     }
     suspend fun senseMeanings(entry: Entry, target: String, translations: TranslationRepository): List<SenseMeaning> = entry.senses.map { sense ->
         if (target != Languages.PERSIAN.code) SenseMeaning(sense.en)
-        else if (sense.fa.isNotBlank()) SenseMeaning(sense.fa)
+        // Pack Persian meanings are generated automatically, without human review.
+        else if (sense.fa.isNotBlank()) SenseMeaning(sense.fa, ExampleTranslation(sense.fa, ExampleSource.MODEL))
         else if (sense.en.isNotBlank()) {
             val translated = translations.translateTextWithSource(sense.en, Languages.ENGLISH.code, target).getOrNull()?.takeIf { it.text.isNotBlank() }
             SenseMeaning(translated?.text ?: sense.en, translated)
@@ -361,7 +363,7 @@ class OwnDictionary(private val http: HttpClient, @Suppress("UNUSED_PARAMETER") 
     }
     suspend fun meaning(entry: Entry, lang: LanguageSpec, target: String, translations: TranslationRepository): DictionaryMeaning {
         val meanings = senseMeanings(entry, target, translations)
-        return DictionaryMeaning(entry, meanings.map { it.text }.filter(String::isNotBlank), meanings.any { it.translation != null }, meanings.mapNotNull { it.translation })
+        return DictionaryMeaning(entry, meanings.map { it.text }.filter(String::isNotBlank), meanings.any { it.translation?.source in setOf(ExampleSource.MODEL, ExampleSource.GOOGLE) }, meanings.mapNotNull { it.translation })
     }
     suspend fun downloadAll(lang: LanguageSpec, progress: (DictionaryDownload) -> Unit) = withContext(Dispatchers.IO) {
         require(lang.ownDictionaryAvailable); mutex.withLock { val idx = index(lang); var bytes = 0L; progress(DictionaryDownload(0, idx.shards.size, 0)); idx.shards.forEachIndexed { i, key ->
@@ -383,4 +385,12 @@ class OwnDictionary(private val http: HttpClient, @Suppress("UNUSED_PARAMETER") 
 }
 
 suspend fun OwnDictionary.lookupOrEmpty(word: String, lang: LanguageSpec, sentence: String? = null): DictionaryLookup = try { lookup(word, lang, sentence) } catch (cancelled: CancellationException) { throw cancelled } catch (_: Exception) { DictionaryLookup(word, emptyList(), emptyList(), emptyList()) }
-suspend fun OwnDictionary.meaningOrEnglish(entry: Entry, lang: LanguageSpec, target: String, translations: TranslationRepository): DictionaryMeaning = try { meaning(entry, lang, target, translations) } catch (cancelled: CancellationException) { throw cancelled } catch (_: Exception) { DictionaryMeaning(entry, (if (target == Languages.PERSIAN.code) entry.persian else entry.en).ifEmpty { entry.en }) }
+suspend fun OwnDictionary.meaningOrEnglish(entry: Entry, lang: LanguageSpec, target: String, translations: TranslationRepository): DictionaryMeaning = try {
+    meaning(entry, lang, target, translations)
+} catch (cancelled: CancellationException) {
+    throw cancelled
+} catch (_: Exception) {
+    val persian = entry.persian.takeIf { target == Languages.PERSIAN.code }.orEmpty()
+    DictionaryMeaning(entry, persian.ifEmpty { entry.en }, machineTranslated = persian.isNotEmpty(),
+        translations = persian.map { ExampleTranslation(it, ExampleSource.MODEL) })
+}

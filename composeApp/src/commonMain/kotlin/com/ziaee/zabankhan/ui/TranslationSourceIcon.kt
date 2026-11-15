@@ -32,7 +32,7 @@ fun TranslationSourceIcon(source: ExampleSource, engine: String? = null) {
     }
     val description = when (source) {
         ExampleSource.MODEL -> engine?.let { stringResource(Res.string.translation_source_model_named, it) }
-            ?: stringResource(Res.string.translation_source_model)
+            ?: stringResource(Res.string.own_dictionary_machine_translation)
         ExampleSource.GOOGLE -> if (engine == "mymemory") "MyMemory" else stringResource(Res.string.translation_source_google)
         ExampleSource.BUNDLED -> stringResource(Res.string.translation_source_bundled)
         ExampleSource.DICTIONARY -> stringResource(Res.string.translation_source_dictionary)

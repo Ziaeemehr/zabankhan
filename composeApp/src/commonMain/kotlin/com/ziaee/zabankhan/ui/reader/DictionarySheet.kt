@@ -211,7 +211,8 @@ private fun ReferenceDictionaryPane(
         try {
             val exactOwnMatches = (ownLookup.entries + ownLookup.idioms).distinctBy { it.id }.map { entry -> vm.container.ownDictionary.meaningOrEnglish(entry, lang, meaningTarget, repository) }.filter { normalizeDictionaryQuery(it.entry.word) == normalizeDictionaryQuery(word) }
             val result = if (exactOwnMatches.any { it.meanings.isNotEmpty() }) {
-                ownMeaningSource = exactOwnMatches.firstOrNull { it.meanings.isNotEmpty() }?.translations?.firstOrNull()
+                val primaryMatch = exactOwnMatches.firstOrNull { it.meanings.isNotEmpty() }
+                ownMeaningSource = primaryMatch?.translations?.firstOrNull { it.text == primaryMatch.meanings.firstOrNull() }
                 val senses = exactOwnMatches.map { com.ziaee.zabankhan.translate.MeaningSense(it.entry.pos, it.meanings) }
                 com.ziaee.zabankhan.translate.WordMeaning(senses.first { it.meanings.isNotEmpty() }.meanings.first(), senses, "own-dictionary")
             } else if (selection.sentenceActions) {
@@ -413,6 +414,8 @@ private fun ReferenceDictionaryPane(
                     MeaningOptionPills(alternatives.take(8), meaning, meaningTarget, sourceIcon = { option -> TranslationSourceIcon(optionSources[option.text]) }) { option ->
                         meaning = option.text
                         meaningEdited = true
+                        ownMeaningSource = optionSources[option.text]
+                        meaningEngine = "own-dictionary"
                         saved = false
                     }
                 }
@@ -423,7 +426,7 @@ private fun ReferenceDictionaryPane(
               Row(verticalAlignment = Alignment.CenterVertically) {
                 OutlinedTextField(
                     value = meaning,
-                    onValueChange = { meaning = it; meaningEdited = true; saved = false },
+                    onValueChange = { meaning = it; meaningEdited = true; meaningEngine = ""; ownMeaningSource = null; saved = false },
                     placeholder = { Text(stringResource(if (meaningTarget == Languages.PERSIAN.code) Res.string.dictionary_meaning_persian else Res.string.dictionary_meaning_english)) },
                     trailingIcon = {
                         if (autoTranslating) {
@@ -451,7 +454,7 @@ private fun ReferenceDictionaryPane(
                 }
               }
 
-            if (!meaningEdited) {
+            if (!saved && savedState.exactEntry == null) {
                 if (meaningEngine == "own-dictionary" && ownMeaningSource != null) TranslationSourceIcon(ownMeaningSource)
                 else TranslationSourceIcon(com.ziaee.zabankhan.ui.translationSource(meaningEngine), meaningEngine)
             }
