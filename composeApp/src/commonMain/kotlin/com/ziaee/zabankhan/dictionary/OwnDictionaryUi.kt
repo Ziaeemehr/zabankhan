@@ -30,6 +30,9 @@ import com.ziaee.zabankhan.ui.theme.ZabankhanDesign
 import com.ziaee.zabankhan.translate.ExampleSource
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.withContext
 import org.jetbrains.compose.resources.stringResource
 import androidx.compose.ui.platform.LocalUriHandler
 
@@ -407,10 +410,11 @@ private fun DictionaryLabel(text: String) {
     }
 }
 
+private const val OFFLINE_DICTIONARY_SIZE_HINT = "~52 MB"
+
 @OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 @Composable
 fun OwnDictionarySettings(vm: AppViewModel, settings: AppSettings, openSearch: () -> Unit = {}) {
-    val scope = rememberCoroutineScope()
     val dictionary = vm.container.ownDictionary
     TextButton(onClick = openSearch) { Text(stringResource(Res.string.own_search)) }
     var meaningMenu by remember { mutableStateOf(false) }
@@ -441,23 +445,50 @@ fun OwnDictionarySettings(vm: AppViewModel, settings: AppSettings, openSearch: (
     }
     Languages.learnable.filter { it.ownDictionaryAvailable && it.code in settings.learningLangs }.forEach { lang ->
         key(lang.code) {
+            val scope = rememberCoroutineScope()
+            var downloadJob by remember { mutableStateOf<Job?>(null) }
+            var downloading by remember { mutableStateOf(false) }
             var state by remember { mutableStateOf(DictionaryDownload(0, 0, 0)) }
             var busy by remember { mutableStateOf(false) }
             var failed by remember { mutableStateOf(false) }
             LaunchedEffect(dictionary, lang) { state = dictionary.status(lang) }
             Column(Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
                 Text(stringResource(Res.string.own_dictionary_settings, lang.nativeName), style = MaterialTheme.typography.titleMedium)
-                Text(stringResource(if (state.complete) Res.string.own_dictionary_offline else Res.string.own_dictionary_online))
+                Text(stringResource(Res.string.own_dictionary_offline_parts, state.completed, state.total))
+                if (!busy && !state.complete) Text(OFFLINE_DICTIONARY_SIZE_HINT, style = MaterialTheme.typography.bodySmall)
                 val size = if (state.bytes >= 1024L * 1024L) "${state.bytes / (1024L * 1024L)} MB" else "${state.bytes / 1024} KB"
                 Text(stringResource(Res.string.own_dictionary_size, size), style = MaterialTheme.typography.bodySmall)
                 if (busy) {
                     if (state.total > 0) LinearProgressIndicator(progress = { state.completed.toFloat() / state.total }, modifier = Modifier.fillMaxWidth()) else LinearProgressIndicator(Modifier.fillMaxWidth())
                     Text("${state.completed} / ${state.total}", style = MaterialTheme.typography.bodySmall)
                 }
-                Row {
-                    TextButton(enabled = !busy, onClick = { busy = true; failed = false; scope.launch {
-                        try { dictionary.downloadAll(lang) { state = it } } catch (cancelled: CancellationException) { throw cancelled } catch (_: Exception) { failed = true } finally { busy = false; state = dictionary.status(lang) }
-                    } }) { Text(stringResource(Res.string.own_dictionary_download)) }
+                Column {
+                    if (downloading) {
+                        TextButton(onClick = { downloadJob?.cancel() }) { Text(stringResource(Res.string.cancel)) }
+                    } else TextButton(enabled = !busy, onClick = {
+                        busy = true
+                        downloading = true
+                        failed = false
+                        downloadJob = scope.launch {
+                            try {
+                                dictionary.downloadAll(lang) { done, total ->
+                                    scope.launch { state = state.copy(completed = done, total = total) }
+                                }
+                            } catch (cancelled: CancellationException) {
+                                throw cancelled
+                            } catch (_: Exception) {
+                                failed = true
+                            } finally {
+                                try {
+                                    withContext(NonCancellable) { state = dictionary.status(lang) }
+                                } finally {
+                                    busy = false
+                                    downloading = false
+                                    downloadJob = null
+                                }
+                            }
+                        }
+                    }) { Text(stringResource(Res.string.own_dictionary_download_all)) }
                     TextButton(enabled = !busy && state.completed > 0, onClick = { busy = true; scope.launch {
                         try { dictionary.delete(lang); state = dictionary.status(lang) } catch (cancelled: CancellationException) { throw cancelled } catch (_: Exception) { failed = true } finally { busy = false }
                     } }) { Text(stringResource(Res.string.own_dictionary_delete)) }

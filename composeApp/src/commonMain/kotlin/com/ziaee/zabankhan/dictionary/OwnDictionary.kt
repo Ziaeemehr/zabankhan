@@ -16,6 +16,8 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.IO
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.serialization.json.*
@@ -365,11 +367,41 @@ class OwnDictionary(private val http: HttpClient, @Suppress("UNUSED_PARAMETER") 
         val meanings = senseMeanings(entry, target, translations)
         return DictionaryMeaning(entry, meanings.map { it.text }.filter(String::isNotBlank), meanings.any { it.translation?.source in setOf(ExampleSource.MODEL, ExampleSource.GOOGLE) }, meanings.mapNotNull { it.translation })
     }
-    suspend fun downloadAll(lang: LanguageSpec, progress: (DictionaryDownload) -> Unit) = withContext(Dispatchers.IO) {
-        require(lang.ownDictionaryAvailable); mutex.withLock { val idx = index(lang); var bytes = 0L; progress(DictionaryDownload(0, idx.shards.size, 0)); idx.shards.forEachIndexed { i, key ->
-            check(safeShard(lang, idx, key) != null) { "Dictionary shard unavailable: $key" }; bytes += fs.metadata(directory(lang) / "$key.json").size ?: 0L; progress(DictionaryDownload(i + 1, idx.shards.size, bytes))
-        } }
+    suspend fun downloadAll(lang: LanguageSpec, onProgress: (done: Int, total: Int) -> Unit) = withContext(Dispatchers.IO) {
+        require(lang.ownDictionaryAvailable)
+        val idx = mutex.withLock { index(lang) }
+        val progressMutex = Mutex()
+        var done = 0
+        var failed = 0
+        onProgress(0, idx.shards.size)
+        coroutineScope {
+            repeat(4) { worker ->
+                launch {
+                    for (i in worker until idx.shards.size step 4) {
+                        var succeeded = false
+                        for (attempt in 0..1) {
+                            try {
+                                shard(lang, idx, idx.shards[i]) // different keys, atomic writes: safe in parallel
+                                succeeded = true
+                                break
+                            } catch (cancelled: CancellationException) {
+                                throw cancelled
+                            } catch (_: Exception) {
+                                // Retry once, then continue so other shards can still be cached.
+                            }
+                        }
+                        progressMutex.withLock {
+                            if (!succeeded) failed++
+                            onProgress(++done, idx.shards.size)
+                        }
+                    }
+                }
+            }
+        }
+        check(failed == 0) { "Dictionary download failed: $failed shards unavailable" }
     }
+
+
     suspend fun status(lang: LanguageSpec): DictionaryDownload = withContext(Dispatchers.IO) { mutex.withLock {
         val idx = read(directory(lang) / "index.json")?.let { raw -> runCatching {
             val obj = json.parseToJsonElement(raw).jsonObject

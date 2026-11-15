@@ -29,4 +29,6 @@
     <string name="own_dictionary_meaning_language">زبان معنی: %1$s</string>
     <string name="own_dictionary_show_more">نمایش همهٔ معناها</string>
     <string name="own_dictionary_show_less">نمایش کمتر</string>
+    <string name="own_dictionary_download_all">دریافت همه</string>
+    <string name="own_dictionary_offline_parts">آفلاین: %1$d / %2$d بخش</string>
 </resources>

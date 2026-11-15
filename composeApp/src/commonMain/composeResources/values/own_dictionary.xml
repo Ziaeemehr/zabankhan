@@ -32,4 +32,6 @@
     <string name="own_dictionary_meaning_language">Meaning language: %1$s</string>
     <string name="own_dictionary_show_more">Show all senses</string>
     <string name="own_dictionary_show_less">Show fewer senses</string>
+    <string name="own_dictionary_download_all">Download all</string>
+    <string name="own_dictionary_offline_parts">Offline: %1$d / %2$d parts</string>
 </resources>
