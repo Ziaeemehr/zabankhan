@@ -23,7 +23,7 @@
     <string name="own_dictionary_follow_app">پیروی از تنظیم برنامه</string>
     <string name="own_dictionary_persian">فارسی</string>
     <string name="own_dictionary_english">انگلیسی</string>
-    <string name="own_dictionary_french_definitions">تعریف‌ها</string>
+    <string name="own_dictionary_french_definitions">تعریف‌ها — %1$s</string>
     <string name="own_dictionary_french_source">باز کردن ویکی‌واژهٔ فرانسوی</string>
     <string name="own_dictionary_french_attribution">مشارکت‌کنندگان ویکی‌واژه از طریق Kaikki Wiktextract · مجوز CC BY-SA 4.0. پیوند مدخل به منبع اصلی می‌رود.</string>
     <string name="own_dictionary_meaning_language">زبان معنی: %1$s</string>

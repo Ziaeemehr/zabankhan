@@ -26,7 +26,7 @@
     <string name="own_dictionary_follow_app">Follow app setting</string>
     <string name="own_dictionary_persian">Persian</string>
     <string name="own_dictionary_english">English</string>
-    <string name="own_dictionary_french_definitions">Definitions</string>
+    <string name="own_dictionary_french_definitions">%1$s — definitions</string>
     <string name="own_dictionary_french_source">Open French Wiktionary</string>
     <string name="own_dictionary_french_attribution">Wiktionnaire contributors via Kaikki Wiktextract · CC BY-SA 4.0. Select a source link for the original entry.</string>
     <string name="own_dictionary_meaning_language">Meaning language: %1$s</string>

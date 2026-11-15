@@ -43,7 +43,30 @@ fun OwnDictionaryBlock(lookup: DictionaryLookup, lang: LanguageSpec, target: Str
     loading: Boolean = false, failed: Boolean = false) {
     val entries = lookup.entries + lookup.idioms
     val settings by vm.settings.collectAsState()
-    val effectiveTarget = settings?.dictionaryMeaningLang?.ifBlank { target } ?: target
+    var localChoice by remember(lookup.query) { mutableStateOf<String?>(null) }
+    val effectiveTarget = localChoice ?: settings?.dictionaryMeaningLang?.ifBlank { target } ?: target
+    val hasMonolingualDefinitions = entries.any { it.monolingualDefinitions.isNotEmpty() }
+    val monolingualSelected = effectiveTarget == lang.code && lang.monolingualPackId != null
+    FlowRow(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+        Text(stringResource(Res.string.own_dictionary_title), Modifier.align(Alignment.CenterVertically), style = MaterialTheme.typography.titleSmall)
+        listOf(Languages.PERSIAN.code to "فا", Languages.ENGLISH.code to "EN").forEach { (code, label) ->
+            TextButton(onClick = {
+                localChoice = code
+            }, contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp)) {
+                Text(label, color = if (effectiveTarget == code) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        }
+        if (lang.monolingualPackId != null) TextButton(onClick = {
+            localChoice = lang.code
+        }, contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp)) {
+            Text(stringResource(Res.string.own_dictionary_french_definitions, lang.nativeName), color = if (monolingualSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+    }
+    if (monolingualSelected && !hasMonolingualDefinitions) {
+        Text(stringResource(Res.string.own_no_entry), Modifier.fillMaxWidth().padding(vertical = 12.dp),
+            color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
+        return
+    }
     if (entries.isEmpty()) {
         DictionaryMachineFallback(lookup.query, lang.code, effectiveTarget, sentence, textId, vm,
             settings?.let(vm.container::translations), loading, failed)
@@ -61,33 +84,11 @@ fun OwnDictionaryBlock(lookup: DictionaryLookup, lang: LanguageSpec, target: Str
         state
     }
     val meanings = meaningsState.second
-    val hasMonolingualDefinitions = lang.monolingualPackId != null && entries.any { it.monolingualDefinitions.isNotEmpty() }
-    val monolingualSelected = effectiveTarget == lang.code && lang.monolingualPackId != null
     if (meaningsState.first && entries.none { entry -> meanings[entry.id].orEmpty().any { it.text.isNotBlank() } } &&
-        !(monolingualSelected && hasMonolingualDefinitions)) {
+        !monolingualSelected) {
         DictionaryMachineFallback(lookup.query, lang.code, effectiveTarget, sentence, textId, vm,
             translations, loading = false, failed = false)
         return
-    }
-    var monolingualMode by remember(lookup.query, effectiveTarget) {
-        mutableStateOf(monolingualSelected && hasMonolingualDefinitions)
-    }
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        Text(stringResource(Res.string.own_dictionary_title), Modifier.weight(1f), style = MaterialTheme.typography.titleSmall)
-        listOf(Languages.PERSIAN.code to "فا", Languages.ENGLISH.code to "EN").forEach { (code, label) ->
-            TextButton(onClick = {
-                monolingualMode = false
-                vm.action { vm.container.settings.setDictionaryMeaningLang(code) }
-            }, contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp)) {
-                Text(label, color = if (effectiveTarget == code) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant)
-            }
-        }
-        if (hasMonolingualDefinitions) TextButton(onClick = {
-            monolingualMode = true
-            vm.action { vm.container.settings.setDictionaryMeaningLang(lang.code) }
-        }, contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp)) {
-            Text(stringResource(Res.string.own_dictionary_french_definitions), color = if (monolingualSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant)
-        }
     }
     if (lookup.via.isNotEmpty()) {
         val names = formCodeNames()
@@ -95,9 +96,9 @@ fun OwnDictionaryBlock(lookup: DictionaryLookup, lang: LanguageSpec, target: Str
             "${redirect.form} → ${redirect.lemma} · ${formLabelText(redirect.labels.joinToString(";")) { names[it] ?: it }}"
         }, Modifier.fillMaxWidth().padding(12.dp), style = MaterialTheme.typography.bodyMedium.merge(contentStyle(lookup.query))) }
     }
-    if (monolingualMode) {
+    if (monolingualSelected) {
         val uri = LocalUriHandler.current
-        Text(stringResource(Res.string.own_dictionary_french_definitions), style = MaterialTheme.typography.titleSmall)
+        Text(stringResource(Res.string.own_dictionary_french_definitions, lang.nativeName), style = MaterialTheme.typography.titleSmall)
         entries.distinctBy { it.id }.filter { it.monolingualDefinitions.isNotEmpty() }.take(8).forEach { entry ->
             Card(Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
                 Column(Modifier.fillMaxWidth().padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -424,7 +425,7 @@ fun OwnDictionarySettings(vm: AppViewModel, settings: AppSettings, openSearch: (
             val selectedLanguageLabel = when (selectedLanguage) {
                 Languages.PERSIAN -> stringResource(Res.string.own_dictionary_persian)
                 Languages.ENGLISH -> stringResource(Res.string.own_dictionary_english)
-                else -> selectedLanguage?.let { stringResource(Res.string.own_dictionary_french_definitions) }
+                else -> selectedLanguage?.let { stringResource(Res.string.own_dictionary_french_definitions, it.nativeName) }
                     ?: stringResource(Res.string.own_dictionary_follow_app)
             }
             Text(stringResource(Res.string.own_dictionary_meaning_language, selectedLanguageLabel))
@@ -439,7 +440,7 @@ fun OwnDictionarySettings(vm: AppViewModel, settings: AppSettings, openSearch: (
                 label?.let { language.code to it }
             }
             options.forEach { (code, label) ->
-                DropdownMenuItem(text = { Text(stringResource(label)) }, onClick = { meaningMenu = false; vm.action { vm.container.settings.setDictionaryMeaningLang(code) } })
+                DropdownMenuItem(text = { Text(if (code.isNotEmpty() && label == Res.string.own_dictionary_french_definitions) stringResource(label, Languages.byCode(code)?.nativeName.orEmpty()) else stringResource(label)) }, onClick = { meaningMenu = false; vm.action { vm.container.settings.setDictionaryMeaningLang(code) } })
             }
         }
     }
