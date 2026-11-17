@@ -83,11 +83,15 @@ private fun orderedIdiomMatch(needle: List<String>, query: List<String>): Boolea
 data class Example(val text: String, val en: String, val fa: String)
 data class MonolingualSense(val definition: String, val tags: List<String>, val example: String = "")
 data class MonolingualEntry(val word: String, val pos: String, val gender: String, val senses: List<MonolingualSense>)
+data class LearnerSense(val definition: String, val example: String = "", val register: String = "", val synonyms: List<String> = emptyList(), val antonyms: List<String> = emptyList())
+data class LearnerPhrase(val phrase: String, val definition: String)
+data class LearnerEntry(val word: String, val pos: String, val senses: List<LearnerSense>, val more: List<String>, val phrases: List<LearnerPhrase>, val pattern: String, val note: String, val family: List<String>)
 data class Sense(val en: String, val fa: String, val tags: List<String>, val examples: List<Example>, val synonyms: List<String>)
 data class Entry(
     val id: Long, val word: String, val pos: String, val freq: Int, val ipa: String, val gender: String,
     val audio: String, val senses: List<Sense>, val forms: Map<String, List<String>>,
     val expressions: List<String>, val moreExamples: List<String>, val monolingualDefinitions: List<MonolingualSense> = emptyList(),
+    val learner: LearnerEntry? = null,
 ) {
     val rank: Int get() = if (freq > 0) 6 - freq else Int.MAX_VALUE
     val en: List<String> get() = senses.map { it.en }.filter(String::isNotBlank)
@@ -180,6 +184,21 @@ fun decodeMonolingualShard(element: JsonElement): List<MonolingualEntry> =
         if (senses.isEmpty()) null else MonolingualEntry(row["word"].stringOrEmpty(), row["pos"].stringOrEmpty(), row["gender"].stringOrEmpty(), senses)
     }
 
+fun decodeLearnerShard(element: JsonElement): List<LearnerEntry> =
+    ((element as? JsonObject)?.get("entries") as? JsonArray).orEmpty().mapNotNull { raw ->
+        val row = raw as? JsonObject ?: return@mapNotNull null
+        val senses = (row["senses"] as? JsonArray).orEmpty().mapNotNull { value ->
+            val sense = value as? JsonObject ?: return@mapNotNull null
+            val definition = sense["d"].stringOrEmpty()
+            if (definition.isBlank()) null else LearnerSense(definition, sense["ex"].stringOrEmpty(), sense["reg"].stringOrEmpty(), sense["syn"].stringList(), sense["ant"].stringList())
+        }
+        if (senses.isEmpty()) null else LearnerEntry(row["word"].stringOrEmpty(), row["pos"].stringOrEmpty(), senses,
+            row["more"].stringList(), (row["phrases"] as? JsonArray).orEmpty().mapNotNull { phrase ->
+                val p = phrase as? JsonObject ?: return@mapNotNull null
+                LearnerPhrase(p["p"].stringOrEmpty(), p["d"].stringOrEmpty())
+            }, row["pattern"].stringOrEmpty(), row["note"].stringOrEmpty(), row["family"].stringList())
+    }
+
 fun lookupMonolingualDefinitions(word: String, lexicon: LemmaLexicon, entries: List<MonolingualEntry>, lang: LanguageSpec): List<MonolingualEntry> {
     val normalized = normalizeForMatch(word, lang)
     val lemmas = lexicon.lemmas(normalized).map { normalizeForMatch(it, lang) }.toSet() + normalized
@@ -210,8 +229,9 @@ class OwnDictionary(private val http: HttpClient, @Suppress("UNUSED_PARAMETER") 
     private val root: Path = "${AppFiles.filesDir}/own-dictionary".toPath(), private val fs: FileSystem = FileSystem.SYSTEM) {
     private val json = Json { ignoreUnknownKeys = true }
     private val mutex = Mutex()
+    private val checkedPacks = mutableSetOf<String>()
     private fun directory(lang: LanguageSpec) = root / lang.code / "v2"
-    private fun monolingualDirectory(lang: LanguageSpec) = root / lang.code / "monolingual" / "v1"
+    private fun packDirectory(lang: LanguageSpec, pack: String) = root / lang.code / pack.substringAfter('/') / "v1"
     private fun read(path: Path): String? = if (fs.exists(path)) fs.read(path) { readUtf8() } else null
     private fun write(path: Path, raw: String) { fs.createDirectories(requireNotNull(path.parent)); val tmp = path.parent!! / "${path.name}.tmp"; fs.write(tmp) { writeUtf8(raw) }; fs.atomicMove(tmp, path) }
     private suspend fun fetch(lang: LanguageSpec, name: String): String {
@@ -258,17 +278,17 @@ class OwnDictionary(private val http: HttpClient, @Suppress("UNUSED_PARAMETER") 
     }
     private suspend fun safeShard(lang: LanguageSpec, index: DictionaryIndex, key: String): DictionaryShard? = try { shard(lang, index, key) } catch (cancelled: CancellationException) { throw cancelled } catch (_: Exception) { null }
 
-    private suspend fun monolingualEntries(lang: LanguageSpec, word: String): List<MonolingualEntry> {
-        val pack = lang.monolingualPackId ?: return emptyList()
-        val lexicon = LanguageDataPacks.load(lang.code)?.lemmas ?: return emptyList()
-        val base = monolingualDirectory(lang)
+    private suspend fun packIndex(lang: LanguageSpec, pack: String): List<String>? {
+        val base = packDirectory(lang, pack)
         val indexFile = base / "index.json"
         val oldIndex = read(indexFile)
-        val freshIndex = try {
+        // One version check per pack per session; later lookups read the cached index without network.
+        val freshIndex = if (oldIndex != null && pack in checkedPacks) null else try {
             val response = http.get("https://ziaeemehr.github.io/zabankhan-dict/$pack/v1/index.json")
             if (response.status.value in 200..299) response.bodyAsText() else null
         } catch (cancelled: CancellationException) { throw cancelled } catch (_: Exception) { null }
-        val indexRaw = freshIndex ?: oldIndex ?: return emptyList()
+        val indexRaw = freshIndex ?: oldIndex ?: return null
+        checkedPacks += pack  // also when offline: do not retry the network on every lookup
         if (freshIndex != null) {
             val previousVersion = oldIndex?.let { runCatching { json.parseToJsonElement(it).jsonObject["version"] }.getOrNull() }
             val currentVersion = runCatching { json.parseToJsonElement(freshIndex).jsonObject["version"] }.getOrNull()
@@ -277,24 +297,48 @@ class OwnDictionary(private val http: HttpClient, @Suppress("UNUSED_PARAMETER") 
             }
             write(indexFile, freshIndex)
         }
-        val index = runCatching { json.parseToJsonElement(indexRaw).jsonObject }.getOrNull() ?: return emptyList()
-        if (index["lang"].stringOrEmpty() != lang.code || index["format"].intOrZero() != 1) return emptyList()
-        val available = index["shards"].stringList().toSet()
+        val index = runCatching { json.parseToJsonElement(indexRaw).jsonObject }.getOrNull() ?: return null
+        if (index["lang"].stringOrEmpty() != lang.code || index["format"].intOrZero() != 1) return null
+        return index["shards"].stringList()
+    }
+
+    private suspend fun packShard(lang: LanguageSpec, pack: String, key: String): String? {
+        val path = packDirectory(lang, pack) / "$key.json"
+        val cached = read(path)
+        if (cached != null) {
+            val valid = runCatching { json.parseToJsonElement(cached).jsonObject["entries"] as? JsonArray }.getOrNull()
+            if (valid != null) return cached
+        }
+        val response = http.get("https://ziaeemehr.github.io/zabankhan-dict/$pack/v1/$key.json")
+        if (response.status.value !in 200..299) return null
+        return response.bodyAsText().also { write(path, it) }
+    }
+
+    private suspend fun packEntries(lang: LanguageSpec, pack: String?, word: String): List<MonolingualEntry> {
+        pack ?: return emptyList()
+        val lexicon = LanguageDataPacks.load(lang.code)?.lemmas ?: return emptyList()
+        val available = packIndex(lang, pack)?.toSet() ?: return emptyList()
         val candidates = (lexicon.lemmas(normalizeForMatch(word, lang)) + normalizeForMatch(word, lang)).distinct()
         val entries = candidates.flatMap { candidate ->
             val key = dictionaryShardKey(candidate)
             if (key !in available) return@flatMap emptyList()
-            val path = base / "$key.json"
-            val raw = read(path) ?: run {
-                try {
-                    val response = http.get("https://ziaeemehr.github.io/zabankhan-dict/$pack/v1/$key.json")
-                    if (response.status.value !in 200..299) return@flatMap emptyList()
-                    response.bodyAsText().also { write(path, it) }
-                } catch (cancelled: CancellationException) { throw cancelled } catch (_: Exception) { return@flatMap emptyList() }
-            }
+            val raw = try { packShard(lang, pack, key) } catch (cancelled: CancellationException) { throw cancelled } catch (_: Exception) { null } ?: return@flatMap emptyList()
             runCatching { decodeMonolingualShard(json.parseToJsonElement(raw)) }.getOrDefault(emptyList())
         }
         return lookupMonolingualDefinitions(word, lexicon, entries, lang)
+    }
+
+    // Looks up by the resolved headwords, not the tapped form: "abandonne" must find "abandonner".
+    private suspend fun learnerEntries(lang: LanguageSpec, headwords: List<String>): List<LearnerEntry> {
+        val pack = lang.learnerPackId ?: return emptyList()
+        if (headwords.isEmpty()) return emptyList()
+        val available = packIndex(lang, pack)?.toSet() ?: return emptyList()
+        val wanted = headwords.map(::normalizeDictionaryQuery).toSet()
+        val keys = headwords.map(::dictionaryShardKey).distinct().filter { it in available }
+        return keys.flatMap { key ->
+            val raw = try { packShard(lang, pack, key) } catch (cancelled: CancellationException) { throw cancelled } catch (_: Exception) { null } ?: return@flatMap emptyList()
+            runCatching { decodeLearnerShard(json.parseToJsonElement(raw)) }.getOrDefault(emptyList())
+        }.filter { normalizeDictionaryQuery(it.word) in wanted }
     }
 
     suspend fun lookup(word: String, lang: LanguageSpec, sentence: String? = null): DictionaryLookup = withContext(Dispatchers.IO) {
@@ -324,10 +368,13 @@ class OwnDictionary(private val http: HttpClient, @Suppress("UNUSED_PARAMETER") 
                 val key = dictionaryShardKey(expression, splitParents)
                 if (key !in index.shards) null else safeShard(lang, index, key)?.entries?.firstOrNull { normalizeDictionaryQuery(it.word) == normalizeDictionaryQuery(expression) }
             }.distinctBy { it.id }.filter { entry -> idiomWords.isNotEmpty() && dictionaryIdiomMatches(entry.word, sentence.orEmpty()) }
-            val definitions = try { monolingualEntries(lang, word) } catch (cancelled: CancellationException) { throw cancelled } catch (_: Exception) { emptyList() }
+            val definitions = try { packEntries(lang, lang.monolingualPackId, word) } catch (cancelled: CancellationException) { throw cancelled } catch (_: Exception) { emptyList() }
+            val learnerEntries = try { learnerEntries(lang, bases.map { it.word }.distinct()) } catch (cancelled: CancellationException) { throw cancelled } catch (_: Exception) { emptyList() }
             val enriched = bases.map { entry ->
                 val mono = definitions.filter { normalizeDictionaryQuery(it.word) == normalizeDictionaryQuery(entry.word) }
-                entry.copy(gender = entry.gender.ifBlank { mono.firstOrNull()?.gender.orEmpty() }, monolingualDefinitions = mono.flatMap { it.senses })
+                val headwordMatches = learnerEntries.filter { normalizeDictionaryQuery(it.word) == normalizeDictionaryQuery(entry.word) }
+                val learner = headwordMatches.firstOrNull { it.pos == entry.pos }
+                entry.copy(gender = entry.gender.ifBlank { mono.firstOrNull()?.gender.orEmpty() }, monolingualDefinitions = mono.flatMap { it.senses }, learner = learner)
             }
             DictionaryLookup(word, enriched, redirects, idioms)
         }
@@ -401,6 +448,30 @@ class OwnDictionary(private val http: HttpClient, @Suppress("UNUSED_PARAMETER") 
         check(failed == 0) { "Dictionary download failed: $failed shards unavailable" }
     }
 
+    suspend fun downloadAllMonolingual(lang: LanguageSpec, onProgress: (Int, Int) -> Unit) = withContext(Dispatchers.IO) {
+        require(lang.monolingualPackId != null)
+        val packs = listOfNotNull(lang.monolingualPackId, lang.learnerPackId)
+        val keys = mutex.withLock { packs.associateWith { pack -> packIndex(lang, pack) ?: error("Dictionary index unavailable: $pack") } }
+        val total = keys.values.sumOf { it.size }
+        val progressMutex = Mutex()
+        var done = 0
+        var failed = 0
+        onProgress(0, total)
+        coroutineScope {
+            val jobs = packs.flatMap { pack -> keys.getValue(pack).map { pack to it } }
+            repeat(4) { worker -> launch {
+                for (i in worker until jobs.size step 4) {
+                    var succeeded = false
+                    for (attempt in 0..1) try {
+                        if (packShard(lang, jobs[i].first, jobs[i].second) != null) { succeeded = true; break }
+                    } catch (cancelled: CancellationException) { throw cancelled } catch (_: Exception) { }
+                    progressMutex.withLock { if (!succeeded) failed++; onProgress(++done, total) }
+                }
+            } }
+        }
+        check(failed == 0) { "Dictionary download failed: $failed shards unavailable" }
+    }
+
 
     suspend fun status(lang: LanguageSpec): DictionaryDownload = withContext(Dispatchers.IO) { mutex.withLock {
         val idx = read(directory(lang) / "index.json")?.let { raw -> runCatching {
@@ -413,6 +484,20 @@ class OwnDictionary(private val http: HttpClient, @Suppress("UNUSED_PARAMETER") 
         val files = idx?.shards.orEmpty().map { directory(lang) / "$it.json" }.filter(fs::exists)
         DictionaryDownload(files.size, idx?.shards?.size ?: 0, files.sumOf { fs.metadata(it).size ?: 0L })
     } }
+    suspend fun monolingualStatus(lang: LanguageSpec): DictionaryDownload = withContext(Dispatchers.IO) { mutex.withLock {
+        val packs = listOfNotNull(lang.monolingualPackId, lang.learnerPackId)
+        val keysByPack = packs.associateWith { pack ->
+            val base = packDirectory(lang, pack)
+            read(base / "index.json")?.let { raw -> runCatching {
+            val obj = json.parseToJsonElement(raw).jsonObject
+            if (obj["lang"].stringOrEmpty() == lang.code && obj["format"].intOrZero() == 1) obj["shards"].stringList() else emptyList()
+            }.getOrNull() }.orEmpty()
+        }
+        val files = keysByPack.flatMap { (pack, keys) -> keys.map { packDirectory(lang, pack) / "$it.json" } }.filter(fs::exists)
+        val total = keysByPack.values.sumOf { it.size }
+        DictionaryDownload(files.size, total, files.sumOf { fs.metadata(it).size ?: 0L })
+    } }
+    suspend fun deleteMonolingual(lang: LanguageSpec) = withContext(Dispatchers.IO) { mutex.withLock { listOfNotNull(lang.monolingualPackId, lang.learnerPackId).forEach { fs.deleteRecursively(packDirectory(lang, it), mustExist = false) } } }
     suspend fun delete(lang: LanguageSpec) = withContext(Dispatchers.IO) { mutex.withLock { fs.deleteRecursively(directory(lang), mustExist = false) } }
 }
 

@@ -31,4 +31,9 @@
     <string name="own_dictionary_show_less">نمایش کمتر</string>
     <string name="own_dictionary_download_all">دریافت همه</string>
     <string name="own_dictionary_offline_parts">آفلاین: %1$d / %2$d بخش</string>
+    <string name="own_dictionary_definitions_download">تعریف‌های آفلاین — %1$s</string>
+    <string name="own_dictionary_synonyms">مترادف‌ها</string>
+    <string name="own_dictionary_antonyms">متضادها</string>
+    <string name="own_dictionary_phrases">عبارت‌ها</string>
+    <string name="own_dictionary_word_family">خانوادهٔ واژگانی</string>
 </resources>

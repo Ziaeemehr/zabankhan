@@ -29,4 +29,11 @@
     <string name="own_dictionary_meaning_language">Langue des sens : %1$s</string>
     <string name="own_dictionary_show_more">Afficher tous les sens</string>
     <string name="own_dictionary_show_less">Afficher moins de sens</string>
+    <string name="own_dictionary_offline_parts">Hors ligne : %1$d / %2$d parties</string>
+    <string name="own_dictionary_download_all">Tout télécharger</string>
+    <string name="own_dictionary_definitions_download">Définitions hors ligne — %1$s</string>
+    <string name="own_dictionary_synonyms">Synonymes</string>
+    <string name="own_dictionary_antonyms">Antonymes</string>
+    <string name="own_dictionary_phrases">Expressions</string>
+    <string name="own_dictionary_word_family">Famille de mots</string>
 </resources>

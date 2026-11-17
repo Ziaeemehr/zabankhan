@@ -34,4 +34,9 @@
     <string name="own_dictionary_show_less">Show fewer senses</string>
     <string name="own_dictionary_download_all">Download all</string>
     <string name="own_dictionary_offline_parts">Offline: %1$d / %2$d parts</string>
+    <string name="own_dictionary_definitions_download">Offline definitions — %1$s</string>
+    <string name="own_dictionary_synonyms">Synonyms</string>
+    <string name="own_dictionary_antonyms">Antonyms</string>
+    <string name="own_dictionary_phrases">Phrases</string>
+    <string name="own_dictionary_word_family">Word family</string>
 </resources>

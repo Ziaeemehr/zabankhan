@@ -11,6 +11,10 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.text.font.FontStyle
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.withStyle
+import androidx.compose.ui.text.SpanStyle
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
@@ -24,6 +28,7 @@ import com.ziaee.zabankhan.lang.Languages
 import com.ziaee.zabankhan.resources.Res
 import com.ziaee.zabankhan.resources.*
 import com.ziaee.zabankhan.ui.contentStyle
+import com.ziaee.zabankhan.ui.TappableLearningText
 import com.ziaee.zabankhan.ui.reader.partOfSpeechResource
 import com.ziaee.zabankhan.ui.TranslationSourceIcon
 import com.ziaee.zabankhan.ui.theme.ZabankhanDesign
@@ -45,21 +50,21 @@ fun OwnDictionaryBlock(lookup: DictionaryLookup, lang: LanguageSpec, target: Str
     val settings by vm.settings.collectAsState()
     var localChoice by remember(lookup.query) { mutableStateOf<String?>(null) }
     val effectiveTarget = localChoice ?: settings?.dictionaryMeaningLang?.ifBlank { target } ?: target
-    val hasMonolingualDefinitions = entries.any { it.monolingualDefinitions.isNotEmpty() }
+    val hasMonolingualDefinitions = entries.any { it.learner != null || it.monolingualDefinitions.isNotEmpty() }
     val monolingualSelected = effectiveTarget == lang.code && lang.monolingualPackId != null
     FlowRow(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
         Text(stringResource(Res.string.own_dictionary_title), Modifier.align(Alignment.CenterVertically), style = MaterialTheme.typography.titleSmall)
         listOf(Languages.PERSIAN.code to "فا", Languages.ENGLISH.code to "EN").forEach { (code, label) ->
             TextButton(onClick = {
-                localChoice = code
+                localChoice = code; vm.action { vm.container.settings.setDictionaryMeaningLang(code) }
             }, contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp)) {
                 Text(label, color = if (effectiveTarget == code) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
         if (lang.monolingualPackId != null) TextButton(onClick = {
-            localChoice = lang.code
+            localChoice = lang.code; vm.action { vm.container.settings.setDictionaryMeaningLang(lang.code) }
         }, contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp)) {
-            Text(stringResource(Res.string.own_dictionary_french_definitions, lang.nativeName), color = if (monolingualSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(lang.code.uppercase(), color = if (monolingualSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }
     if (monolingualSelected && !hasMonolingualDefinitions) {
@@ -98,11 +103,11 @@ fun OwnDictionaryBlock(lookup: DictionaryLookup, lang: LanguageSpec, target: Str
     }
     if (monolingualSelected) {
         val uri = LocalUriHandler.current
-        Text(stringResource(Res.string.own_dictionary_french_definitions, lang.nativeName), style = MaterialTheme.typography.titleSmall)
-        entries.distinctBy { it.id }.filter { it.monolingualDefinitions.isNotEmpty() }.take(8).forEach { entry ->
+        entries.distinctBy { it.id }.filter { it.learner != null || it.monolingualDefinitions.isNotEmpty() }.take(8).forEach { entry ->
             Card(Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
                 Column(Modifier.fillMaxWidth().padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     Text(entry.word, style = MaterialTheme.typography.titleMedium.merge(contentStyle(entry.word)))
+                    val learner = entry.learner
                     val definitions = entry.monolingualDefinitions
                     val pos = partOfSpeechResource(entry.pos)?.let { stringResource(it) } ?: entry.pos
                     val gender = when (entry.gender) {
@@ -114,21 +119,49 @@ fun OwnDictionaryBlock(lookup: DictionaryLookup, lang: LanguageSpec, target: Str
                         style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     var expanded by remember(entry.id) { mutableStateOf(false) }
                     CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
+                        if (learner != null) {
+                            learner.senses.forEachIndexed { index, sense ->
+                                SelectionContainer {
+                                    Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                                        TappableLearningText("${index + 1}. ${sense.definition}", lang, onLookup, selectable = true, style = MaterialTheme.typography.bodyLarge)
+                                        if (sense.register.isNotBlank()) Surface(color = MaterialTheme.colorScheme.secondaryContainer, shape = MaterialTheme.shapes.small) {
+                                            Text(sense.register, Modifier.padding(horizontal = 6.dp, vertical = 2.dp), style = MaterialTheme.typography.labelSmall)
+                                        }
+                                        if (sense.example.isNotBlank()) TappableLearningText(sense.example, lang, onLookup, selectable = true, style = MaterialTheme.typography.bodyMedium.copy(fontStyle = FontStyle.Italic, color = MaterialTheme.colorScheme.onSurfaceVariant))
+                                        LearnerTags(stringResource(Res.string.own_dictionary_synonyms), sense.synonyms, onLookup)
+                                        LearnerTags(stringResource(Res.string.own_dictionary_antonyms), sense.antonyms, onLookup)
+                                    }
+                                }
+                            }
+                            learner.phrases.forEach { phrase ->
+                                SelectionContainer { val text = buildAnnotatedString { withStyle(SpanStyle(fontWeight = FontWeight.Bold)) { append(phrase.phrase) }; if (phrase.definition.isNotBlank()) append(" — ${phrase.definition}") }; TappableLearningText(text.text, lang, onLookup, selectable = true, style = MaterialTheme.typography.bodyMedium, annotatedText = text) }
+                            }
+                            if (learner.pattern.isNotBlank()) SelectionContainer { TappableLearningText(learner.pattern, lang, onLookup, selectable = true, style = MaterialTheme.typography.bodyMedium) }
+                            if (learner.note.isNotBlank()) SelectionContainer { TappableLearningText(learner.note, lang, onLookup, selectable = true, style = MaterialTheme.typography.bodyMedium.copy(color = MaterialTheme.colorScheme.onSurfaceVariant)) }
+                            LearnerTags(stringResource(Res.string.own_dictionary_word_family), learner.family, onLookup)
+                            if (learner.more.isNotEmpty()) {
+                                if (expanded) learner.more.forEach { SelectionContainer { TappableLearningText(it, lang, onLookup, selectable = true, style = MaterialTheme.typography.bodyMedium) } }
+                                TextButton(onClick = { expanded = !expanded }, contentPadding = PaddingValues(0.dp)) {
+                                    Text(if (expanded) stringResource(Res.string.own_dictionary_show_less) else stringResource(Res.string.own_dictionary_show_more), style = MaterialTheme.typography.labelSmall)
+                                }
+                            }
+                        } else {
                         definitions.take(if (expanded || definitions.size <= 2) definitions.size else 2).forEachIndexed { index, sense ->
                             SelectionContainer {
                                 Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                                    Text("${index + 1}. ${sense.definition}", style = MaterialTheme.typography.bodyMedium)
+                                    TappableLearningText("${index + 1}. ${sense.definition}", lang, onLookup, selectable = true, style = MaterialTheme.typography.bodyLarge)
                                     if (sense.tags.isNotEmpty()) FlowRow(horizontalArrangement = Arrangement.spacedBy(4.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                                         sense.tags.forEach { tag -> Surface(color = MaterialTheme.colorScheme.secondaryContainer, shape = MaterialTheme.shapes.small) {
                                             Text(tag, Modifier.padding(horizontal = 6.dp, vertical = 2.dp), style = MaterialTheme.typography.labelSmall)
                                         } }
                                     }
-                                    if (sense.example.isNotBlank()) Text(sense.example, style = MaterialTheme.typography.bodySmall.copy(fontStyle = FontStyle.Italic), color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                    if (sense.example.isNotBlank()) TappableLearningText(sense.example, lang, onLookup, selectable = true, style = MaterialTheme.typography.bodyMedium.copy(fontStyle = FontStyle.Italic, color = MaterialTheme.colorScheme.onSurfaceVariant))
                                 }
                             }
                         }
+                        }
                     }
-                    if (definitions.size > 2) TextButton(onClick = { expanded = !expanded }, contentPadding = PaddingValues(0.dp)) {
+                    if (learner == null && definitions.size > 2) TextButton(onClick = { expanded = !expanded }, contentPadding = PaddingValues(0.dp)) {
                         Text(if (expanded) stringResource(Res.string.own_dictionary_show_less) else stringResource(Res.string.own_dictionary_show_more), style = MaterialTheme.typography.labelSmall)
                     }
                     TextButton(onClick = { lang.monolingualSourceUrlTemplate?.let { uri.openUri(it.replace("{word}", entry.word.replace(" ", "_"))) } }, contentPadding = PaddingValues(0.dp)) {
@@ -286,6 +319,16 @@ internal fun OwnDictionarySenseSaveControl(
     )
 }
 
+@Composable
+private fun LearnerTags(label: String, values: List<String>, onLookup: (String) -> Unit) {
+    if (values.isNotEmpty()) FlowRow(horizontalArrangement = Arrangement.spacedBy(4.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        Text("$label:", style = MaterialTheme.typography.labelSmall, modifier = Modifier.align(Alignment.CenterVertically))
+        values.forEach { value -> Surface(onClick = { onLookup(value) }, color = MaterialTheme.colorScheme.secondaryContainer, shape = MaterialTheme.shapes.small) {
+            Text(value, Modifier.padding(horizontal = 6.dp, vertical = 2.dp), style = MaterialTheme.typography.labelSmall)
+        } }
+    }
+}
+
 @OptIn(ExperimentalLayoutApi::class, ExperimentalMaterial3Api::class)
 @Composable
 internal fun OwnDictionaryEntryCard(entry: Entry, meanings: List<SenseMeaning>, target: String,
@@ -413,6 +456,50 @@ private fun DictionaryLabel(text: String) {
 
 private const val OFFLINE_DICTIONARY_SIZE_HINT = "~52 MB"
 
+@Composable
+private fun DictionaryDownloadBlock(
+    title: String? = null,
+    status: suspend () -> DictionaryDownload,
+    download: suspend (onProgress: (Int, Int) -> Unit) -> Unit,
+    delete: suspend () -> Unit,
+) {
+    val scope = rememberCoroutineScope()
+    var downloadJob by remember { mutableStateOf<Job?>(null) }
+    var downloading by remember { mutableStateOf(false) }
+    var state by remember { mutableStateOf(DictionaryDownload(0, 0, 0)) }
+    var busy by remember { mutableStateOf(false) }
+    var failed by remember { mutableStateOf(false) }
+    LaunchedEffect(Unit) { state = status() }
+    Column(Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
+        title?.let { Text(it, style = MaterialTheme.typography.titleSmall) }
+        Text(stringResource(Res.string.own_dictionary_offline_parts, state.completed, state.total))
+        if (!busy && !state.complete) Text(OFFLINE_DICTIONARY_SIZE_HINT, style = MaterialTheme.typography.bodySmall)
+        val size = if (state.bytes >= 1024L * 1024L) "${state.bytes / (1024L * 1024L)} MB" else "${state.bytes / 1024} KB"
+        Text(stringResource(Res.string.own_dictionary_size, size), style = MaterialTheme.typography.bodySmall)
+        if (busy) {
+            if (state.total > 0) LinearProgressIndicator(progress = { state.completed.toFloat() / state.total }, modifier = Modifier.fillMaxWidth()) else LinearProgressIndicator(Modifier.fillMaxWidth())
+            Text("${state.completed} / ${state.total}", style = MaterialTheme.typography.bodySmall)
+        }
+        if (downloading) TextButton(onClick = { downloadJob?.cancel() }) { Text(stringResource(Res.string.cancel)) }
+        else TextButton(enabled = !busy, onClick = {
+            busy = true; downloading = true; failed = false
+            downloadJob = scope.launch {
+                try { download { done, total -> scope.launch { state = state.copy(completed = done, total = total) } } }
+                catch (cancelled: CancellationException) { throw cancelled }
+                catch (_: Exception) { failed = true }
+                finally {
+                    try { withContext(NonCancellable) { state = status() } }
+                    finally { busy = false; downloading = false; downloadJob = null }
+                }
+            }
+        }) { Text(stringResource(Res.string.own_dictionary_download_all)) }
+        TextButton(enabled = !busy && state.completed > 0, onClick = { busy = true; scope.launch {
+            try { delete(); state = status() } catch (cancelled: CancellationException) { throw cancelled } catch (_: Exception) { failed = true } finally { busy = false }
+        } }) { Text(stringResource(Res.string.own_dictionary_delete)) }
+        if (failed) Text(stringResource(Res.string.own_dictionary_download_failed), color = MaterialTheme.colorScheme.error)
+    }
+}
+
 @OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 @Composable
 fun OwnDictionarySettings(vm: AppViewModel, settings: AppSettings, openSearch: () -> Unit = {}) {
@@ -446,55 +533,19 @@ fun OwnDictionarySettings(vm: AppViewModel, settings: AppSettings, openSearch: (
     }
     Languages.learnable.filter { it.ownDictionaryAvailable && it.code in settings.learningLangs }.forEach { lang ->
         key(lang.code) {
-            val scope = rememberCoroutineScope()
-            var downloadJob by remember { mutableStateOf<Job?>(null) }
-            var downloading by remember { mutableStateOf(false) }
-            var state by remember { mutableStateOf(DictionaryDownload(0, 0, 0)) }
-            var busy by remember { mutableStateOf(false) }
-            var failed by remember { mutableStateOf(false) }
-            LaunchedEffect(dictionary, lang) { state = dictionary.status(lang) }
             Column(Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
                 Text(stringResource(Res.string.own_dictionary_settings, lang.nativeName), style = MaterialTheme.typography.titleMedium)
-                Text(stringResource(Res.string.own_dictionary_offline_parts, state.completed, state.total))
-                if (!busy && !state.complete) Text(OFFLINE_DICTIONARY_SIZE_HINT, style = MaterialTheme.typography.bodySmall)
-                val size = if (state.bytes >= 1024L * 1024L) "${state.bytes / (1024L * 1024L)} MB" else "${state.bytes / 1024} KB"
-                Text(stringResource(Res.string.own_dictionary_size, size), style = MaterialTheme.typography.bodySmall)
-                if (busy) {
-                    if (state.total > 0) LinearProgressIndicator(progress = { state.completed.toFloat() / state.total }, modifier = Modifier.fillMaxWidth()) else LinearProgressIndicator(Modifier.fillMaxWidth())
-                    Text("${state.completed} / ${state.total}", style = MaterialTheme.typography.bodySmall)
-                }
-                Column {
-                    if (downloading) {
-                        TextButton(onClick = { downloadJob?.cancel() }) { Text(stringResource(Res.string.cancel)) }
-                    } else TextButton(enabled = !busy, onClick = {
-                        busy = true
-                        downloading = true
-                        failed = false
-                        downloadJob = scope.launch {
-                            try {
-                                dictionary.downloadAll(lang) { done, total ->
-                                    scope.launch { state = state.copy(completed = done, total = total) }
-                                }
-                            } catch (cancelled: CancellationException) {
-                                throw cancelled
-                            } catch (_: Exception) {
-                                failed = true
-                            } finally {
-                                try {
-                                    withContext(NonCancellable) { state = dictionary.status(lang) }
-                                } finally {
-                                    busy = false
-                                    downloading = false
-                                    downloadJob = null
-                                }
-                            }
-                        }
-                    }) { Text(stringResource(Res.string.own_dictionary_download_all)) }
-                    TextButton(enabled = !busy && state.completed > 0, onClick = { busy = true; scope.launch {
-                        try { dictionary.delete(lang); state = dictionary.status(lang) } catch (cancelled: CancellationException) { throw cancelled } catch (_: Exception) { failed = true } finally { busy = false }
-                    } }) { Text(stringResource(Res.string.own_dictionary_delete)) }
-                }
-                if (failed) Text(stringResource(Res.string.own_dictionary_download_failed), color = MaterialTheme.colorScheme.error)
+                DictionaryDownloadBlock(
+                    status = { dictionary.status(lang) },
+                    download = { progress -> dictionary.downloadAll(lang, progress) },
+                    delete = { dictionary.delete(lang) },
+                )
+                if (lang.monolingualPackId != null) DictionaryDownloadBlock(
+                    title = stringResource(Res.string.own_dictionary_french_definitions, lang.nativeName),
+                    status = { dictionary.monolingualStatus(lang) },
+                    download = { progress -> dictionary.downloadAllMonolingual(lang, progress) },
+                    delete = { dictionary.deleteMonolingual(lang) },
+                )
             }
         }
     }

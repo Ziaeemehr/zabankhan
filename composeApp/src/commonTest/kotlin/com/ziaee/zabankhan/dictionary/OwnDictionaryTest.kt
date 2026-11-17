@@ -63,6 +63,18 @@ class OwnDictionaryTest {
         assertEquals("Nous allons au marché.", aller.senses.first().example)
     }
 
+    @Test fun learnerPackDecodesFullAndMinimalEntries() {
+        val entries = decodeLearnerShard(Json.parseToJsonElement("""{"entries":[{"word":"abandonner","pos":"verb","senses":[{"d":"Renoncer.","ex":"Il abandonne.","reg":"familier","syn":["quitter"],"ant":["continuer"]}],"more":["Cesser de soutenir."],"phrases":[{"p":"abandonner à","d":"Laisser."}],"pattern":"abandonner qqn","note":"Attention.","family":["abandon"]},{"word":"abri","pos":"noun","senses":[{"d":"Lieu protégé."}]}]}"""))
+        assertEquals(2, entries.size)
+        assertEquals(LearnerSense("Renoncer.", "Il abandonne.", "familier", listOf("quitter"), listOf("continuer")), entries[0].senses.single())
+        assertEquals(LearnerPhrase("abandonner à", "Laisser."), entries[0].phrases.single())
+        assertEquals(listOf("Cesser de soutenir."), entries[0].more)
+        assertEquals("abandonner qqn", entries[0].pattern)
+        assertEquals("Attention.", entries[0].note)
+        assertEquals(listOf("abandon"), entries[0].family)
+        assertEquals(LearnerEntry("abri", "noun", listOf(LearnerSense("Lieu protégé.")), emptyList(), emptyList(), "", "", emptyList()), entries[1])
+    }
+
     @Test fun splitAwareShardKeysMatchBuilderRule() {
         val split = setOf("se", "de", "a_", "_i")
         assertEquals("des", dictionaryShardKey("des", split))

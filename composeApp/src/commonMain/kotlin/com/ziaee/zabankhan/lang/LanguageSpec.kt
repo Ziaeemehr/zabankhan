@@ -33,6 +33,7 @@ data class LanguageSpec(
     val ownDictionaryAvailable: Boolean = false,
     val dictionaryLeadingArticles: Set<String> = emptySet(),
     val monolingualPackId: String? = null,
+    val learnerPackId: String? = null,
     val monolingualSourceUrlTemplate: String? = null,
 )
 
@@ -60,6 +61,7 @@ object Languages {
         ownDictionaryAvailable = true,
         dictionaryLeadingArticles = setOf("le", "la", "les", "un", "une", "du", "des", "l'"),
         monolingualPackId = "fr/monolingual",
+        learnerPackId = "fr/learner",
         monolingualSourceUrlTemplate = "https://fr.wiktionary.org/wiki/{word}",
     )
     val ENGLISH = LanguageSpec(
