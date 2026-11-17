@@ -238,6 +238,9 @@ suspend fun restoreLocalBackup(container: AppContainer, path: String, driveToken
         container.database.close()
         container.settings.closeForRestore()
         val rollback = base / "restore-previous"
+        // atomicMove needs the parent to exist; without it every restore fails and rolls back.
+        fs.deleteRecursively(rollback, mustExist = false)
+        fs.createDirectories(rollback)
         val directories = restoreFileDirectories()
         val targets = listOf(DB_NAME to paths.database.toPath(), PREFS_FILE to (base / PREFS_FILE)) + directories.map { it to (base / it) }
         val moved = mutableListOf<Pair<String, Path>>()
