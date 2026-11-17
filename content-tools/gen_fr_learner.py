@@ -157,6 +157,7 @@ def repair(entry, source):
         s["syn"] = [w for w in s["syn"] if w.lower() != word]
         s["ant"] = [w for w in s["ant"] if w.lower() != word]
     entry["family"] = [w for w in entry["family"] if " " not in w and w in source["derived"]]
+    entry["more"] = [m for m in entry["more"] if m["src"] in by_i and len(m["d"].split()) <= 12]
     return entry
 
 
