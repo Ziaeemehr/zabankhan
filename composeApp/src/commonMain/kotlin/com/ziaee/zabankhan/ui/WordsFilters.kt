@@ -16,6 +16,15 @@ fun filterVocabulary(words: List<VocabEntry>, deck: Long, query: String, status:
     }
 }
 
+internal fun vocabularyCompletions(words: List<VocabEntry>, query: String, language: LanguageSpec): List<String> {
+    val prefix = normalizeForMatch(query.trim(), language)
+    if (prefix.isBlank()) return emptyList()
+    return words.asSequence().map { it.word }.distinct().filter { word ->
+        val normalized = normalizeForMatch(word, language)
+        normalized.startsWith(prefix) && normalized.length > prefix.length
+    }.take(6).toList()
+}
+
 /** Spreadsheet examples follow the active pack's language, including English learning screens. */
 internal fun wordsCsvSample(language: String): String = when (language) {
     "fr" -> """word,meaning,sentence,deck

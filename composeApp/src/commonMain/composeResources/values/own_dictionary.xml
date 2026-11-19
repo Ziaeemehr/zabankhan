@@ -5,7 +5,7 @@
     <string name="own_dictionary_delete">Delete downloaded dictionary</string>
     <string name="own_dictionary_online">Online (cached lookups remain available)</string>
     <string name="own_dictionary_offline">Available offline</string>
-    <string name="own_dictionary_size">Cached size: %1$s KB</string>
+    <string name="own_dictionary_size">Cached size: %1$s</string>
     <string name="own_dictionary_download_failed">Download failed. Tap download to resume.</string>
     <string name="own_dictionary_machine_translation">Machine translation</string>
     <string name="own_dictionary_forms">Forms</string>
@@ -33,10 +33,20 @@
     <string name="own_dictionary_show_more">Show all senses</string>
     <string name="own_dictionary_show_less">Show fewer senses</string>
     <string name="own_dictionary_download_all">Download all</string>
-    <string name="own_dictionary_offline_parts">Offline: %1$d / %2$d parts</string>
+    <string name="own_dictionary_offline_parts">Parts saved: %1$d / %2$d</string>
     <string name="own_dictionary_definitions_download">Offline definitions — %1$s</string>
     <string name="own_dictionary_synonyms">Synonyms</string>
     <string name="own_dictionary_antonyms">Antonyms</string>
     <string name="own_dictionary_phrases">Phrases</string>
     <string name="own_dictionary_word_family">Word family</string>
+    <string name="own_dictionary_downloaded">Downloaded</string>
+    <string name="own_dictionary_resume">Resume download</string>
+    <string name="own_dictionary_not_downloaded">Not downloaded</string>
+    <string name="own_dictionary_checking">Checking download…</string>
+    <string name="own_dictionary_cached_parts">Parts saved: %1$d</string>
+    <string name="own_dictionary_remove_download">Remove download</string>
+    <string name="own_dictionary_status_failed">Could not check the download.</string>
+    <string name="own_dictionary_delete_failed">Could not remove the download.</string>
+    <string name="own_dictionary_kilobytes">%1$d KB</string>
+    <string name="own_dictionary_megabytes">%1$d MB</string>
 </resources>

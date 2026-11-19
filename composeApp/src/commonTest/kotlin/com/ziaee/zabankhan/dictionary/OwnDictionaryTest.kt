@@ -142,6 +142,116 @@ class OwnDictionaryTest {
         }
     }
 
+    @Test fun cachedWordFamilyResolvesInflectionsAndHomographsWithMeaningsForEachTab() = runTest {
+        val root = FileSystem.SYSTEM_TEMPORARY_DIRECTORY / "dictionary-family-${Random.nextLong()}"
+        val fs = FileSystem.SYSTEM
+        val lang = Languages.FRENCH.copy(monolingualPackId = null, learnerPackId = null)
+        val directory = root / lang.code / "v2"
+        fs.createDirectories(directory)
+        fs.write(directory / "index.json") {
+            writeUtf8("""{"lang":"fr","format":2,"version":1,"shards":["ca","pa"]}""")
+        }
+        fs.write(directory / "ca.json") {
+            writeUtf8("""{"entries":[[1,"calmer","verb",5,"","","",[["to calm","آرام کردن"]],{},[],[],["Rendre calme."],[["paisible","adjective"],["calmer","verb"]]]],"form_labels":["ind.impf.3s"],"redirects":{"calmait":[[1,0]]},"targets":{"1":["calmer","verb"]}}""")
+        }
+        fs.write(directory / "pa.json") {
+            writeUtf8("""{"entries":[[2,"paisible","noun",3,"","m","",[["person"]]],
+                [3,"paisible","adjective",4,"","","",[["peaceful","آرام"]],{},[],[],["Qui vit en paix."]]]}""")
+        }
+        val http = HttpClient(MockEngine { respond("offline", HttpStatusCode.ServiceUnavailable) })
+        try {
+            val dictionary = OwnDictionary(http, InMemoryKeyValueCache(), root, fs)
+            val base = dictionary.lookup("calmait", lang).entries.single()
+            val family = dictionary.wordFamily(base, lang)
+            assertEquals(listOf(3L, 1L), family.map { it.id })
+            val relative = family.first()
+            assertEquals("peaceful", relative.wordFamilyMeaning(Languages.ENGLISH.code, lang))
+            assertEquals("آرام", relative.wordFamilyMeaning(Languages.PERSIAN.code, lang))
+            assertEquals("Qui vit en paix.", relative.wordFamilyMeaning(lang.code, lang))
+            assertEquals(relative.id, dictionary.lookup(relative.word, lang,
+                exactEntry = DictionaryHeadword(relative.word, relative.pos)).entries.single().id)
+            assertTrue(dictionary.wordFamily(relative, lang).isEmpty())
+        } finally {
+            http.close()
+            fs.deleteRecursively(root, mustExist = false)
+        }
+    }
+
+    @Test fun dictionaryAutocompleteFindsHeadwordsUnderSplitPrefix() = runTest {
+        val root = FileSystem.SYSTEM_TEMPORARY_DIRECTORY / "dictionary-autocomplete-${Random.nextLong()}"
+        val fs = FileSystem.SYSTEM
+        val lang = Languages.FRENCH
+        val directory = root / lang.code / "v2"
+        fs.createDirectories(directory)
+        fs.write(directory / "index.json") {
+            writeUtf8("""{"lang":"fr","format":2,"version":1,"shards":["cal","cas"],"split":{"ca":["cal","cas"]}}""")
+        }
+        fs.write(directory / "cal.json") {
+            writeUtf8("""{"entries":[[1,"calme","noun",5],[2,"calme","adjective",5],[3,"calmement","adverb",4]]}""")
+        }
+        fs.write(directory / "cas.json") {
+            writeUtf8("""{"entries":[[4,"cas","noun",5]]}""")
+        }
+        val http = HttpClient(MockEngine { respond("offline", HttpStatusCode.ServiceUnavailable) })
+        try {
+            val dictionary = OwnDictionary(http, InMemoryKeyValueCache(), root, fs)
+            assertEquals(listOf("calme", "calmement", "cas"), dictionary.completeHeadwords("CA", lang))
+            assertEquals(listOf("calmement"), dictionary.completeHeadwords("calme", lang))
+        } finally {
+            http.close()
+            fs.deleteRecursively(root, mustExist = false)
+        }
+    }
+
+    @Test fun downloadReusesCachedShardsWithoutCreatingCopies() = runTest {
+        val root = FileSystem.SYSTEM_TEMPORARY_DIRECTORY / "dictionary-download-${Random.nextLong()}"
+        val fs = FileSystem.SYSTEM
+        val lang = Languages.FRENCH
+        var shardRequests = 0
+        val http = HttpClient(MockEngine { request ->
+            if (request.url.encodedPath.endsWith("/index.json")) {
+                respond("""{"lang":"fr","format":2,"version":1,"shards":["ca"]}""")
+            } else {
+                shardRequests++
+                respond("""{"entries":[]}""")
+            }
+        })
+        try {
+            val dictionary = OwnDictionary(http, InMemoryKeyValueCache(), root, fs)
+            dictionary.downloadAll(lang) { _, _ -> }
+            val downloaded = dictionary.status(lang)
+            dictionary.downloadAll(lang) { _, _ -> }
+            assertTrue(downloaded.complete)
+            assertEquals(downloaded, dictionary.status(lang))
+            assertEquals(1, shardRequests)
+            assertEquals(setOf("ca.json", "index.json"), fs.list(root / lang.code / "v2").map { it.name }.toSet())
+        } finally {
+            http.close()
+            fs.deleteRecursively(root, mustExist = false)
+        }
+    }
+
+    @Test fun frenchDefinitionsAreIncompleteUntilBothPackIndexesAreCached() = runTest {
+        val root = FileSystem.SYSTEM_TEMPORARY_DIRECTORY / "dictionary-partial-${Random.nextLong()}"
+        val fs = FileSystem.SYSTEM
+        val lang = Languages.FRENCH
+        val directory = root / lang.code / "monolingual" / "v1"
+        fs.createDirectories(directory)
+        fs.write(directory / "index.json") {
+            writeUtf8("""{"lang":"fr","format":1,"shards":["ca"]}""")
+        }
+        fs.write(directory / "ca.json") { writeUtf8("""{"entries":[]}""") }
+        val http = HttpClient(MockEngine { error("Reading cached status must stay offline") })
+        try {
+            val status = OwnDictionary(http, InMemoryKeyValueCache(), root, fs).monolingualStatus(lang)
+            assertEquals(1, status.completed)
+            assertFalse(status.complete)
+        } finally {
+            http.close()
+            fs.deleteRecursively(root, mustExist = false)
+        }
+    }
+
     @Test fun lookupReportsShardDownloadFailureInsteadOfEmptyResult() = runTest {
         val root = FileSystem.SYSTEM_TEMPORARY_DIRECTORY / "dictionary-offline-${Random.nextLong()}"
         val fs = FileSystem.SYSTEM

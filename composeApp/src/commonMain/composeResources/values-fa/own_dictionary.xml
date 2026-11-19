@@ -5,7 +5,7 @@
     <string name="own_dictionary_delete">حذف واژه‌نامهٔ دریافت‌شده</string>
     <string name="own_dictionary_online">آنلاین (جست‌وجوهای ذخیره‌شده در دسترس‌اند)</string>
     <string name="own_dictionary_offline">در دسترس به‌صورت آفلاین</string>
-    <string name="own_dictionary_size">حجم ذخیره‌شده: %1$s کیلوبایت</string>
+    <string name="own_dictionary_size">حجم ذخیره‌شده: %1$s</string>
     <string name="own_dictionary_download_failed">دریافت ناموفق بود. برای ادامه دوباره دریافت را بزنید.</string>
     <string name="own_dictionary_machine_translation">ترجمهٔ ماشینی</string>
     <string name="own_dictionary_forms">صورت‌های دیگر</string>
@@ -30,10 +30,20 @@
     <string name="own_dictionary_show_more">نمایش همهٔ معناها</string>
     <string name="own_dictionary_show_less">نمایش کمتر</string>
     <string name="own_dictionary_download_all">دریافت همه</string>
-    <string name="own_dictionary_offline_parts">آفلاین: %1$d / %2$d بخش</string>
+    <string name="own_dictionary_offline_parts">بخش‌های ذخیره‌شده: %1$d از %2$d</string>
     <string name="own_dictionary_definitions_download">تعریف‌های آفلاین — %1$s</string>
     <string name="own_dictionary_synonyms">مترادف‌ها</string>
     <string name="own_dictionary_antonyms">متضادها</string>
     <string name="own_dictionary_phrases">عبارت‌ها</string>
     <string name="own_dictionary_word_family">خانوادهٔ واژگانی</string>
+    <string name="own_dictionary_downloaded">دریافت‌شده</string>
+    <string name="own_dictionary_resume">ادامهٔ دانلود</string>
+    <string name="own_dictionary_not_downloaded">دانلود نشده</string>
+    <string name="own_dictionary_checking">در حال بررسی دانلود…</string>
+    <string name="own_dictionary_cached_parts">بخش‌های ذخیره‌شده: %1$d</string>
+    <string name="own_dictionary_remove_download">حذف فایل‌های دانلودشده</string>
+    <string name="own_dictionary_status_failed">بررسی وضعیت دانلود ممکن نشد.</string>
+    <string name="own_dictionary_delete_failed">حذف فایل‌های دانلودشده ممکن نشد.</string>
+    <string name="own_dictionary_kilobytes">%1$d کیلوبایت</string>
+    <string name="own_dictionary_megabytes">%1$d مگابایت</string>
 </resources>

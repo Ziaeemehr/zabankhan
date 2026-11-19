@@ -5,7 +5,7 @@
     <string name="own_dictionary_delete">Supprimer le dictionnaire téléchargé</string>
     <string name="own_dictionary_online">En ligne (recherches en cache disponibles)</string>
     <string name="own_dictionary_offline">Disponible hors ligne</string>
-    <string name="own_dictionary_size">Taille en cache : %1$s Ko</string>
+    <string name="own_dictionary_size">Taille en cache : %1$s</string>
     <string name="own_dictionary_download_failed">Échec du téléchargement. Relancez pour reprendre.</string>
     <string name="own_dictionary_machine_translation">Traduction automatique</string>
     <string name="own_dictionary_forms">Formes</string>
@@ -29,11 +29,21 @@
     <string name="own_dictionary_meaning_language">Langue des sens : %1$s</string>
     <string name="own_dictionary_show_more">Afficher tous les sens</string>
     <string name="own_dictionary_show_less">Afficher moins de sens</string>
-    <string name="own_dictionary_offline_parts">Hors ligne : %1$d / %2$d parties</string>
+    <string name="own_dictionary_offline_parts">Parties enregistrées : %1$d / %2$d</string>
     <string name="own_dictionary_download_all">Tout télécharger</string>
     <string name="own_dictionary_definitions_download">Définitions hors ligne — %1$s</string>
     <string name="own_dictionary_synonyms">Synonymes</string>
     <string name="own_dictionary_antonyms">Antonymes</string>
     <string name="own_dictionary_phrases">Expressions</string>
     <string name="own_dictionary_word_family">Famille de mots</string>
+    <string name="own_dictionary_downloaded">Téléchargé</string>
+    <string name="own_dictionary_resume">Reprendre le téléchargement</string>
+    <string name="own_dictionary_not_downloaded">Non téléchargé</string>
+    <string name="own_dictionary_checking">Vérification du téléchargement…</string>
+    <string name="own_dictionary_cached_parts">Parties enregistrées : %1$d</string>
+    <string name="own_dictionary_remove_download">Supprimer le téléchargement</string>
+    <string name="own_dictionary_status_failed">Impossible de vérifier le téléchargement.</string>
+    <string name="own_dictionary_delete_failed">Impossible de supprimer le téléchargement.</string>
+    <string name="own_dictionary_kilobytes">%1$d Ko</string>
+    <string name="own_dictionary_megabytes">%1$d Mo</string>
 </resources>

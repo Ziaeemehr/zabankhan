@@ -17,6 +17,7 @@ import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.unit.LayoutDirection
@@ -35,9 +36,11 @@ import com.ziaee.zabankhan.ui.theme.ZabankhanDesign
 import com.ziaee.zabankhan.translate.ExampleSource
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.withContext
+import org.jetbrains.compose.resources.StringResource
 import org.jetbrains.compose.resources.stringResource
 import androidx.compose.ui.platform.LocalUriHandler
 
@@ -45,12 +48,13 @@ import androidx.compose.ui.platform.LocalUriHandler
 @Composable
 fun OwnDictionaryBlock(lookup: DictionaryLookup, lang: LanguageSpec, target: String, vm: AppViewModel,
     textId: Long, sentence: String, speak: (String) -> Unit, onLookup: (String) -> Unit,
-    loading: Boolean = false, failed: Boolean = false) {
+    loading: Boolean = false, failed: Boolean = false,
+    onFamilyLookup: (DictionaryHeadword) -> Unit) {
     val entries = lookup.entries + lookup.idioms
     val settings by vm.settings.collectAsState()
     var localChoice by remember(lookup.query) { mutableStateOf<String?>(null) }
     val effectiveTarget = localChoice ?: settings?.dictionaryMeaningLang?.ifBlank { target } ?: target
-    val hasMonolingualDefinitions = entries.any { it.learner != null || it.monolingualDefinitions.isNotEmpty() }
+    val hasMonolingualDefinitions = entries.any { it.learner != null || it.monolingualDefinitions.isNotEmpty() || it.wordFamily.isNotEmpty() }
     val monolingualSelected = effectiveTarget == lang.code && lang.monolingualPackId != null
     FlowRow(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
         Text(stringResource(Res.string.own_dictionary_title), Modifier.align(Alignment.CenterVertically), style = MaterialTheme.typography.titleSmall)
@@ -89,11 +93,35 @@ fun OwnDictionaryBlock(lookup: DictionaryLookup, lang: LanguageSpec, target: Str
         state
     }
     val meanings = meaningsState.second
-    if (meaningsState.first && entries.none { entry -> meanings[entry.id].orEmpty().any { it.text.isNotBlank() } } &&
+    if (meaningsState.first && entries.none { entry -> entry.wordFamily.isNotEmpty() || meanings[entry.id].orEmpty().any { it.text.isNotBlank() } } &&
         !monolingualSelected) {
         DictionaryMachineFallback(lookup.query, lang.code, effectiveTarget, sentence, textId, vm,
             translations, loading = false, failed = false)
         return
+    }
+    var expandedFamilies by rememberSaveable(lookup.query, lang.code) { mutableStateOf(listOf<Long>()) }
+    val familyEntries = entries.distinctBy { it.id }.take(8).filter { it.wordFamily.isNotEmpty() }
+    val dictionary = vm.container.ownDictionary
+    val families by key(familyEntries, lang, dictionary) {
+        produceState(emptyMap<Long, List<Entry>>()) {
+            for (entry in familyEntries) {
+                val relatives = try {
+                    dictionary.wordFamily(entry, lang)
+                } catch (cancelled: CancellationException) {
+                    throw cancelled
+                } catch (_: Exception) {
+                    emptyList()
+                }
+                value = value + (entry.id to relatives)
+            }
+        }
+    }
+    val familySection: @Composable (Entry) -> Unit = { entry ->
+        WordFamilySection(entry.id, families[entry.id].orEmpty(), lang, effectiveTarget, onFamilyLookup,
+            expanded = entry.id in expandedFamilies, onExpandChange = { expanded ->
+                expandedFamilies = if (expanded) expandedFamilies + entry.id
+                    else expandedFamilies - entry.id
+            })
     }
     if (lookup.via.isNotEmpty()) {
         val names = formCodeNames()
@@ -103,7 +131,7 @@ fun OwnDictionaryBlock(lookup: DictionaryLookup, lang: LanguageSpec, target: Str
     }
     if (monolingualSelected) {
         val uri = LocalUriHandler.current
-        entries.distinctBy { it.id }.filter { it.learner != null || it.monolingualDefinitions.isNotEmpty() }.take(8).forEach { entry ->
+        entries.distinctBy { it.id }.filter { it.learner != null || it.monolingualDefinitions.isNotEmpty() || it.wordFamily.isNotEmpty() }.take(8).forEach { entry ->
             Card(Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
                 Column(Modifier.fillMaxWidth().padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     Text(entry.word, style = MaterialTheme.typography.titleMedium.merge(contentStyle(entry.word)))
@@ -138,7 +166,6 @@ fun OwnDictionaryBlock(lookup: DictionaryLookup, lang: LanguageSpec, target: Str
                             }
                             if (learner.pattern.isNotBlank()) SelectionContainer { TappableLearningText(learner.pattern, lang, onLookup, selectable = true, style = MaterialTheme.typography.bodyMedium) }
                             if (learner.note.isNotBlank()) SelectionContainer { TappableLearningText(learner.note, lang, onLookup, selectable = true, style = MaterialTheme.typography.bodyMedium.copy(color = MaterialTheme.colorScheme.onSurfaceVariant)) }
-                            LearnerTags(stringResource(Res.string.own_dictionary_word_family), learner.family, onLookup)
                             if (learner.more.isNotEmpty()) {
                                 if (expanded) learner.more.forEach { SelectionContainer { TappableLearningText(it, lang, onLookup, selectable = true, style = MaterialTheme.typography.bodyMedium) } }
                                 TextButton(onClick = { expanded = !expanded }, contentPadding = PaddingValues(0.dp)) {
@@ -164,6 +191,7 @@ fun OwnDictionaryBlock(lookup: DictionaryLookup, lang: LanguageSpec, target: Str
                     if (learner == null && definitions.size > 2) TextButton(onClick = { expanded = !expanded }, contentPadding = PaddingValues(0.dp)) {
                         Text(if (expanded) stringResource(Res.string.own_dictionary_show_less) else stringResource(Res.string.own_dictionary_show_more), style = MaterialTheme.typography.labelSmall)
                     }
+                    familySection(entry)
                     TextButton(onClick = { lang.monolingualSourceUrlTemplate?.let { uri.openUri(it.replace("{word}", entry.word.replace(" ", "_"))) } }, contentPadding = PaddingValues(0.dp)) {
                         Text(stringResource(Res.string.own_dictionary_french_source), style = MaterialTheme.typography.labelSmall)
                     }
@@ -173,7 +201,7 @@ fun OwnDictionaryBlock(lookup: DictionaryLookup, lang: LanguageSpec, target: Str
         Text(stringResource(Res.string.own_dictionary_french_attribution), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
     } else entries.distinctBy { it.id }.take(8).forEachIndexed { index, entry ->
         CompactEntryCard(entry, meanings[entry.id].orEmpty(), lang, effectiveTarget, vm, textId, sentence, speak, onLookup, vocabEntries, lists,
-            via = if (index == 0) lookup.via.filter { it.entryId == entry.id } else emptyList(), initiallyExpanded = index == 0)
+            via = if (index == 0) lookup.via.filter { it.entryId == entry.id } else emptyList(), initiallyExpanded = index == 0) { familySection(entry) }
     }
     HorizontalDivider()
 }
@@ -454,49 +482,109 @@ private fun DictionaryLabel(text: String) {
     }
 }
 
-private const val OFFLINE_DICTIONARY_SIZE_HINT = "~52 MB"
-
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun DictionaryDownloadBlock(
-    title: String? = null,
+    title: String,
     status: suspend () -> DictionaryDownload,
     download: suspend (onProgress: (Int, Int) -> Unit) -> Unit,
     delete: suspend () -> Unit,
 ) {
     val scope = rememberCoroutineScope()
     var downloadJob by remember { mutableStateOf<Job?>(null) }
-    var downloading by remember { mutableStateOf(false) }
-    var state by remember { mutableStateOf(DictionaryDownload(0, 0, 0)) }
-    var busy by remember { mutableStateOf(false) }
-    var failed by remember { mutableStateOf(false) }
-    LaunchedEffect(Unit) { state = status() }
-    Column(Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
-        title?.let { Text(it, style = MaterialTheme.typography.titleSmall) }
-        Text(stringResource(Res.string.own_dictionary_offline_parts, state.completed, state.total))
-        if (!busy && !state.complete) Text(OFFLINE_DICTIONARY_SIZE_HINT, style = MaterialTheme.typography.bodySmall)
-        val size = if (state.bytes >= 1024L * 1024L) "${state.bytes / (1024L * 1024L)} MB" else "${state.bytes / 1024} KB"
-        Text(stringResource(Res.string.own_dictionary_size, size), style = MaterialTheme.typography.bodySmall)
-        if (busy) {
-            if (state.total > 0) LinearProgressIndicator(progress = { state.completed.toFloat() / state.total }, modifier = Modifier.fillMaxWidth()) else LinearProgressIndicator(Modifier.fillMaxWidth())
-            Text("${state.completed} / ${state.total}", style = MaterialTheme.typography.bodySmall)
+    var state by remember { mutableStateOf<DictionaryDownload?>(null) }
+    var busy by remember { mutableStateOf(true) }
+    var error by remember { mutableStateOf<StringResource?>(null) }
+    val progressUpdates = remember { MutableStateFlow(DictionaryDownload(0, 0, 0)) }
+    val progress by progressUpdates.collectAsState()
+    val downloading = downloadJob != null
+    val cached = state ?: DictionaryDownload(0, 0, 0)
+    val display = if (downloading) progress else cached
+
+    suspend fun refreshStatus() {
+        try {
+            state = status()
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (_: Exception) {
+            error = Res.string.own_dictionary_status_failed
         }
-        if (downloading) TextButton(onClick = { downloadJob?.cancel() }) { Text(stringResource(Res.string.cancel)) }
-        else TextButton(enabled = !busy, onClick = {
-            busy = true; downloading = true; failed = false
-            downloadJob = scope.launch {
-                try { download { done, total -> scope.launch { state = state.copy(completed = done, total = total) } } }
-                catch (cancelled: CancellationException) { throw cancelled }
-                catch (_: Exception) { failed = true }
-                finally {
-                    try { withContext(NonCancellable) { state = status() } }
-                    finally { busy = false; downloading = false; downloadJob = null }
+    }
+
+    LaunchedEffect(Unit) {
+        try { refreshStatus() } finally { busy = false }
+    }
+
+    OutlinedCard(Modifier.fillMaxWidth()) {
+        Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text(title, style = MaterialTheme.typography.titleMedium)
+            if (cached.complete && !downloading) DictionaryLabel(stringResource(Res.string.own_dictionary_offline))
+            val statusText = when {
+                display.total > 0 -> stringResource(Res.string.own_dictionary_offline_parts, display.completed, display.total)
+                display.completed > 0 -> stringResource(Res.string.own_dictionary_cached_parts, display.completed)
+                busy -> stringResource(Res.string.own_dictionary_checking)
+                else -> stringResource(Res.string.own_dictionary_not_downloaded)
+            }
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text(statusText, style = MaterialTheme.typography.bodySmall)
+                if (cached.bytes > 0) {
+                    val size = if (cached.bytes >= 1024L * 1024L)
+                        stringResource(Res.string.own_dictionary_megabytes, cached.bytes / (1024L * 1024L))
+                    else stringResource(Res.string.own_dictionary_kilobytes, (cached.bytes + 1023) / 1024)
+                    Text(stringResource(Res.string.own_dictionary_size, size), style = MaterialTheme.typography.bodySmall)
                 }
             }
-        }) { Text(stringResource(Res.string.own_dictionary_download_all)) }
-        TextButton(enabled = !busy && state.completed > 0, onClick = { busy = true; scope.launch {
-            try { delete(); state = status() } catch (cancelled: CancellationException) { throw cancelled } catch (_: Exception) { failed = true } finally { busy = false }
-        } }) { Text(stringResource(Res.string.own_dictionary_delete)) }
-        if (failed) Text(stringResource(Res.string.own_dictionary_download_failed), color = MaterialTheme.colorScheme.error)
+            if (downloading) {
+                if (progress.total > 0) LinearProgressIndicator(
+                    progress = { progress.completed.toFloat() / progress.total }, modifier = Modifier.fillMaxWidth(),
+                ) else LinearProgressIndicator(Modifier.fillMaxWidth())
+            }
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                if (downloading) OutlinedButton(onClick = { downloadJob?.cancel() }) {
+                    Text(stringResource(Res.string.cancel))
+                } else Button(enabled = !busy && !cached.complete, onClick = {
+                    busy = true
+                    error = null
+                    progressUpdates.value = cached
+                    downloadJob = scope.launch {
+                        try {
+                            download { done, total ->
+                                progressUpdates.value = DictionaryDownload(done, total, 0)
+                            }
+                        } catch (cancelled: CancellationException) {
+                            throw cancelled
+                        } catch (_: Exception) {
+                            error = Res.string.own_dictionary_download_failed
+                        } finally {
+                            try { withContext(NonCancellable) { refreshStatus() } }
+                            finally { busy = false; downloadJob = null }
+                        }
+                    }
+                }) {
+                    Text(stringResource(when {
+                        cached.complete -> Res.string.own_dictionary_downloaded
+                        cached.completed > 0 -> Res.string.own_dictionary_resume
+                        else -> Res.string.own_dictionary_download_all
+                    }))
+                }
+                if (cached.completed > 0) TextButton(enabled = !busy, onClick = {
+                    busy = true
+                    error = null
+                    scope.launch {
+                        try {
+                            delete()
+                        } catch (cancelled: CancellationException) {
+                            throw cancelled
+                        } catch (_: Exception) {
+                            error = Res.string.own_dictionary_delete_failed
+                        } finally {
+                            try { refreshStatus() } finally { busy = false }
+                        }
+                    }
+                }) { Text(stringResource(Res.string.own_dictionary_remove_download)) }
+            }
+            error?.let { Text(stringResource(it), color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall) }
+        }
     }
 }
 
@@ -533,9 +621,9 @@ fun OwnDictionarySettings(vm: AppViewModel, settings: AppSettings, openSearch: (
     }
     Languages.learnable.filter { it.ownDictionaryAvailable && it.code in settings.learningLangs }.forEach { lang ->
         key(lang.code) {
-            Column(Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
-                Text(stringResource(Res.string.own_dictionary_settings, lang.nativeName), style = MaterialTheme.typography.titleMedium)
+            Column(Modifier.fillMaxWidth().padding(vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 DictionaryDownloadBlock(
+                    title = stringResource(Res.string.own_dictionary_settings, lang.nativeName),
                     status = { dictionary.status(lang) },
                     download = { progress -> dictionary.downloadAll(lang, progress) },
                     delete = { dictionary.delete(lang) },

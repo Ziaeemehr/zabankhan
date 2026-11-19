@@ -31,6 +31,8 @@ import com.ziaee.zabankhan.data.VocabList
 import com.ziaee.zabankhan.lang.LanguageSpec
 import com.ziaee.zabankhan.resources.Res
 import com.ziaee.zabankhan.resources.own_listen
+import com.ziaee.zabankhan.resources.own_dictionary_word_family
+import com.ziaee.zabankhan.ui.reader.partOfSpeechResource
 import com.ziaee.zabankhan.resources.own_compact_all_meanings
 import com.ziaee.zabankhan.resources.own_compact_examples
 import com.ziaee.zabankhan.resources.own_compact_expressions
@@ -49,6 +51,7 @@ internal fun CompactEntryCard(
     vm: AppViewModel, textId: Long, sentence: String, speak: (String) -> Unit,
     onLookup: (String) -> Unit, vocabEntries: List<VocabEntry>, lists: List<VocabList>,
     via: List<DictionaryRedirect> = emptyList(), initiallyExpanded: Boolean = true,
+    wordFamily: @Composable () -> Unit,
 ) {
     var open by rememberSaveable(entry.id) { mutableStateOf(initiallyExpanded) }
     Card(Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
@@ -59,8 +62,8 @@ internal fun CompactEntryCard(
                     Text(summary, Modifier.weight(1f), maxLines = 2, style = MaterialTheme.typography.bodyMedium.merge(contentStyle(summary)))
                     Icon(Icons.Default.KeyboardArrowDown, contentDescription = null)
                 }
-                AnimatedVisibility(open, enter = fadeIn(), exit = fadeOut()) { CompactEntryContents(entry, meanings, lang, target, vm, textId, sentence, speak, onLookup, vocabEntries, lists, via) }
-            } else CompactEntryContents(entry, meanings, lang, target, vm, textId, sentence, speak, onLookup, vocabEntries, lists, via)
+                AnimatedVisibility(open, enter = fadeIn(), exit = fadeOut()) { CompactEntryContents(entry, meanings, lang, target, vm, textId, sentence, speak, onLookup, vocabEntries, lists, via, wordFamily) }
+            } else CompactEntryContents(entry, meanings, lang, target, vm, textId, sentence, speak, onLookup, vocabEntries, lists, via, wordFamily)
         }
     }
 }
@@ -70,6 +73,7 @@ private fun CompactEntryContents(
     entry: Entry, meanings: List<SenseMeaning>, lang: LanguageSpec, target: String,
     vm: AppViewModel, textId: Long, sentence: String, speak: (String) -> Unit,
     onLookup: (String) -> Unit, vocabEntries: List<VocabEntry>, lists: List<VocabList>, via: List<DictionaryRedirect>,
+    wordFamily: @Composable () -> Unit,
 ) {
     Row(verticalAlignment = Alignment.CenterVertically) {
         Text(entry.word, Modifier.weight(1f), style = MaterialTheme.typography.titleLarge.merge(contentStyle(entry.word)), maxLines = 1)
@@ -98,6 +102,7 @@ private fun CompactEntryContents(
             OwnDictionarySenseSaveControl(entry, sense, index, meaning, lang, target, vm, textId, sentence, vocabEntries, lists)
         }
     }
+    wordFamily()
     bestExampleContent(entry, target, speak)
     Column(Modifier.fillMaxWidth()) {
       Surface(shape = MaterialTheme.shapes.large, color = MaterialTheme.colorScheme.surfaceContainerLow) {
@@ -134,6 +139,39 @@ private fun CompactEntryContents(
 }
 
 @Composable
+internal fun WordFamilySection(
+    entryId: Long, relatives: List<Entry>, lang: LanguageSpec, target: String,
+    onLookup: (DictionaryHeadword) -> Unit, expanded: Boolean, onExpandChange: (Boolean) -> Unit,
+) {
+    val shownPos = listOf("noun", "adjective", "verb", "adverb")
+    val shown = relatives.filter { it.pos in shownPos }
+    if (shown.isEmpty()) return
+    ExpandableSection(stringResource(Res.string.own_dictionary_word_family), shown.size, entryId, "word-family",
+        expanded = expanded, onExpandChange = onExpandChange) {
+        val byPos = shown.groupBy { it.pos }
+        for (pos in shownPos) {
+            val group = byPos[pos] ?: continue
+            val label = partOfSpeechResource(pos)?.let { stringResource(it) } ?: pos
+            Text(label, style = MaterialTheme.typography.labelMedium.merge(contentStyle(label)))
+            group.forEach { relative ->
+                val article = lang.dictionaryNounArticles[relative.gender].takeIf { pos == "noun" }
+                val word = listOfNotNull(article, relative.word).joinToString(" ")
+                val meaning = relative.wordFamilyMeaning(target, lang)
+                TextButton(onClick = { onLookup(DictionaryHeadword(relative.word, relative.pos)) },
+                    modifier = Modifier.fillMaxWidth()) {
+                    Column(Modifier.fillMaxWidth()) {
+                        Text(word, style = MaterialTheme.typography.bodyMedium.merge(contentStyle(word)))
+                        if (meaning.isNotBlank()) Text(meaning, maxLines = 2,
+                            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                            style = MaterialTheme.typography.bodySmall.merge(contentStyle(meaning)))
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
 private fun bestExampleContent(entry: Entry, target: String, speak: (String) -> Unit) {
     val example = entry.senses.firstNotNullOfOrNull { it.examples.firstOrNull() } ?: entry.moreExamples.firstOrNull()?.let { Example(it, "", "") } ?: return
     Column(Modifier.clickable { speak(example.text) }) {
@@ -144,14 +182,19 @@ private fun bestExampleContent(entry: Entry, target: String, speak: (String) -> 
 }
 
 @Composable
-private fun ExpandableSection(title: String, count: Int, entryId: Long, section: String, forceExpanded: Boolean = false, icon: androidx.compose.ui.graphics.vector.ImageVector = Icons.Outlined.Lightbulb, content: @Composable () -> Unit) {
-    var expanded by rememberSaveable(entryId, section) { mutableStateOf(section != "forms") }
+private fun ExpandableSection(title: String, count: Int, entryId: Long, section: String, forceExpanded: Boolean = false, icon: androidx.compose.ui.graphics.vector.ImageVector = Icons.Outlined.Lightbulb, expanded: Boolean? = null,
+    onExpandChange: ((Boolean) -> Unit)? = null, content: @Composable () -> Unit,
+) {
+    var localExpanded by rememberSaveable(entryId, section) { mutableStateOf(section != "forms") }
+    val isExpanded = expanded ?: localExpanded
     Column {
         if (section != "meanings") HorizontalDivider(Modifier.padding(horizontal = 16.dp), thickness = 1.dp, color = MaterialTheme.colorScheme.outlineVariant)
-        val targetExpanded = expanded || forceExpanded
+        val targetExpanded = isExpanded || forceExpanded
         val rotation by animateFloatAsState(if (targetExpanded) 180f else 0f)
         val stateLabel = if (targetExpanded) "Expanded" else "Collapsed"
-        Row(Modifier.fillMaxWidth().clickable(role = Role.Button) { expanded = !expanded }.semantics { role = Role.Button; stateDescription = stateLabel }.heightIn(min = 48.dp).padding(horizontal = 16.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+        Row(Modifier.fillMaxWidth().clickable(role = Role.Button) {
+            if (onExpandChange == null) localExpanded = !isExpanded else onExpandChange(!isExpanded)
+        }.semantics { role = Role.Button; stateDescription = stateLabel }.heightIn(min = 48.dp).padding(horizontal = 16.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
             Text(title, Modifier.weight(1f), style = MaterialTheme.typography.titleSmall.merge(contentStyle(title)))
             Surface(shape = MaterialTheme.shapes.small, color = MaterialTheme.colorScheme.secondaryContainer) { Text(count.toString(), Modifier.padding(horizontal = 8.dp, vertical = 3.dp), style = MaterialTheme.typography.labelSmall) }

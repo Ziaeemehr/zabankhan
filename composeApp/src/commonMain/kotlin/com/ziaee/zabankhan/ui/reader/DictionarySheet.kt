@@ -40,6 +40,8 @@ import com.ziaee.zabankhan.lang.*
 import com.ziaee.zabankhan.resources.*
 import com.ziaee.zabankhan.translate.MeaningOption
 import com.ziaee.zabankhan.ui.contentStyle
+import com.ziaee.zabankhan.ui.dictionarySuggestions
+import com.ziaee.zabankhan.ui.WordSuggestionMenu
 import com.ziaee.zabankhan.ui.theme.ReaderReferenceTheme
 import com.ziaee.zabankhan.ui.theme.readerContentFamily
 import com.ziaee.zabankhan.speech.createTts
@@ -133,6 +135,7 @@ private fun ReferenceDictionaryPane(
     val meaningTarget = settings.meaningLang.takeIf { it != text.lang } ?: if (text.lang == Languages.PERSIAN.code) Languages.ENGLISH.code else Languages.PERSIAN.code
     val originalWord = selection.word
     var currentWord by remember(selection) { mutableStateOf(originalWord) }
+    var familyHeadword by remember(selection) { mutableStateOf<DictionaryHeadword?>(null) }
     val word = currentWord
     val isOriginal = word == originalWord
     var lemmas by remember(selection) { mutableStateOf(emptyList<String>()) }
@@ -181,14 +184,14 @@ private fun ReferenceDictionaryPane(
         sourceMenuExpanded = false
     }
     val repository = vm.container.translations(settings)
-    var ownLookup by remember(word, lang, meaningTarget) { mutableStateOf(DictionaryLookup(word, emptyList(), emptyList(), emptyList())) }
-    var ownLoaded by remember(word, lang, meaningTarget) { mutableStateOf(false) }
-    var ownLookupFailed by remember(word, lang, meaningTarget) { mutableStateOf(false) }
-    LaunchedEffect(word, lang, meaningTarget, repository) {
+    var ownLookup by remember(word, lang, meaningTarget, familyHeadword) { mutableStateOf(DictionaryLookup(word, emptyList(), emptyList(), emptyList())) }
+    var ownLoaded by remember(word, lang, meaningTarget, familyHeadword) { mutableStateOf(false) }
+    var ownLookupFailed by remember(word, lang, meaningTarget, familyHeadword) { mutableStateOf(false) }
+    LaunchedEffect(word, lang, meaningTarget, repository, familyHeadword) {
         ownLoaded = false
         ownLookupFailed = false
         try {
-            ownLookup = vm.container.ownDictionary.lookup(word, lang, selection.sentence)
+            ownLookup = vm.container.ownDictionary.lookup(word, lang, selection.sentence, familyHeadword)
         } catch (cancelled: kotlinx.coroutines.CancellationException) { throw cancelled }
         catch (_: Exception) {
             ownLookup = DictionaryLookup(word, emptyList(), emptyList(), emptyList())
@@ -240,47 +243,57 @@ private fun ReferenceDictionaryPane(
         Column(Modifier.heightIn(max = controlsMaxHeight).verticalScroll(rememberScrollState())) {
             val focusManager = LocalFocusManager.current
             var draft by remember(word) { mutableStateOf(TextFieldValue(word, TextRange(word.length))) }
-            val draftWord = manualDictionaryWord(draft.text)
+            fun searchWord(query: String) {
+                familyHeadword = null
+                currentWord = query
+            }
             val applyDraft = {
-                draftWord?.let { currentWord = it }
+                manualDictionaryWord(draft.text)?.let(::searchWord)
                 focusManager.clearFocus()
             }
             val wordInteraction = remember { MutableInteractionSource() }
             val wordFocused by wordInteraction.collectIsFocusedAsState()
             val shownLemmas = lemmas.filter { it != word }
-            val wordField: @Composable (Modifier) -> Unit = { fieldModifier ->
-                BasicTextField(
-                    value = draft,
-                    onValueChange = { draft = it },
-                    singleLine = true,
-                    textStyle = MaterialTheme.typography.headlineMedium.merge(contentStyle(draft.text))
-                        .copy(fontSize = MaterialTheme.typography.headlineMedium.fontSize * 1.1f, color = MaterialTheme.colorScheme.onSurface, fontFamily = readerContentFamily(draft.text)),
-                    cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
-                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
-                    keyboardActions = KeyboardActions(onDone = { applyDraft() }),
-                    interactionSource = wordInteraction,
-                    modifier = fieldModifier,
-                    decorationBox = { inner ->
-                        Column {
-                            Box(Modifier.padding(vertical = 6.dp)) { inner() }
-                            HorizontalDivider(
-                                thickness = if (wordFocused) 2.dp else 1.dp,
-                                color = if (wordFocused) MaterialTheme.colorScheme.primary
-                                else MaterialTheme.colorScheme.outlineVariant
-                            )
-                        }
-                    }
-                )
-            }
+            val suggestions = dictionarySuggestions(
+                query = manualDictionaryWord(draft.text)?.takeIf { wordFocused && it != word },
+                language = lang,
+                suggest = vm.container.ownDictionary::completeHeadwords,
+            )
             val wordPills: @Composable (Boolean) -> Unit = { compact ->
-                shownLemmas.forEach { lemma -> WordPill("→ $lemma", compact = compact) { currentWord = lemma } }
+                shownLemmas.forEach { lemma -> WordPill("→ $lemma", compact = compact) { familyHeadword = null; currentWord = lemma } }
                 if (!isOriginal) {
                     val resetLabel = stringResource(Res.string.dictionary_reset_word)
-                    WordPill("↺ $originalWord", Modifier.semantics { contentDescription = "$resetLabel: $originalWord" }, compact = compact) { currentWord = originalWord }
+                    WordPill("↺ $originalWord", Modifier.semantics { contentDescription = "$resetLabel: $originalWord" }, compact = compact) { familyHeadword = null; currentWord = originalWord }
                 }
             }
             Row(verticalAlignment = Alignment.CenterVertically) {
-                wordField(Modifier.weight(1f))
+                WordSuggestionMenu(suggestions, ::searchWord, Modifier.weight(1f)) { anchor, showSuggestions ->
+                    BasicTextField(
+                        value = draft,
+                        onValueChange = {
+                            if (it.text != draft.text) showSuggestions()
+                            draft = it
+                        },
+                        singleLine = true,
+                        textStyle = MaterialTheme.typography.headlineMedium.merge(contentStyle(draft.text))
+                            .copy(fontSize = MaterialTheme.typography.headlineMedium.fontSize * 1.1f, color = MaterialTheme.colorScheme.onSurface, fontFamily = readerContentFamily(draft.text)),
+                        cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
+                        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+                        keyboardActions = KeyboardActions(onDone = { applyDraft() }),
+                        interactionSource = wordInteraction,
+                        modifier = Modifier.fillMaxWidth().then(anchor),
+                        decorationBox = { inner ->
+                            Column {
+                                Box(Modifier.padding(vertical = 6.dp)) { inner() }
+                                HorizontalDivider(
+                                    thickness = if (wordFocused) 2.dp else 1.dp,
+                                    color = if (wordFocused) MaterialTheme.colorScheme.primary
+                                    else MaterialTheme.colorScheme.outlineVariant
+                                )
+                            }
+                        }
+                    )
+                }
                 IconButton(onClick = dismiss, modifier = if (compactControls) Modifier.size(40.dp) else Modifier) {
                     Icon(Icons.Default.Close, contentDescription = stringResource(Res.string.accessibility_close))
                 }
@@ -545,8 +558,9 @@ private fun ReferenceDictionaryPane(
             HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
             if (selectedDictionarySource == "own") {
                 OwnDictionaryBlock(ownLookup, lang, meaningTarget, vm, text.id.takeIf { it > 0 } ?: 0, selection.sentence,
-                    speak = { tts.togglePronounce(it, lang.code, settings) }, onLookup = { currentWord = it },
-                    loading = !ownLoaded, failed = ownLookupFailed)
+                    speak = { tts.togglePronounce(it, lang.code, settings) }, onLookup = { familyHeadword = null; currentWord = it },
+                    loading = !ownLoaded, failed = ownLookupFailed,
+                    onFamilyLookup = { familyHeadword = it; currentWord = it.word })
             }
 
 

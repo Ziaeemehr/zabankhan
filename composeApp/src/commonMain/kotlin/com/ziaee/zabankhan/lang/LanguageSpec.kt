@@ -35,6 +35,7 @@ data class LanguageSpec(
     val monolingualPackId: String? = null,
     val learnerPackId: String? = null,
     val monolingualSourceUrlTemplate: String? = null,
+    val dictionaryNounArticles: Map<String, String> = emptyMap(),
 )
 
 object Languages {
@@ -60,6 +61,7 @@ object Languages {
         vocabularyLessonTag = Regex("\\s*—\\s*Leçon\\s+(\\d+)\\s*$"),
         ownDictionaryAvailable = true,
         dictionaryLeadingArticles = setOf("le", "la", "les", "un", "une", "du", "des", "l'"),
+        dictionaryNounArticles = mapOf("m" to "le", "f" to "la", "p" to "les"),
         monolingualPackId = "fr/monolingual",
         learnerPackId = "fr/learner",
         monolingualSourceUrlTemplate = "https://fr.wiktionary.org/wiki/{word}",

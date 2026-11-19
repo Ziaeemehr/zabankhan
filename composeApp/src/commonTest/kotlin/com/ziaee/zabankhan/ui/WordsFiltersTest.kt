@@ -7,6 +7,21 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 
 class WordsFiltersTest {
+    @Test fun autocompleteShowsDistinctPrefixCompletionsForTheFilteredWords() {
+        val language = Languages.FRENCH
+        val words = listOf(
+            VocabEntry(lang = language.code, word = "école"),
+            VocabEntry(lang = language.code, word = "école"),
+            VocabEntry(lang = language.code, word = "écouter"),
+            VocabEntry(lang = language.code, word = "éco"),
+            VocabEntry(lang = language.code, word = "une école"),
+            VocabEntry(lang = language.code, word = "écorce", learned = true),
+        )
+        val filtered = filterVocabulary(words, -1, "ECO", VocabStatus.NEW, language)
+        assertEquals(listOf("école", "écouter"), vocabularyCompletions(filtered, "ECO", language))
+        assertEquals(emptyList(), vocabularyCompletions(filtered, "", language))
+    }
+
     @Test fun englishPreviewAudioUsesLearningLanguageScript() {
         assertEquals("book", flashcardWordAudioText(VocabEntry(lang = Languages.ENGLISH.code, word = "book")))
         assertEquals(null, flashcardWordAudioText(VocabEntry(lang = Languages.ENGLISH.code, word = "کتاب")))

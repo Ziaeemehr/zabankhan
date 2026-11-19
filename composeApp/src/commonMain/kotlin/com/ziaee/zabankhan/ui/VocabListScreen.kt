@@ -155,6 +155,9 @@ fun VocabListScreen(
     val filtered = remember(scoped, query, selectedStatus, spec) {
         filterVocabulary(scoped, -1L, query, selectedStatus, spec)
     }
+    val completions = remember(asTab, filtered, query, spec) {
+        if (asTab) vocabularyCompletions(filtered, query, spec) else emptyList()
+    }
     val logs by vm.logs.collectAsState()
     val dueCount = remember(filtered, logs, settings.dailyNewCards) {
         val now = nowMs()
@@ -459,12 +462,12 @@ fun VocabListScreen(
                 }
 
                 item {
-                    OutlinedTextField(
+                    WordAutocompleteField(
                         value = query,
                         onValueChange = { query = it },
-                        label = { Text(stringResource(Res.string.b_words_vocab_search_hint)) },
+                        suggestions = completions,
+                        label = stringResource(Res.string.b_words_vocab_search_hint),
                         modifier = Modifier.fillMaxWidth().padding(12.dp),
-                        singleLine = true
                     )
                 }
 
