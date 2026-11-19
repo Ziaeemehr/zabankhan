@@ -10,6 +10,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.VolumeUp
 import androidx.compose.material.icons.automirrored.outlined.List
+import androidx.compose.material.icons.outlined.AccountTree
 import androidx.compose.material.icons.outlined.FormatQuote
 import androidx.compose.material.icons.outlined.Lightbulb
 import androidx.compose.material.icons.outlined.TableChart
@@ -24,6 +25,8 @@ import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.font.FontStyle
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.ziaee.zabankhan.app.AppViewModel
 import com.ziaee.zabankhan.data.VocabEntry
@@ -146,24 +149,55 @@ internal fun WordFamilySection(
     val shownPos = listOf("noun", "adjective", "verb", "adverb")
     val shown = relatives.filter { it.pos in shownPos }
     if (shown.isEmpty()) return
-    ExpandableSection(stringResource(Res.string.own_dictionary_word_family), shown.size, entryId, "word-family",
-        expanded = expanded, onExpandChange = onExpandChange) {
+    ExpandableSection(
+        stringResource(Res.string.own_dictionary_word_family), shown.size, entryId, "word-family",
+        icon = Icons.Outlined.AccountTree, expanded = expanded, onExpandChange = onExpandChange,
+    ) {
         val byPos = shown.groupBy { it.pos }
-        for (pos in shownPos) {
-            val group = byPos[pos] ?: continue
-            val label = partOfSpeechResource(pos)?.let { stringResource(it) } ?: pos
-            Text(label, style = MaterialTheme.typography.labelMedium.merge(contentStyle(label)))
-            group.forEach { relative ->
-                val article = lang.dictionaryNounArticles[relative.gender].takeIf { pos == "noun" }
-                val word = listOfNotNull(article, relative.word).joinToString(" ")
-                val meaning = relative.wordFamilyMeaning(target, lang)
-                TextButton(onClick = { onLookup(DictionaryHeadword(relative.word, relative.pos)) },
-                    modifier = Modifier.fillMaxWidth()) {
-                    Column(Modifier.fillMaxWidth()) {
-                        Text(word, style = MaterialTheme.typography.bodyMedium.merge(contentStyle(word)))
-                        if (meaning.isNotBlank()) Text(meaning, maxLines = 2,
-                            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
-                            style = MaterialTheme.typography.bodySmall.merge(contentStyle(meaning)))
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            for (pos in shownPos) {
+                val group = byPos[pos] ?: continue
+                val label = partOfSpeechResource(pos)?.let { stringResource(it) } ?: pos
+                Surface(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = MaterialTheme.shapes.medium,
+                    color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                ) {
+                    Column(Modifier.padding(vertical = 6.dp)) {
+                        Surface(
+                            modifier = Modifier.padding(start = 12.dp, top = 4.dp, bottom = 4.dp),
+                            shape = MaterialTheme.shapes.small,
+                            color = MaterialTheme.colorScheme.secondaryContainer,
+                        ) {
+                            Text(
+                                label, Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
+                                style = MaterialTheme.typography.labelSmall.merge(contentStyle(label)),
+                            )
+                        }
+                        group.forEach { relative ->
+                            val article = lang.dictionaryNounArticles[relative.gender].takeIf { pos == "noun" }
+                            val word = listOfNotNull(article, relative.word).joinToString(" ")
+                            val meaning = relative.wordFamilyMeaning(target, lang)
+                            Column(
+                                Modifier.fillMaxWidth()
+                                    .clickable(role = Role.Button) { onLookup(DictionaryHeadword(relative.word, relative.pos)) }
+                                    .heightIn(min = 48.dp)
+                                    .padding(horizontal = 12.dp, vertical = 6.dp),
+                                verticalArrangement = Arrangement.Center,
+                            ) {
+                                Text(
+                                    word, Modifier.fillMaxWidth(),
+                                    style = MaterialTheme.typography.bodyMedium.merge(contentStyle(word))
+                                        .copy(fontWeight = FontWeight.SemiBold),
+                                )
+                                if (meaning.isNotBlank()) Text(
+                                    meaning, Modifier.fillMaxWidth(), maxLines = 2,
+                                    overflow = TextOverflow.Ellipsis,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    style = MaterialTheme.typography.bodySmall.merge(contentStyle(meaning)),
+                                )
+                            }
+                        }
                     }
                 }
             }

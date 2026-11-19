@@ -36,6 +36,7 @@ data class LanguageSpec(
     val learnerPackId: String? = null,
     val monolingualSourceUrlTemplate: String? = null,
     val dictionaryNounArticles: Map<String, String> = emptyMap(),
+    val hasBundledDictionaryAdverbLinks: Boolean = false,
 )
 
 object Languages {
@@ -62,6 +63,7 @@ object Languages {
         ownDictionaryAvailable = true,
         dictionaryLeadingArticles = setOf("le", "la", "les", "un", "une", "du", "des", "l'"),
         dictionaryNounArticles = mapOf("m" to "le", "f" to "la", "p" to "les"),
+        hasBundledDictionaryAdverbLinks = true,
         monolingualPackId = "fr/monolingual",
         learnerPackId = "fr/learner",
         monolingualSourceUrlTemplate = "https://fr.wiktionary.org/wiki/{word}",

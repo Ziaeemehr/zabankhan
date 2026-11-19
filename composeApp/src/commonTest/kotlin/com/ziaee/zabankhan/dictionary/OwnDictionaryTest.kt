@@ -177,6 +177,34 @@ class OwnDictionaryTest {
         }
     }
 
+    @Test fun bundledAdverbLinksEnrichCachedHeadwordsInBothDirections() = runTest {
+        val root = FileSystem.SYSTEM_TEMPORARY_DIRECTORY / "dictionary-adverbs-${Random.nextLong()}"
+        val fs = FileSystem.SYSTEM
+        val lang = Languages.FRENCH.copy(monolingualPackId = null, learnerPackId = null)
+        val directory = root / lang.code / "v2"
+        fs.createDirectories(directory)
+        fs.write(directory / "index.json") {
+            writeUtf8("""{"lang":"fr","format":2,"version":1,"shards":["ra"]}""")
+        }
+        fs.write(directory / "ra.json") {
+            writeUtf8("""{"entries":[[1,"rapide","adjective",5],[2,"rapide","noun",4],[3,"rapidement","adverb",4]]}""")
+        }
+        val http = HttpClient(MockEngine { respond("offline", HttpStatusCode.ServiceUnavailable) })
+        try {
+            val dictionary = OwnDictionary(http, InMemoryKeyValueCache(), root, fs) { "rapide\tadjective\trapidement" }
+            val entries = dictionary.lookup("rapide", lang).entries
+            val adjective = entries.single { it.pos == "adjective" }
+            val noun = entries.single { it.pos == "noun" }
+            val adverb = dictionary.lookup("rapidement", lang).entries.single()
+            assertEquals(listOf("rapidement"), dictionary.wordFamily(adjective, lang).map { it.word })
+            assertEquals(listOf("rapide"), dictionary.wordFamily(adverb, lang).map { it.word })
+            assertTrue(noun.wordFamily.isEmpty())
+        } finally {
+            http.close()
+            fs.deleteRecursively(root, mustExist = false)
+        }
+    }
+
     @Test fun dictionaryAutocompleteFindsHeadwordsUnderSplitPrefix() = runTest {
         val root = FileSystem.SYSTEM_TEMPORARY_DIRECTORY / "dictionary-autocomplete-${Random.nextLong()}"
         val fs = FileSystem.SYSTEM

@@ -6,6 +6,7 @@ import com.ziaee.zabankhan.lang.LemmaLexicon
 import com.ziaee.zabankhan.lang.normalizeForMatch
 import com.ziaee.zabankhan.datapack.LanguageDataPacks
 import com.ziaee.zabankhan.pdf.AppFiles
+import com.ziaee.zabankhan.resources.Res
 import com.ziaee.zabankhan.translate.ExampleSource
 import com.ziaee.zabankhan.translate.ExampleTranslation
 import com.ziaee.zabankhan.translate.TranslationRepository
@@ -241,10 +242,40 @@ fun formLabelText(code: String, nameOf: (String) -> String = { formNames[it] ?: 
 private fun shardKeyInShards(index: DictionaryIndex, key: String) = key in index.shards
 
 class OwnDictionary(private val http: HttpClient, @Suppress("UNUSED_PARAMETER") cache: com.ziaee.zabankhan.translate.KeyValueCache,
-    private val root: Path = "${AppFiles.filesDir}/own-dictionary".toPath(), private val fs: FileSystem = FileSystem.SYSTEM) {
+    private val root: Path = "${AppFiles.filesDir}/own-dictionary".toPath(), private val fs: FileSystem = FileSystem.SYSTEM,
+    private val readAdverbLinks: suspend (LanguageSpec) -> String = {
+        Res.readBytes("files/${it.code}/lexicon/dictionary_adverb_links.tsv").decodeToString()
+    },
+) {
     private val json = Json { ignoreUnknownKeys = true }
     private val mutex = Mutex()
     private val checkedPacks = mutableSetOf<String>()
+    private val adverbLinks = mutableMapOf<String, Map<DictionaryHeadword, List<DictionaryHeadword>>>()
+
+    private suspend fun bundledAdverbLinks(lang: LanguageSpec): Map<DictionaryHeadword, List<DictionaryHeadword>> {
+        if (!lang.hasBundledDictionaryAdverbLinks) return emptyMap()
+        adverbLinks[lang.code]?.let { return it }
+        val raw = try {
+            readAdverbLinks(lang)
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (_: Exception) {
+            return emptyMap()
+        }
+        val links = mutableMapOf<DictionaryHeadword, MutableList<DictionaryHeadword>>()
+        raw.lineSequence().filterNot { it.startsWith('#') }.forEach { line ->
+            val parts = line.split('\t')
+            if (parts.size == 3) {
+                val (word, pos, adverb) = parts
+                val base = DictionaryHeadword(word, pos)
+                val derived = DictionaryHeadword(adverb, "adverb")
+                links.getOrPut(base) { mutableListOf() }.add(derived)
+                links.getOrPut(derived) { mutableListOf() }.add(base)
+            }
+        }
+        adverbLinks[lang.code] = links
+        return links
+    }
     private fun directory(lang: LanguageSpec) = root / lang.code / "v2"
     private fun packDirectory(lang: LanguageSpec, pack: String) = root / lang.code / pack.substringAfter('/') / "v1"
     private fun read(path: Path): String? = if (fs.exists(path)) fs.read(path) { readUtf8() } else null
@@ -390,11 +421,18 @@ class OwnDictionary(private val http: HttpClient, @Suppress("UNUSED_PARAMETER") 
             }.distinctBy { it.id }.filter { entry -> idiomWords.isNotEmpty() && dictionaryIdiomMatches(entry.word, sentence.orEmpty()) }
             val definitions = try { packEntries(lang, lang.monolingualPackId, word) } catch (cancelled: CancellationException) { throw cancelled } catch (_: Exception) { emptyList() }
             val learnerEntries = try { learnerEntries(lang, bases.map { it.word }.distinct()) } catch (cancelled: CancellationException) { throw cancelled } catch (_: Exception) { emptyList() }
+            val adverbs = if (bases.isEmpty()) emptyMap() else bundledAdverbLinks(lang)
             val enriched = bases.map { entry ->
                 val mono = definitions.filter { it.word == entry.word && it.pos == entry.pos }.ifEmpty { definitions.filter { it.word == entry.word } }
                 val headwordMatches = learnerEntries.filter { normalizeDictionaryQuery(it.word) == normalizeDictionaryQuery(entry.word) }
                 val learner = headwordMatches.firstOrNull { it.pos == entry.pos }
-                entry.copy(gender = entry.gender.ifBlank { mono.firstOrNull()?.gender.orEmpty() }, monolingualDefinitions = mono.flatMap { it.senses }.ifEmpty { entry.monolingualDefinitions }, learner = learner)
+                val additionalRelatives = adverbs[DictionaryHeadword(entry.word, entry.pos)].orEmpty()
+                entry.copy(
+                    gender = entry.gender.ifBlank { mono.firstOrNull()?.gender.orEmpty() },
+                    monolingualDefinitions = mono.flatMap { it.senses }.ifEmpty { entry.monolingualDefinitions },
+                    learner = learner,
+                    wordFamily = (entry.wordFamily + additionalRelatives).distinct(),
+                )
             }
             DictionaryLookup(word, enriched, if (exactEntry == null) redirects else emptyList(), idioms)
         }
