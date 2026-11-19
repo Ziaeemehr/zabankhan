@@ -1,6 +1,11 @@
 package com.ziaee.zabankhan.speech
 
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.waitForUpOrCancellation
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.Alignment
 import androidx.compose.foundation.background
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
@@ -23,6 +28,32 @@ import kotlinx.coroutines.*
 import org.jetbrains.compose.resources.stringResource
 import kotlin.time.TimeSource
 import kotlin.coroutines.resume
+
+@Composable
+internal fun Modifier.holdToRecord(
+    onStart: () -> Boolean,
+    onRelease: () -> Unit,
+    onCancel: () -> Unit,
+): Modifier {
+    val start by rememberUpdatedState(onStart)
+    val release by rememberUpdatedState(onRelease)
+    val cancel by rememberUpdatedState(onCancel)
+    return pointerInput(Unit) {
+        awaitEachGesture {
+            awaitFirstDown().consume()
+            if (start()) {
+                var released = false
+                try {
+                    val up = waitForUpOrCancellation()
+                    released = up != null
+                    up?.consume()
+                } finally {
+                    if (released) release() else cancel()
+                }
+            }
+        }
+    }
+}
 
 fun Tts.pronounce(text: String, lang: String, settings: AppSettings, done: () -> Unit = {}) {
     setVoice(settings.ttsVoices[lang]); speak(text, lang, settings.speechRate, done)
@@ -58,15 +89,14 @@ fun Tts.togglePronounce(text: String, lang: String, settings: AppSettings) {
     val permission = rememberMicPermission()
     val sentence = sentences.getOrNull(index).orEmpty()
     val speedDescription = stringResource(Res.string.watch_shadow_speed, rate.toString())
-    fun requestRecording() {
-        if (phase == ShadowPhase.Recording) {
-            pendingRecording = false
-            controller.finishRecording()
-        } else if (phase != ShadowPhase.Playing && phase != ShadowPhase.Saving) {
-            pauseOriginal()
-            if (permission.granted) controller.listen()
-            else { pendingRecording = true; permission.request() }
-        }
+    fun startRecording(fromAutoRecord: Boolean = false): Boolean {
+        if (controller.phase.value == ShadowPhase.Recording) return !fromAutoRecord
+        if (controller.phase.value == ShadowPhase.Playing || controller.phase.value == ShadowPhase.Saving) return false
+        pauseOriginal()
+        if (permission.granted) return controller.listen()
+        pendingRecording = fromAutoRecord
+        permission.request()
+        return false
     }
     fun playOriginal() {
         replayJob?.cancel(); tts.stop()
@@ -85,7 +115,7 @@ fun Tts.togglePronounce(text: String, lang: String, settings: AppSettings) {
                 }
                 if (duration < 0) controller.playbackFailed() else {
                     controller.played(duration)
-                    if (currentAutoRecord) requestRecording()
+                    if (currentAutoRecord) startRecording(fromAutoRecord = true)
                 }
             } catch (cancelled: CancellationException) { throw cancelled }
             catch (_: Exception) { controller.playbackFailed() }
@@ -176,13 +206,11 @@ fun Tts.togglePronounce(text: String, lang: String, settings: AppSettings) {
                             tint = if (autoRecord) MaterialTheme.colorScheme.primary else androidx.compose.material3.LocalContentColor.current)
                     }
                     val recording = phase == ShadowPhase.Recording
-                    IconButton(onClick = ::requestRecording,
-                        enabled = phase != ShadowPhase.Playing && phase != ShadowPhase.Saving,
-                        modifier = Modifier.size(40.dp).background(
-                            if (recording) MaterialTheme.colorScheme.errorContainer else MaterialTheme.colorScheme.primaryContainer,
-                            CircleShape)) {
-                        Icon(if (recording) Icons.Default.Stop else Icons.Default.Mic,
-                            contentDescription = stringResource(if (recording) Res.string.watch_shadow_stop else Res.string.watch_shadow_record),
+                    Box(Modifier.size(40.dp).background(
+                        if (recording) MaterialTheme.colorScheme.errorContainer else MaterialTheme.colorScheme.primaryContainer,
+                        CircleShape).holdToRecord({ startRecording() }, controller::finishRecording, controller::cancel),
+                        contentAlignment = Alignment.Center) {
+                        Icon(Icons.Default.Mic, contentDescription = stringResource(Res.string.shadowing_hold_to_speak),
                             tint = if (recording) MaterialTheme.colorScheme.onErrorContainer else MaterialTheme.colorScheme.onPrimaryContainer)
                     }
                     IconButton(onClick = { pauseOriginal(); controller.replayMine() },

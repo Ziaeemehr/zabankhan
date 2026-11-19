@@ -15,7 +15,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.ziaee.zabankhan.app.AppContainer
-import com.ziaee.zabankhan.data.AppSettings
 import com.ziaee.zabankhan.lang.LanguageSpec
 import com.ziaee.zabankhan.resources.*
 import com.ziaee.zabankhan.speech.*
@@ -39,18 +38,17 @@ import org.jetbrains.compose.resources.stringResource
     val phase by controller.phase.collectAsState()
     val permission = rememberMicPermission()
     var replayJob by remember { mutableStateOf<Job?>(null) }
-    var pendingRecording by remember { mutableStateOf(false) }
     var repeats by remember { mutableIntStateOf(1) }
     var speedMenu by remember { mutableStateOf(false) }
     var repeatMenu by remember { mutableStateOf(false) }
     val sentence = sentences.getOrNull(index).orEmpty()
     val busy = phase == ShadowPhase.Recording || phase == ShadowPhase.Saving
-    fun toggleRecording() {
-        if (phase == ShadowPhase.Recording) { pendingRecording = false; controller.finishRecording() }
-        else if (phase != ShadowPhase.Playing && phase != ShadowPhase.Saving) {
-            pauseOriginal()
-            if (permission.granted) controller.listen() else { pendingRecording = true; permission.request() }
-        }
+    fun startRecording(): Boolean {
+        if (controller.phase.value == ShadowPhase.Playing || busy) return false
+        pauseOriginal()
+        if (permission.granted) return controller.listen()
+        permission.request()
+        return false
     }
     fun playOriginal() {
         replayJob?.cancel()
@@ -64,12 +62,9 @@ import org.jetbrains.compose.resources.stringResource
         }
     }
     LaunchedEffect(index, lang, textId) { replayJob?.cancel(); controller.target(lang, textId, sentence) }
-    LaunchedEffect(permission.granted, pendingRecording) {
-        if (permission.granted && pendingRecording) { pendingRecording = false; controller.listen() }
-    }
     DisposableEffect(Unit) { onDispose { replayJob?.cancel(); controller.cancel() } }
     androidx.lifecycle.compose.LifecycleEventEffect(androidx.lifecycle.Lifecycle.Event.ON_PAUSE) {
-        pendingRecording = false; replayJob?.cancel(); controller.cancel()
+        replayJob?.cancel(); controller.cancel()
     }
     Column(Modifier.fillMaxSize()) {
         Column(Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = 12.dp, vertical = 8.dp),
@@ -87,12 +82,12 @@ import org.jetbrains.compose.resources.stringResource
                 }
             }
             val status = when (val p = phase) {
-                ShadowPhase.Recording -> stringResource(Res.string.shadow_listening_tap_stop)
+                ShadowPhase.Recording -> stringResource(Res.string.shadowing_listening)
                 ShadowPhase.Saving -> stringResource(Res.string.shadowing_recognizing)
                 ShadowPhase.Playing -> stringResource(Res.string.speech_listen)
                 is ShadowPhase.Result -> stringResource(Res.string.shadowing_score, p.alignment.matched, p.alignment.total)
                 is ShadowPhase.Error -> stringResource(if (p.notHeard) Res.string.shadowing_not_heard else Res.string.shadowing_engine_failed)
-                else -> stringResource(Res.string.shadow_tap_record)
+                else -> stringResource(Res.string.shadowing_hold_to_speak)
             }
             Text(status, Modifier.fillMaxWidth(), style = MaterialTheme.typography.titleSmall, textAlign = TextAlign.Center,
                 color = if (phase is ShadowPhase.Error) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant)
@@ -104,9 +99,6 @@ import org.jetbrains.compose.resources.stringResource
                 ShadowingAlignment(result.alignment)
             }
             if (phase is ShadowPhase.Result || phase is ShadowPhase.Error || phase == ShadowPhase.Recorded) Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                if (controller.hasRecording) FilledTonalButton(onClick = { pauseOriginal(); controller.replayMine() }, Modifier.weight(1f)) {
-                    Icon(Icons.Default.Hearing, null, Modifier.size(18.dp)); Spacer(Modifier.width(6.dp)); Text(stringResource(Res.string.watch_shadow_play_recording), maxLines = 1)
-                }
                 OutlinedButton(onClick = controller::retry, Modifier.weight(1f)) {
                     Icon(Icons.Default.Refresh, null, Modifier.size(18.dp)); Spacer(Modifier.width(6.dp)); Text(stringResource(Res.string.shadowing_retry), maxLines = 1)
                 }
@@ -124,10 +116,18 @@ import org.jetbrains.compose.resources.stringResource
                             stringResource(if (phase == ShadowPhase.Playing) Res.string.watch_pause else Res.string.watch_play), Modifier.size(30.dp))
                     }
                     val recording = phase == ShadowPhase.Recording
-                    FilledIconButton(onClick = ::toggleRecording, enabled = phase != ShadowPhase.Playing && phase != ShadowPhase.Saving,
-                        modifier = Modifier.size(64.dp), shape = CircleShape,
-                        colors = IconButtonDefaults.filledIconButtonColors(containerColor = if (recording) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary)) {
-                        Icon(if (recording) Icons.Default.Stop else Icons.Default.Mic, stringResource(if (recording) Res.string.watch_shadow_stop else Res.string.watch_shadow_record), Modifier.size(32.dp))
+                    Surface(
+                        modifier = Modifier.size(64.dp).holdToRecord(::startRecording, controller::finishRecording, controller::cancel),
+                        shape = CircleShape,
+                        color = if (recording) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary,
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Icon(Icons.Default.Mic, stringResource(Res.string.shadowing_hold_to_speak), Modifier.size(32.dp))
+                        }
+                    }
+                    FilledTonalIconButton(onClick = { pauseOriginal(); controller.replayMine() },
+                        enabled = controller.hasRecording && !busy && phase != ShadowPhase.Playing, modifier = Modifier.size(48.dp)) {
+                        Icon(Icons.Default.Headphones, stringResource(Res.string.shadowing_replay_mine))
                     }
                     FilledTonalIconButton(onClick = { if (index < sentences.lastIndex) onIndexChange(index + 1) }, enabled = index < sentences.lastIndex && !busy, modifier = Modifier.size(48.dp)) {
                         Icon(Icons.Default.SkipNext, stringResource(Res.string.speech_next)) }

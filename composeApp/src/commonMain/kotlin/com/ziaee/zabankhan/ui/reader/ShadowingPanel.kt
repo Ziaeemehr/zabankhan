@@ -1,9 +1,6 @@
 package com.ziaee.zabankhan.ui.reader
 
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.gestures.awaitEachGesture
-import androidx.compose.foundation.gestures.awaitFirstDown
-import androidx.compose.foundation.gestures.waitForUpOrCancellation
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
@@ -20,7 +17,6 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalLayoutDirection
 import org.jetbrains.compose.resources.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -29,6 +25,7 @@ import androidx.compose.ui.unit.dp
 import com.ziaee.zabankhan.resources.*
 import com.ziaee.zabankhan.speech.PaceRating
 
+import com.ziaee.zabankhan.speech.holdToRecord
 import com.ziaee.zabankhan.speech.ShadowPhase
 
 import com.ziaee.zabankhan.ui.theme.ReadingPalette
@@ -97,7 +94,8 @@ private fun ShadowingPanel(
             TextButton(onClick = onPlayOriginal) {
                 Icon(Icons.AutoMirrored.Filled.VolumeUp, null); Spacer(Modifier.width(4.dp)); Text(stringResource(Res.string.shadowing_play_original))
             }
-            TextButton(onClick = onReplayMine, enabled = state.hasRecording) {
+            TextButton(onClick = onReplayMine, enabled = state.hasRecording && state.phase != ShadowPhase.Playing &&
+                state.phase != ShadowPhase.Recording && state.phase != ShadowPhase.Saving) {
                 Icon(Icons.Default.Headphones, null); Spacer(Modifier.width(4.dp)); Text(stringResource(Res.string.shadowing_replay_mine))
             }
             TextButton(onClick = onRetry) {
@@ -110,20 +108,7 @@ private fun ShadowingPanel(
             Surface(
                 shape = CircleShape,
                 color = if (recording) MissedColor else palette.accent.copy(alpha = if (isPlaying) 0.4f else 1f),
-                modifier = Modifier.size(72.dp).pointerInput(Unit) {
-                    awaitEachGesture {
-                        awaitFirstDown()
-                        val started = onPressStart()
-                        var released = false
-                        try {
-                            released = waitForUpOrCancellation() != null
-                        } finally {
-                            if (started) {
-                                if (released) onPressEnd() else onPressCancel()
-                            }
-                        }
-                    }
-                }
+                modifier = Modifier.size(72.dp).holdToRecord(onPressStart, onPressEnd, onPressCancel)
             ) {
                 Box(contentAlignment = Alignment.Center) {
                     Icon(Icons.Default.Mic, stringResource(Res.string.shadowing_hold_to_speak), tint = Color.White, modifier = Modifier.size(32.dp))
@@ -154,7 +139,7 @@ fun ShadowingAlignment(alignment: com.ziaee.zabankhan.speech.AlignmentResult) {
 }
 
 
-private data class ShadowingState(val sentenceText: String, val phase: ShadowPhase, val hasRecording: Boolean = false)
+private data class ShadowingState(val sentenceText: String, val phase: ShadowPhase, val hasRecording: Boolean)
 
 /** Host wiring for the copied inline panel; practice storage remains shared with Watch. */
 @Composable
@@ -184,9 +169,9 @@ internal fun ReaderShadowingPanel(container: com.ziaee.zabankhan.app.AppContaine
     }
     androidx.compose.runtime.LaunchedEffect(index) { controller.target(lang, textId, sentence); play() }
     androidx.compose.runtime.DisposableEffect(controller) { onDispose { controller.cancel(); tts.stop() } }
-    ShadowingPanel(ShadowingState(sentence, phase), speaking, palette,
-        onPlayOriginal = ::play, onReplayMine = {}, onRetry = { controller.retry(); play() },
+    ShadowingPanel(ShadowingState(sentence, phase, controller.hasRecording), speaking, palette,
+        onPlayOriginal = ::play, onReplayMine = controller::replayMine, onRetry = { controller.retry(); play() },
         onNext = { if (index < sentences.lastIndex) index++ else onFinished() },
         onPressStart = { if (!permission.granted) { permission.request(); false } else controller.listen() },
-        onPressEnd = { recognizer.stop() }, onPressCancel = { controller.cancel() })
+        onPressEnd = controller::finishRecording, onPressCancel = controller::cancel)
 }

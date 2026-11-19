@@ -1,8 +1,5 @@
 package com.ziaee.zabankhan.ui
 
-import androidx.compose.foundation.gestures.awaitEachGesture
-import androidx.compose.foundation.gestures.awaitFirstDown
-import androidx.compose.foundation.gestures.waitForUpOrCancellation
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
@@ -14,7 +11,6 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalLayoutDirection
 import org.jetbrains.compose.resources.stringResource
 import androidx.compose.ui.unit.LayoutDirection
@@ -23,6 +19,7 @@ import com.ziaee.zabankhan.resources.*
 import com.ziaee.zabankhan.data.VocabEntry
 import com.ziaee.zabankhan.lang.Languages
 import com.ziaee.zabankhan.srs.looksLikeScript
+import com.ziaee.zabankhan.speech.holdToRecord
 import com.ziaee.zabankhan.speech.ShadowPhase
 import com.ziaee.zabankhan.speech.ShadowingState
 import kotlin.math.roundToInt
@@ -54,20 +51,7 @@ internal fun CardShadowingRow(
         Surface(
             shape = CircleShape,
             color = if (state.phase == ShadowPhase.Recording) missedColor else MaterialTheme.colorScheme.primary,
-            modifier = Modifier.size(56.dp).pointerInput(Unit) {
-                awaitEachGesture {
-                    awaitFirstDown()
-                    val started = onPressStart()
-                    var released = false
-                    try {
-                        released = waitForUpOrCancellation() != null
-                    } finally {
-                        if (started) {
-                            if (released) onPressEnd() else onPressCancel()
-                        }
-                    }
-                }
-            }
+            modifier = Modifier.size(56.dp).holdToRecord(onPressStart, onPressEnd, onPressCancel)
         ) {
             Box(contentAlignment = Alignment.Center) {
                 Icon(Icons.Default.Mic, stringResource(Res.string.shadowing_hold_to_speak), tint = Color.White, modifier = Modifier.size(24.dp))
