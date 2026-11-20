@@ -131,10 +131,15 @@ import kotlin.time.TimeSource
     val translations = remember(identity, lang.code, meaningLang.code, repository) {
         WatchTranslations(TranslationOverrides(vm.container.cache), lang.code, meaningLang.code, translateWithSource = { repository.translateTextWithSource(it, lang.code, meaningLang.code) }) { text -> repository.translateText(text, lang.code, meaningLang.code) }
     }
-    val currentSentenceText = sentences.getOrNull(sentenceIndex)?.text
-    LaunchedEffect(translations, shadowMode, settings.watchTranslationEnabled, currentSentenceText) {
-        if (!shadowMode && settings.watchTranslationEnabled && currentSentenceText != null) {
-            translations.load(currentSentenceText)
+    if (!shadowMode && settings.watchTranslationEnabled) {
+        val windowStart = sentenceIndex.coerceAtLeast(0)
+        val windowEnd = (windowStart + 5).coerceAtMost(sentences.size)
+        val texts = sentences.subList(windowStart, windowEnd).map { it.text }.distinct()
+        for (text in texts) {
+            // Keep in-flight translations when the playback window moves forward.
+            key(text) {
+                LaunchedEffect(translations) { translations.load(text) }
+            }
         }
     }
     var editingTranslation by remember(identity) { mutableStateOf<String?>(null) }
