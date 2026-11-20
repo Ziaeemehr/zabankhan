@@ -1,6 +1,8 @@
 package com.ziaee.zabankhan.content
 
 import okio.Buffer
+import okio.buffer
+import okio.use
 
 internal expect fun inflateRaw(bytes: ByteArray, expectedSize: Int): ByteArray
 
@@ -76,12 +78,51 @@ object ZipArchive {
             .writeIntLe(length).writeIntLe(start).writeShortLe(0)
         return out.readByteArray()
     }
-    internal fun crc32(bytes: ByteArray): Long {
-        var crc = -1
-        for (b in bytes) {
-            crc = crc xor (b.toInt() and 255)
+    /** Exact size of the archive [writeStored] produces for entries of these names and byte sizes. */
+    fun storedSize(entries: Map<String, Long>): Long =
+        entries.entries.sumOf { (name, size) -> 76L + 2 * name.encodeToByteArray().size + size } + 22
+
+    /**
+     * Streams a stored (uncompressed) zip into [sink]. Each entry is opened twice (CRC pass, then copy)
+     * and read in chunks, so memory stays flat however large the files are.
+     */
+    fun writeStored(sink: okio.BufferedSink, entries: Map<String, Long>, open: (String) -> okio.Source) {
+        require(entries.size < 65535)
+        val central = Buffer()
+        var offset = 0L
+        val chunk = ByteArray(64 * 1024)
+        entries.forEach { (name, size) ->
+            val n = name.encodeToByteArray()
+            require(n.size < 65535 && size <= Int.MAX_VALUE && offset <= Int.MAX_VALUE)
+            var crcState = -1
+            var read = 0L
+            open(name).buffer().use { source ->
+                while (true) { val count = source.read(chunk); if (count == -1) break; crcState = crcUpdate(crcState, chunk, count); read += count }
+            }
+            check(read == size) { "File changed while backing up: $name" }
+            val crc = crcState.inv()
+            sink.writeIntLe(0x04034b50).writeShortLe(20).writeShortLe(0x800).writeShortLe(0).writeIntLe(0)
+                .writeIntLe(crc).writeIntLe(size.toInt()).writeIntLe(size.toInt()).writeShortLe(n.size).writeShortLe(0).write(n)
+            open(name).use { source -> check(sink.writeAll(source) == size) { "File changed while backing up: $name" } }
+            central.writeIntLe(0x02014b50).writeShortLe(20).writeShortLe(20).writeShortLe(0x800).writeShortLe(0).writeIntLe(0)
+                .writeIntLe(crc).writeIntLe(size.toInt()).writeIntLe(size.toInt()).writeShortLe(n.size).writeShortLe(0).writeShortLe(0)
+                .writeShortLe(0).writeShortLe(0).writeIntLe(0).writeIntLe(offset.toInt()).write(n)
+            offset += 30L + n.size + size
+        }
+        val length = central.size.toInt()
+        sink.writeAll(central)
+        sink.writeIntLe(0x06054b50).writeShortLe(0).writeShortLe(0).writeShortLe(entries.size).writeShortLe(entries.size)
+            .writeIntLe(length).writeIntLe(offset.toInt()).writeShortLe(0)
+    }
+
+    private fun crcUpdate(start: Int, bytes: ByteArray, count: Int): Int {
+        var crc = start
+        for (i in 0 until count) {
+            crc = crc xor (bytes[i].toInt() and 255)
             repeat(8) { crc = (crc ushr 1) xor (if (crc and 1 != 0) 0xedb88320.toInt() else 0) }
         }
-        return (crc.inv().toLong() and 0xffffffffL)
+        return crc
     }
+
+    internal fun crc32(bytes: ByteArray): Long = crcUpdate(-1, bytes, bytes.size).inv().toLong() and 0xffffffffL
 }

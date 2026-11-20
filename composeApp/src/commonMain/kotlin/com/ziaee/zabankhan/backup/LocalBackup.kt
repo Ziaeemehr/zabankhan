@@ -96,26 +96,18 @@ internal suspend fun createLocalBackupLocked(container: AppContainer, automatic:
                 pdfRefs.forEach { ref ->
                     val p = ref.path.toPath()
                     require(!p.isAbsolute && p.segments.none { it == ".." }) { "Invalid PDF reference path" }
-                    val file = base / "pdfs" / p
-                    entries["pdfs/${ref.path}"] = fs.read(file) { readByteArray() }
+                    sources["pdfs/${ref.path}"] = base / "pdfs" / p
                 }
             }
-            fun estimatedSize() = sources.entries.sumOf { (name, file) -> (fs.metadata(file).size ?: 0L) + 76L + 2 * name.encodeToByteArray().size } + 4096
-            fun buildArchive(): ByteArray {
-                sources.forEach { (name, file) -> entries[name] = fs.read(file) { readByteArray() } }
-                return ZipArchive.writeStored(entries)
-            }
-            if (estimatedSize() > MAX_BACKUP_BYTES) {
-                if (embedPdfs) {
-                    entries.keys.filter { it.startsWith("pdfs/") }.forEach(entries::remove)
+            // Stream files into the zip one chunk at a time; reading them all into memory crashed with OOM on large libraries.
+            fun sizes() = linkedMapOf("manifest.json" to entries.getValue("manifest.json").size.toLong()) +
+                sources.mapValues { (_, file) -> fs.metadata(file).size ?: 0L }
+            if (ZipArchive.storedSize(sizes()) > MAX_BACKUP_BYTES) {
+                if (embedPdfs && sources.keys.any { it.startsWith("pdfs/") }) {
+                    sources.keys.filter { it.startsWith("pdfs/") }.forEach(sources::remove)
                     BackupRuntime.lastFailure = "PDFs were omitted because the backup exceeds 256 MiB"
-                } else throw BackupTooLargeException()
-            }
-            var archive = buildArchive()
-            if (archive.size > MAX_BACKUP_BYTES && embedPdfs) {
-                entries.keys.filter { it.startsWith("pdfs/") }.forEach(entries::remove)
-                BackupRuntime.lastFailure = "PDFs were omitted because the backup exceeds 256 MiB"
-                archive = buildArchive()
+                }
+                if (ZipArchive.storedSize(sizes()) > MAX_BACKUP_BYTES) throw BackupTooLargeException()
             }
             val destination = (if (automatic) paths.automatic else paths.exports).toPath()
             fs.createDirectories(destination)
@@ -124,9 +116,14 @@ internal suspend fun createLocalBackupLocked(container: AppContainer, automatic:
             while (fs.exists(targetPath())) timestamp++
             val target = targetPath()
             val temp = target.parent!! / "${target.name}.tmp"
-            if (archive.size > MAX_BACKUP_BYTES) throw BackupTooLargeException()
-            try { fs.write(temp) { write(archive) }; fs.atomicMove(temp, target) }
-            finally { fs.delete(temp, mustExist = false) }
+            try {
+                fs.write(temp) {
+                    ZipArchive.writeStored(this, sizes()) { name ->
+                        sources[name]?.let { fs.source(it) } ?: okio.Buffer().write(entries.getValue(name))
+                    }
+                }
+                fs.atomicMove(temp, target)
+            } finally { fs.delete(temp, mustExist = false) }
             if (automatic) container.settings.backupPrefs.setLastDatabaseStamp(databaseModifiedAt())
             target.toString()
         }
