@@ -13,6 +13,7 @@ import androidx.compose.material.icons.automirrored.outlined.List
 import androidx.compose.material.icons.outlined.AccountTree
 import androidx.compose.material.icons.outlined.FormatQuote
 import androidx.compose.material.icons.outlined.Lightbulb
+import androidx.compose.material.icons.outlined.SyncAlt
 import androidx.compose.material.icons.outlined.TableChart
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -20,7 +21,14 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.withStyle
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
@@ -32,9 +40,11 @@ import com.ziaee.zabankhan.app.AppViewModel
 import com.ziaee.zabankhan.data.VocabEntry
 import com.ziaee.zabankhan.data.VocabList
 import com.ziaee.zabankhan.lang.LanguageSpec
+import com.ziaee.zabankhan.lang.isRtlText
 import com.ziaee.zabankhan.resources.Res
 import com.ziaee.zabankhan.resources.own_listen
 import com.ziaee.zabankhan.resources.own_dictionary_word_family
+import com.ziaee.zabankhan.resources.own_dictionary_opposite
 import com.ziaee.zabankhan.ui.reader.partOfSpeechResource
 import com.ziaee.zabankhan.resources.own_compact_all_meanings
 import com.ziaee.zabankhan.resources.own_compact_examples
@@ -143,21 +153,39 @@ private fun CompactEntryContents(
 
 @Composable
 internal fun WordFamilySection(
-    entryId: Long, relatives: List<Entry>, lang: LanguageSpec, target: String,
+    entry: Entry, relatives: List<Entry>, lang: LanguageSpec, target: String,
     onLookup: (DictionaryHeadword) -> Unit, expanded: Boolean, onExpandChange: (Boolean) -> Unit,
 ) {
     val shownPos = listOf("noun", "adjective", "verb", "adverb")
-    val shown = relatives.filter { it.pos in shownPos }
+    // The headword itself is already on screen (and in the opposite card), so it is not listed again.
+    val shown = relatives.filter { it.pos in shownPos && !(it.word == entry.word && it.pos == entry.pos) }
     if (shown.isEmpty()) return
+    fun Entry.headword() = DictionaryHeadword(word, pos)
+    val byHeadword = shown.associateBy { it.headword() }
+    // The looked-up word's own opposite leads the section as a pair; it is not repeated in its POS group.
+    val ownOpposite = entry.opposite?.let(byHeadword::get)
     ExpandableSection(
-        stringResource(Res.string.own_dictionary_word_family), shown.size, entryId, "word-family",
+        stringResource(Res.string.own_dictionary_word_family), shown.size, entry.id, "word-family",
         icon = Icons.Outlined.AccountTree, expanded = expanded, onExpandChange = onExpandChange,
     ) {
-        val byPos = shown.groupBy { it.pos }
+        val byPos = shown.filter { it !== ownOpposite }.groupBy { it.pos }
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            if (ownOpposite != null) Surface(
+                modifier = Modifier.fillMaxWidth(),
+                shape = MaterialTheme.shapes.medium,
+                color = MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.45f),
+            ) {
+                val (positive, negative) = if (entry.negative) ownOpposite to entry else entry to ownOpposite
+                FamilyPairRow(positive, negative, entry.headword(), lang, target, onLookup)
+            }
             for (pos in shownPos) {
                 val group = byPos[pos] ?: continue
                 val label = partOfSpeechResource(pos)?.let { stringResource(it) } ?: pos
+                // Pair each positive word with its negated partner when both are in the group.
+                val partners = group.filter { !it.negative }.mapNotNull { positive ->
+                    positive.opposite?.let(byHeadword::get)?.takeIf { it in group }?.let { positive to it }
+                }.toMap()
+                val paired = partners.values.toSet()
                 Surface(
                     modifier = Modifier.fillMaxWidth(),
                     shape = MaterialTheme.shapes.medium,
@@ -174,34 +202,92 @@ internal fun WordFamilySection(
                                 style = MaterialTheme.typography.labelSmall.merge(contentStyle(label)),
                             )
                         }
-                        group.forEach { relative ->
-                            val article = lang.dictionaryNounArticles[relative.gender].takeIf { pos == "noun" }
-                            val word = listOfNotNull(article, relative.word).joinToString(" ")
-                            val meaning = relative.wordFamilyMeaning(target, lang)
-                            Column(
-                                Modifier.fillMaxWidth()
-                                    .clickable(role = Role.Button) { onLookup(DictionaryHeadword(relative.word, relative.pos)) }
-                                    .heightIn(min = 48.dp)
-                                    .padding(horizontal = 12.dp, vertical = 6.dp),
-                                verticalArrangement = Arrangement.Center,
-                            ) {
-                                Text(
-                                    word, Modifier.fillMaxWidth(),
-                                    style = MaterialTheme.typography.bodyMedium.merge(contentStyle(word))
-                                        .copy(fontWeight = FontWeight.SemiBold),
-                                )
-                                if (meaning.isNotBlank()) Text(
-                                    meaning, Modifier.fillMaxWidth(), maxLines = 2,
-                                    overflow = TextOverflow.Ellipsis,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    style = MaterialTheme.typography.bodySmall.merge(contentStyle(meaning)),
-                                )
-                            }
+                        group.filter { it !in paired }.forEach { relative ->
+                            val negative = partners[relative]
+                            if (negative != null) FamilyPairRow(relative, negative, null, lang, target, onLookup)
+                            else FamilyWord(relative, lang, target, onLookup, Modifier.fillMaxWidth())
                         }
                     }
                 }
             }
         }
+    }
+}
+
+/** Two words side by side, positive first in reading order, with the negative prefix tinted (compréhensible ⇄ incompréhensible). */
+@Composable
+private fun FamilyPairRow(
+    positive: Entry, negative: Entry, current: DictionaryHeadword?, lang: LanguageSpec, target: String,
+    onLookup: (DictionaryHeadword) -> Unit,
+) {
+    val prefix = if (negative.word.endsWith(positive.word)) negative.word.dropLast(positive.word.length) else ""
+    val direction = if (isRtlText(positive.word)) LayoutDirection.Rtl else LayoutDirection.Ltr
+    CompositionLocalProvider(LocalLayoutDirection provides direction) {
+        Row(Modifier.fillMaxWidth().height(IntrinsicSize.Min)) {
+            listOf(positive, negative).forEachIndexed { index, word ->
+                if (index == 1) {
+                    val label = stringResource(Res.string.own_dictionary_opposite)
+                    Column(
+                        Modifier.fillMaxHeight().padding(vertical = 10.dp).semantics { contentDescription = label },
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                    ) {
+                        VerticalDivider(Modifier.weight(1f), color = MaterialTheme.colorScheme.outlineVariant)
+                        Icon(
+                            Icons.Outlined.SyncAlt, contentDescription = null,
+                            modifier = Modifier.padding(vertical = 4.dp).size(16.dp),
+                            tint = MaterialTheme.colorScheme.tertiary,
+                        )
+                        VerticalDivider(Modifier.weight(1f), color = MaterialTheme.colorScheme.outlineVariant)
+                    }
+                }
+                val isCurrent = current == DictionaryHeadword(word.word, word.pos)
+                FamilyWord(
+                    word, lang, target, onLookup, Modifier.weight(1f).fillMaxHeight(),
+                    tintedPrefix = if (index == 1) prefix else "", isCurrent = isCurrent,
+                )
+            }
+        }
+    }
+}
+
+private const val ELIDING_INITIALS = "aàâæeéèêëiîïoôœuùûüyh"
+
+@Composable
+private fun FamilyWord(
+    relative: Entry, lang: LanguageSpec, target: String, onLookup: (DictionaryHeadword) -> Unit,
+    modifier: Modifier, tintedPrefix: String = "", isCurrent: Boolean = false,
+) {
+    val article = lang.dictionaryNounArticles[relative.gender].takeIf { relative.pos == "noun" }?.let { article ->
+        // le/la + incompréhension -> l'incompréhension, using the language's own elision prefixes.
+        val elided = lang.elisionPrefixes.firstOrNull { it.length == 2 && it.first() == article.first() }
+        if (elided != null && article.length == 2 && relative.word.firstOrNull()?.lowercaseChar()?.let { it in ELIDING_INITIALS } == true) elided else "$article "
+    }
+    val meaning = relative.wordFamilyMeaning(target, lang)
+    val accent = MaterialTheme.colorScheme.tertiary
+    val word = buildAnnotatedString {
+        if (article != null) withStyle(SpanStyle(fontWeight = FontWeight.Normal, color = MaterialTheme.colorScheme.onSurfaceVariant)) { append(article) }
+        if (tintedPrefix.isNotEmpty()) withStyle(SpanStyle(color = accent, fontWeight = FontWeight.Bold)) { append(tintedPrefix) }
+        append(relative.word.drop(tintedPrefix.length))
+    }
+    Column(
+        modifier
+            .then(if (isCurrent) Modifier else Modifier.clickable(role = Role.Button) { onLookup(DictionaryHeadword(relative.word, relative.pos)) })
+            .heightIn(min = 48.dp)
+            .padding(horizontal = 12.dp, vertical = 6.dp),
+        verticalArrangement = Arrangement.Center,
+    ) {
+        Text(
+            word, Modifier.fillMaxWidth(),
+            style = MaterialTheme.typography.bodyMedium.merge(contentStyle(relative.word))
+                .copy(fontWeight = FontWeight.SemiBold),
+            color = if (isCurrent) MaterialTheme.colorScheme.primary else Color.Unspecified,
+        )
+        if (meaning.isNotBlank()) Text(
+            meaning, Modifier.fillMaxWidth(), maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            style = MaterialTheme.typography.bodySmall.merge(contentStyle(meaning)),
+        )
     }
 }
 

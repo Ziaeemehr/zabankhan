@@ -36,6 +36,8 @@
     <string name="own_dictionary_antonyms">Antonymes</string>
     <string name="own_dictionary_phrases">Expressions</string>
     <string name="own_dictionary_word_family">Famille de mots</string>
+    <string name="own_dictionary_opposite">Contraire</string>
+    <string name="dictionary_font_scale_title">Taille du texte du dictionnaire</string>
     <string name="own_dictionary_downloaded">Téléchargé</string>
     <string name="own_dictionary_resume">Reprendre le téléchargement</string>
     <string name="own_dictionary_not_downloaded">Non téléchargé</string>

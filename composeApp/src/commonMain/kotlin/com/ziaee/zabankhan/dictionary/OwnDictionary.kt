@@ -95,6 +95,9 @@ data class Entry(
     val expressions: List<String>, val moreExamples: List<String>, val monolingualDefinitions: List<MonolingualSense> = emptyList(),
     val learner: LearnerEntry? = null,
     val wordFamily: List<DictionaryHeadword> = emptyList(),
+    /** Prefix-negation partner (compréhensible ↔ incompréhensible); [negative] is true when this entry is the negated form. */
+    val opposite: DictionaryHeadword? = null,
+    val negative: Boolean = false,
 ) {
     val rank: Int get() = if (freq > 0) 6 - freq else Int.MAX_VALUE
     val en: List<String> get() = senses.map { it.en }.filter(String::isNotBlank)
@@ -243,6 +246,9 @@ private fun shardKeyInShards(index: DictionaryIndex, key: String) = key in index
 
 class OwnDictionary(private val http: HttpClient, @Suppress("UNUSED_PARAMETER") cache: com.ziaee.zabankhan.translate.KeyValueCache,
     private val root: Path = "${AppFiles.filesDir}/own-dictionary".toPath(), private val fs: FileSystem = FileSystem.SYSTEM,
+    private val readNegationLinks: suspend (LanguageSpec) -> String = {
+        Res.readBytes("files/${it.code}/lexicon/dictionary_negation_links.tsv").decodeToString()
+    },
     private val readAdverbLinks: suspend (LanguageSpec) -> String = {
         Res.readBytes("files/${it.code}/lexicon/dictionary_adverb_links.tsv").decodeToString()
     },
@@ -251,9 +257,10 @@ class OwnDictionary(private val http: HttpClient, @Suppress("UNUSED_PARAMETER") 
     private val mutex = Mutex()
     private val checkedPacks = mutableSetOf<String>()
     private val adverbLinks = mutableMapOf<String, Map<DictionaryHeadword, List<DictionaryHeadword>>>()
+    private val negationLinks = mutableMapOf<String, Map<DictionaryHeadword, Pair<DictionaryHeadword, Boolean>>>()
 
     private suspend fun bundledAdverbLinks(lang: LanguageSpec): Map<DictionaryHeadword, List<DictionaryHeadword>> {
-        if (!lang.hasBundledDictionaryAdverbLinks) return emptyMap()
+        if (!lang.hasBundledDictionaryLinks) return emptyMap()
         adverbLinks[lang.code]?.let { return it }
         val raw = try {
             readAdverbLinks(lang)
@@ -276,6 +283,36 @@ class OwnDictionary(private val http: HttpClient, @Suppress("UNUSED_PARAMETER") 
         adverbLinks[lang.code] = links
         return links
     }
+    /** headword -> (opposite, headword is the negated form), both directions. */
+    private suspend fun bundledNegationLinks(lang: LanguageSpec): Map<DictionaryHeadword, Pair<DictionaryHeadword, Boolean>> {
+        if (!lang.hasBundledDictionaryLinks) return emptyMap()
+        negationLinks[lang.code]?.let { return it }
+        val raw = try {
+            readNegationLinks(lang)
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (_: Exception) {
+            return emptyMap()
+        }
+        val links = mutableMapOf<DictionaryHeadword, Pair<DictionaryHeadword, Boolean>>()
+        raw.lineSequence().filterNot { it.startsWith('#') }.forEach { line ->
+            val parts = line.split('\t')
+            if (parts.size == 3) {
+                val (word, pos, negated) = parts
+                val base = DictionaryHeadword(word, pos)
+                val negative = DictionaryHeadword(negated, pos)
+                // First pair wins, so a word never shows two opposites.
+                if (base !in links && negative !in links) {
+                    links[base] = negative to false
+                    links[negative] = base to true
+                }
+            }
+        }
+        negationLinks[lang.code] = links
+        return links
+    }
+    private fun Entry.withOpposite(links: Map<DictionaryHeadword, Pair<DictionaryHeadword, Boolean>>): Entry =
+        links[DictionaryHeadword(word, pos)]?.let { (other, isNegative) -> copy(opposite = other, negative = isNegative) } ?: this
     private fun directory(lang: LanguageSpec) = root / lang.code / "v2"
     private fun packDirectory(lang: LanguageSpec, pack: String) = root / lang.code / pack.substringAfter('/') / "v1"
     private fun read(path: Path): String? = if (fs.exists(path)) fs.read(path) { readUtf8() } else null
@@ -410,8 +447,8 @@ class OwnDictionary(private val http: HttpClient, @Suppress("UNUSED_PARAMETER") 
                 val targetShard = if (key in index.shards) shard(lang, index, key) else null
                 targetShard?.entries?.firstOrNull { it.id == redirect.entryId && it.pos == redirect.pos }
             }.distinctBy { it.id }
-            // Same headword, several POS: the richer entry leads (e.g. "contre" preposition, not its one-sense bridge noun "double").
-            val bases = (exact.sortedByDescending { it.senses.size } + resolved).distinctBy { it.id }
+            // Same headword, several POS: the more frequent POS leads (pendant: preposition before noun), then the richer entry.
+            val bases = (exact.sortedWith(compareByDescending<Entry> { it.freq }.thenByDescending { it.senses.size }) + resolved).distinctBy { it.id }
                 .filter { exactEntry == null || (it.word == exactEntry.word && it.pos == exactEntry.pos) }
             val idiomWords = sentence?.let(::dictionaryWords).orEmpty()
             val idiomNames = bases.flatMap { it.expressions }.filter { dictionaryIdiomMatches(it, sentence.orEmpty()) }.distinct()
@@ -422,16 +459,18 @@ class OwnDictionary(private val http: HttpClient, @Suppress("UNUSED_PARAMETER") 
             val definitions = try { packEntries(lang, lang.monolingualPackId, word) } catch (cancelled: CancellationException) { throw cancelled } catch (_: Exception) { emptyList() }
             val learnerEntries = try { learnerEntries(lang, bases.map { it.word }.distinct()) } catch (cancelled: CancellationException) { throw cancelled } catch (_: Exception) { emptyList() }
             val adverbs = if (bases.isEmpty()) emptyMap() else bundledAdverbLinks(lang)
+            val negations = if (bases.isEmpty()) emptyMap() else bundledNegationLinks(lang)
             val enriched = bases.map { entry ->
                 val mono = definitions.filter { it.word == entry.word && it.pos == entry.pos }.ifEmpty { definitions.filter { it.word == entry.word } }
                 val headwordMatches = learnerEntries.filter { normalizeDictionaryQuery(it.word) == normalizeDictionaryQuery(entry.word) }
                 val learner = headwordMatches.firstOrNull { it.pos == entry.pos }
                 val additionalRelatives = adverbs[DictionaryHeadword(entry.word, entry.pos)].orEmpty()
-                entry.copy(
+                val opposite = negations[DictionaryHeadword(entry.word, entry.pos)]?.first
+                entry.withOpposite(negations).copy(
                     gender = entry.gender.ifBlank { mono.firstOrNull()?.gender.orEmpty() },
                     monolingualDefinitions = mono.flatMap { it.senses }.ifEmpty { entry.monolingualDefinitions },
                     learner = learner,
-                    wordFamily = (entry.wordFamily + additionalRelatives).distinct(),
+                    wordFamily = (listOfNotNull(opposite) + entry.wordFamily + additionalRelatives).distinct(),
                 )
             }
             DictionaryLookup(word, enriched, if (exactEntry == null) redirects else emptyList(), idioms)
@@ -441,11 +480,15 @@ class OwnDictionary(private val http: HttpClient, @Suppress("UNUSED_PARAMETER") 
         if (entry.wordFamily.isEmpty()) return@withContext emptyList()
         mutex.withLock {
             val index = index(lang)
-            val shards = entry.wordFamily.map { dictionaryShardKey(it.word, index.split.keys) }
+            val negations = bundledNegationLinks(lang)
+            val self = DictionaryHeadword(entry.word, entry.pos)
+            // Each relative brings its opposite along, so the UI can show compréhensible / incompréhensible as one pair.
+            val relatives = entry.wordFamily.flatMap { listOf(it) + listOfNotNull(negations[it]?.first?.takeIf { opposite -> opposite != self }) }.distinct()
+            val shards = relatives.map { dictionaryShardKey(it.word, index.split.keys) }
                 .distinct().associateWith { safeShard(lang, index, it) }
-            val learners = learnerEntries(lang, entry.wordFamily.map { it.word })
+            val learners = learnerEntries(lang, relatives.map { it.word })
                 .associateBy { DictionaryHeadword(it.word, it.pos) }
-            entry.wordFamily.mapNotNull { relative ->
+            relatives.mapNotNull { relative ->
                 val key = dictionaryShardKey(relative.word, index.split.keys)
                 val target = shards[key]?.entries?.firstOrNull { it.word == relative.word && it.pos == relative.pos }
                     ?: return@mapNotNull null
@@ -453,7 +496,7 @@ class OwnDictionary(private val http: HttpClient, @Suppress("UNUSED_PARAMETER") 
                 val definitions = if (learner != null || target.monolingualDefinitions.isNotEmpty()) target.monolingualDefinitions
                     else packEntries(lang, lang.monolingualPackId, relative.word)
                         .filter { it.word == relative.word && it.pos == relative.pos }.flatMap { it.senses }
-                target.copy(learner = learner, monolingualDefinitions = definitions)
+                target.copy(learner = learner, monolingualDefinitions = definitions).withOpposite(negations)
             }
         }
     }

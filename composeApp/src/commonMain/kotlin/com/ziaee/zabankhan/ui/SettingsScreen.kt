@@ -325,6 +325,8 @@ fun SettingsScreen(vm: AppViewModel, settings: AppSettings, progress: () -> Unit
                             3 -> {
                                 var searchDictionary by remember { mutableStateOf(false) }
                                 com.ziaee.zabankhan.dictionary.OwnDictionarySettings(vm, settings) { searchDictionary = true }
+                                SettingsChoice(stringResource(Res.string.dictionary_font_scale_title), settings.dictionaryFontScale,
+                                    FontScale.entries.map { it.name to stringResource(it.labelResource()) }) { vm.action { repository.setDictionaryFontScale(it) } }
                                 if (searchDictionary) DictionarySearchDialog(vm, settings) { searchDictionary = false }
 
                                 TranslationEngineSettings(vm.container, settings)

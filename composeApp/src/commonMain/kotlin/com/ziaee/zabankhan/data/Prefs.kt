@@ -43,6 +43,7 @@ data class AppSettings(
     val weeklyPointsGoal: Int = com.ziaee.zabankhan.progress.DEFAULT_WEEKLY_GOAL,
     val readerFontSize: Int = 20,
     val readerFontScale: String = "MEDIUM",
+    val dictionaryFontScale: String = "MEDIUM",
     val readingBackground: String = "SEPIA",
     val pageNavigation: String = "SCROLL",
     val readingHighlightColor: String = "YELLOW",
@@ -105,6 +106,7 @@ class SettingsRepository(private val store: DataStore<Preferences>, private val 
         val dailyGoal = intPreferencesKey("daily_goal_minutes")
         val font = intPreferencesKey("reader_font_size")
         val fontScale = stringPreferencesKey("reader_font_scale")
+        val dictionaryFontScale = stringPreferencesKey("dictionary_font_scale")
         val readingBackground = stringPreferencesKey("reading_background")
         val pageNavigation = stringPreferencesKey("page_navigation")
         val readingHighlight = stringPreferencesKey("reading_highlight_color")
@@ -164,6 +166,7 @@ class SettingsRepository(private val store: DataStore<Preferences>, private val 
             weeklyPointsGoal = com.ziaee.zabankhan.progress.ProgressPreferences.readGoal(p),
             readerFontSize = p[K.font] ?: 20,
             readerFontScale = p[K.fontScale]?.takeIf { value -> com.ziaee.zabankhan.ui.theme.FontScale.entries.any { it.name == value } } ?: "MEDIUM",
+            dictionaryFontScale = p[K.dictionaryFontScale]?.takeIf { value -> com.ziaee.zabankhan.ui.theme.FontScale.entries.any { it.name == value } } ?: "MEDIUM",
             readingBackground = p[K.readingBackground]?.takeIf { value -> com.ziaee.zabankhan.ui.theme.ReadingBackground.entries.any { it.name == value } } ?: "SEPIA",
             pageNavigation = p[K.pageNavigation]?.takeIf { value -> com.ziaee.zabankhan.ui.theme.PageNavigation.entries.any { it.name == value } } ?: "SCROLL",
             readingHighlightColor = p[K.readingHighlight]?.takeIf { value -> com.ziaee.zabankhan.ui.theme.HighlightColor.entries.any { it.name == value } } ?: "YELLOW",
@@ -270,6 +273,10 @@ class SettingsRepository(private val store: DataStore<Preferences>, private val 
     suspend fun setReaderFontScale(value: String) = store.edit {
         require(com.ziaee.zabankhan.ui.theme.FontScale.entries.any { scale -> scale.name == value })
         it[K.fontScale] = value
+    }
+    suspend fun setDictionaryFontScale(value: String) = store.edit {
+        require(com.ziaee.zabankhan.ui.theme.FontScale.entries.any { scale -> scale.name == value })
+        it[K.dictionaryFontScale] = value
     }
     suspend fun setPageNavigation(value: String) = store.edit {
         require(com.ziaee.zabankhan.ui.theme.PageNavigation.entries.any { it.name == value })

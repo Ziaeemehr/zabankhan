@@ -43,12 +43,30 @@ import kotlinx.coroutines.withContext
 import org.jetbrains.compose.resources.StringResource
 import org.jetbrains.compose.resources.stringResource
 import androidx.compose.ui.platform.LocalUriHandler
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.Density
+import com.ziaee.zabankhan.ui.theme.FontScale
 
 @OptIn(ExperimentalLayoutApi::class, ExperimentalMaterial3Api::class)
 @Composable
 fun OwnDictionaryBlock(lookup: DictionaryLookup, lang: LanguageSpec, target: String, vm: AppViewModel,
     textId: Long, sentence: String, speak: (String) -> Unit, onLookup: (String) -> Unit,
     loading: Boolean = false, failed: Boolean = false,
+    onFamilyLookup: (DictionaryHeadword) -> Unit) {
+    // The dictionary has its own font-size setting, applied on top of the system font size.
+    val settings by vm.settings.collectAsState()
+    val scale = FontScale.entries.firstOrNull { it.name == settings?.dictionaryFontScale }?.multiplier ?: 1f
+    val density = LocalDensity.current
+    CompositionLocalProvider(LocalDensity provides Density(density.density, density.fontScale * scale)) {
+        OwnDictionaryBlockContent(lookup, lang, target, vm, textId, sentence, speak, onLookup, loading, failed, onFamilyLookup)
+    }
+}
+
+@OptIn(ExperimentalLayoutApi::class, ExperimentalMaterial3Api::class)
+@Composable
+private fun OwnDictionaryBlockContent(lookup: DictionaryLookup, lang: LanguageSpec, target: String, vm: AppViewModel,
+    textId: Long, sentence: String, speak: (String) -> Unit, onLookup: (String) -> Unit,
+    loading: Boolean, failed: Boolean,
     onFamilyLookup: (DictionaryHeadword) -> Unit) {
     val entries = lookup.entries + lookup.idioms
     val settings by vm.settings.collectAsState()
@@ -117,7 +135,7 @@ fun OwnDictionaryBlock(lookup: DictionaryLookup, lang: LanguageSpec, target: Str
         }
     }
     val familySection: @Composable (Entry) -> Unit = { entry ->
-        WordFamilySection(entry.id, families[entry.id].orEmpty(), lang, effectiveTarget, onFamilyLookup,
+        WordFamilySection(entry, families[entry.id].orEmpty(), lang, effectiveTarget, onFamilyLookup,
             expanded = entry.id in expandedFamilies, onExpandChange = { expanded ->
                 expandedFamilies = if (expanded) expandedFamilies + entry.id
                     else expandedFamilies - entry.id

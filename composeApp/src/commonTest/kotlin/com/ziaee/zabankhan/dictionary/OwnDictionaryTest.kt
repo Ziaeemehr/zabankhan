@@ -205,6 +205,61 @@ class OwnDictionaryTest {
         }
     }
 
+    @Test fun moreFrequentPartOfSpeechLeadsEvenWithFewerSenses() = runTest {
+        val root = FileSystem.SYSTEM_TEMPORARY_DIRECTORY / "dictionary-pos-order-${Random.nextLong()}"
+        val fs = FileSystem.SYSTEM
+        val lang = Languages.FRENCH.copy(monolingualPackId = null, learnerPackId = null)
+        val directory = root / lang.code / "v2"
+        fs.createDirectories(directory)
+        fs.write(directory / "index.json") { writeUtf8("""{"lang":"fr","format":2,"version":1,"shards":["pe"]}""") }
+        fs.write(directory / "pe.json") {
+            writeUtf8("""{"entries":[[1,"pendant","noun",2,"","m","",[["pendant"],["counterpart"]]],[2,"pendant","preposition",5,"","","",[["during"]]]]}""")
+        }
+        val http = HttpClient(MockEngine { respond("offline", HttpStatusCode.ServiceUnavailable) })
+        try {
+            val dictionary = OwnDictionary(http, InMemoryKeyValueCache(), root, fs, readNegationLinks = { "" }) { "" }
+            assertEquals(listOf("preposition", "noun"), dictionary.lookup("pendant", lang).entries.map { it.pos })
+        } finally {
+            http.close()
+            fs.deleteRecursively(root, mustExist = false)
+        }
+    }
+
+    @Test fun negationLinksPairOppositesInsideTheWordFamily() = runTest {
+        val root = FileSystem.SYSTEM_TEMPORARY_DIRECTORY / "dictionary-negations-${Random.nextLong()}"
+        val fs = FileSystem.SYSTEM
+        val lang = Languages.FRENCH.copy(monolingualPackId = null, learnerPackId = null)
+        val directory = root / lang.code / "v2"
+        fs.createDirectories(directory)
+        fs.write(directory / "index.json") {
+            writeUtf8("""{"lang":"fr","format":2,"version":1,"shards":["co","in"]}""")
+        }
+        fs.write(directory / "co.json") {
+            writeUtf8("""{"entries":[[1,"comprendre","verb",5,"","","",[],{},[],[],[],[["compréhensible","adjective"]]],[2,"compréhensible","adjective",4]]}""")
+        }
+        fs.write(directory / "in.json") {
+            writeUtf8("""{"entries":[[3,"incompréhensible","adjective",3]]}""")
+        }
+        val http = HttpClient(MockEngine { respond("offline", HttpStatusCode.ServiceUnavailable) })
+        try {
+            val dictionary = OwnDictionary(http, InMemoryKeyValueCache(), root, fs,
+                readNegationLinks = { "# header\ncompréhensible\tadjective\tincompréhensible" }) { "" }
+            val verb = dictionary.lookup("comprendre", lang).entries.single()
+            val family = dictionary.wordFamily(verb, lang)
+            assertEquals(listOf("compréhensible", "incompréhensible"), family.map { it.word })
+            assertEquals("incompréhensible", family[0].opposite?.word)
+            assertTrue(family[1].negative)
+
+            val negative = dictionary.lookup("incompréhensible", lang).entries.single()
+            assertEquals(DictionaryHeadword("compréhensible", "adjective"), negative.opposite)
+            assertTrue(negative.negative)
+            assertEquals(listOf("compréhensible"), dictionary.wordFamily(negative, lang).map { it.word })
+        } finally {
+            http.close()
+            fs.deleteRecursively(root, mustExist = false)
+        }
+    }
+
     @Test fun dictionaryAutocompleteFindsHeadwordsUnderSplitPrefix() = runTest {
         val root = FileSystem.SYSTEM_TEMPORARY_DIRECTORY / "dictionary-autocomplete-${Random.nextLong()}"
         val fs = FileSystem.SYSTEM

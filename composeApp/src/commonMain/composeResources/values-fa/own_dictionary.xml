@@ -36,6 +36,8 @@
     <string name="own_dictionary_antonyms">متضادها</string>
     <string name="own_dictionary_phrases">عبارت‌ها</string>
     <string name="own_dictionary_word_family">خانوادهٔ واژگانی</string>
+    <string name="own_dictionary_opposite">متضاد</string>
+    <string name="dictionary_font_scale_title">اندازهٔ قلم دیکشنری</string>
     <string name="own_dictionary_downloaded">دریافت‌شده</string>
     <string name="own_dictionary_resume">ادامهٔ دانلود</string>
     <string name="own_dictionary_not_downloaded">دانلود نشده</string>
