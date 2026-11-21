@@ -11,6 +11,7 @@ object DatasetSeeder {
     private val mutex = Mutex()
 
     suspend fun seedIfNeeded(repository: DatasetRepository, db: AppDatabase, cache: KeyValueCache) = mutex.withLock {
+        repository.renameLegacyDecks()
         val language = repository.language.code
         val versionKey = "dataset:$language:seeded_version"
         val pendingKey = "dataset:$language:seed_pending"

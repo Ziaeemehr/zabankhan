@@ -11,4 +11,6 @@
   <string name="pdf_note_open">Ouvrir la note pour %1$s</string>
   <string name="pdf_note_title">Note · page %1$d</string>
   <string name="pdf_note_hint">Écrire une note pour ce passage…</string>
+    <string name="pdf_eraser_size">Taille de la gomme</string>
+    <string name="pdf_smooth_pen">Lissage du stylo</string>
 </resources>

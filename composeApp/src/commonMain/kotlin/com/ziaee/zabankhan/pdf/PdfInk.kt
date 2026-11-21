@@ -1,5 +1,7 @@
 package com.ziaee.zabankhan.pdf
 
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
@@ -8,6 +10,18 @@ data class InkCurveSegment(val controlX: Float, val controlY: Float, val endX: F
 
 internal const val PDF_INK_MIN_WIDTH = .0015f
 internal const val PDF_INK_MAX_WIDTH = .012f
+internal const val PDF_ERASER_MIN_SIZE = .005f
+internal const val PDF_ERASER_DEFAULT_SIZE = .015f
+internal const val PDF_ERASER_MAX_SIZE = .06f
+
+/** Suppress small deviations in screen space and let larger moves pass with minimal lag. */
+internal fun smoothInkPoint(previous: Offset, raw: Offset, page: Size, pixelsPerDp: Float): Offset {
+    val delta = raw - previous
+    val distanceDp = Offset(delta.x * page.width, delta.y * page.height).getDistance() / pixelsPerDp
+    val response = ((distanceDp - 1f) / 7f).coerceIn(0f, 1f)
+    val weight = .2f + .8f * response
+    return previous + delta * weight
+}
 
 /** Quadratic smoothing segments: each interior sample controls a curve ending at the next midpoint. */
 fun inkCurveSegments(points: List<Float>): List<InkCurveSegment> {
@@ -54,16 +68,17 @@ fun simplifyInkPoints(points: List<Float>, distance: Float = .0004f): List<Float
     return result
 }
 
-/** Erase whole strokes, including dots and degenerate segments. */
-fun inkHit(stroke: InkStroke, x: Float, y: Float, threshold: Float = .015f): Boolean {
+/** Erase whole strokes. Scale normalized Y by page height / width to measure in page-width units. */
+fun inkHit(stroke: InkStroke, x: Float, y: Float, threshold: Float = PDF_ERASER_DEFAULT_SIZE, yScale: Float = 1f): Boolean {
     val points = stroke.points
+    val scaledY = y * yScale
     for (i in 0 until points.size - 1 step 2) {
-        val ax = points[i]; val ay = points[i + 1]
-        val bx = points.getOrElse(i + 2) { ax }; val by = points.getOrElse(i + 3) { ay }
+        val ax = points[i]; val ay = points[i + 1] * yScale
+        val bx = points.getOrElse(i + 2) { ax }; val by = points.getOrElse(i + 3) { points[i + 1] } * yScale
         val dx = bx - ax; val dy = by - ay
         val length = dx * dx + dy * dy
-        val t = if (length == 0f) 0f else (((x - ax) * dx + (y - ay) * dy) / length).coerceIn(0f, 1f)
-        if (squaredDistance(x, y, ax + t * dx, ay + t * dy) < threshold * threshold) return true
+        val t = if (length == 0f) 0f else (((x - ax) * dx + (scaledY - ay) * dy) / length).coerceIn(0f, 1f)
+        if (squaredDistance(x, scaledY, ax + t * dx, ay + t * dy) < threshold * threshold) return true
     }
     return false
 }

@@ -9,4 +9,6 @@
     <string name="pdf_note_open">باز کردن یادداشتِ %1$s</string>
     <string name="pdf_note_title">یادداشت · صفحهٔ %1$d</string>
     <string name="pdf_note_hint">برای این بخش یادداشتی بنویسید…</string>
+    <string name="pdf_eraser_size">اندازهٔ پاک‌کن</string>
+    <string name="pdf_smooth_pen">قلم نرم</string>
 </resources>

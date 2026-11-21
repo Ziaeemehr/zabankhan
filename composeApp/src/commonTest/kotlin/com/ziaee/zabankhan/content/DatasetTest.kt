@@ -50,6 +50,7 @@ class DatasetTest {
         assertEquals("en", manifest.meaningLanguage)
         assertEquals(setOf("english-a1"), manifest.starterDeckIds)
         assertEquals("meaning — Unit 3", datasetMeaning("meaning", "3", manifest.lessonLabel))
+        assertEquals("Unit 3", datasetMeaning("", "3", manifest.lessonLabel))
     }
 
     @Test fun manifestParsesOptionalStarterFlagsAndMergesSources() {

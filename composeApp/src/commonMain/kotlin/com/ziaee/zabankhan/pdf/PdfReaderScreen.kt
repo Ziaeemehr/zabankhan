@@ -28,6 +28,7 @@ import androidx.compose.ui.input.nestedscroll.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
@@ -225,8 +226,10 @@ private data class PdfTextNoteEditor(
     var penColor by rememberSaveable(path) { mutableStateOf("primary") }
     var penWidth by rememberSaveable(path) { mutableFloatStateOf(.004f) }
     var highlighter by rememberSaveable(path) { mutableStateOf(false) }
+    var eraserSize by rememberSaveable(path) { mutableFloatStateOf(PDF_ERASER_DEFAULT_SIZE) }
     var eraser by rememberSaveable(path) { mutableStateOf(false) }
     var lastInkToolHighlighter by rememberSaveable(path) { mutableStateOf(false) }
+    var smoothPen by rememberSaveable(path) { mutableStateOf(false) }
     var fingerInk by rememberSaveable(path) { mutableStateOf(false) }
     var inkToolbarExpanded by rememberSaveable(path) { mutableStateOf(false) }
     var inkToolbarMinimized by rememberSaveable(path) { mutableStateOf(false) }
@@ -418,7 +421,7 @@ private data class PdfTextNoteEditor(
                             notes = notesByPage[index].orEmpty(), notesRtl = notesRtl, onOpenNote = ::openPdfNote,
                             listState = list,
                             penMode = penMode, penColor = penColor, penWidth = penWidth, highlighter = highlighter,
-                            eraser = eraser, fingerInk = fingerInk,
+                            eraser = eraser, eraserSize = eraserSize, fingerInk = fingerInk, smoothPen = smoothPen,
                             ink = pageInk(index),
                             onInk = { saveInk(index, it) },
                             onError = { failed = true },
@@ -469,8 +472,8 @@ private data class PdfTextNoteEditor(
                     onMove = { delta -> moveToolbar(delta) }, onDragEnd = { settleToolbar() },
                     minimized = inkToolbarMinimized, expanded = inkToolbarExpanded,
                     vertical = inkToolbarVertical, onToggleOrientation = { inkToolbarVertical = !inkToolbarVertical },
-                    penColor = penColor, recentColors = recentInkColors, penWidth = penWidth,
-                    eraser = eraser, highlighter = highlighter, fingerInk = fingerInk,
+                    penColor = penColor, recentColors = recentInkColors, toolSize = if (eraser) eraserSize else penWidth,
+                    eraser = eraser, highlighter = highlighter, fingerInk = fingerInk, smoothPen = smoothPen,
                     onMinimize = { inkToolbarMinimized = true }, onRestore = { inkToolbarMinimized = false },
                     onExpand = { inkToolbarExpanded = !inkToolbarExpanded },
                     onColor = { color ->
@@ -479,8 +482,16 @@ private data class PdfTextNoteEditor(
                         eraser = false
                         recentInkColors = (listOf(color) + recentInkColors.filterNot { it == color }).take(6)
                     },
-                    onWidth = { penWidth = it }, onEraser = { eraser = it; if (it) highlighter = false else lastInkToolHighlighter = false },
+                    onWidth = { if (eraser) eraserSize = it else penWidth = it },
+                    onEraser = {
+                        eraser = it
+                        if (it) {
+                            highlighter = false
+                            inkToolbarExpanded = true
+                        } else lastInkToolHighlighter = false
+                    },
                     onHighlighter = { highlighter = it; if (it) { eraser = false; lastInkToolHighlighter = true } else lastInkToolHighlighter = false }, onFinger = { fingerInk = it },
+                    onSmoothPen = { smoothPen = it },
                     onToggleEraser = { if (eraser) { eraser = false; highlighter = lastInkToolHighlighter } else { if (!highlighter) lastInkToolHighlighter = false; eraser = true; highlighter = false } },
                     onUndo = { if (pageInk(undoPage).isNotEmpty()) saveInk(undoPage, pageInk(undoPage).dropLast(1)) },
                     onClear = { if (pageInk(page).isNotEmpty()) saveInk(page, emptyList()) },
@@ -627,13 +638,14 @@ private data class PdfTextNoteEditor(
     selection: PdfRange?, highlights: List<PdfHighlight>, notes: List<PdfTextNote>, notesRtl: Boolean,
     onOpenNote: (PdfTextNote) -> Unit,
     listState: LazyListState,
-    penMode: Boolean, penColor: String, penWidth: Float, highlighter: Boolean, eraser: Boolean, fingerInk: Boolean,
+    penMode: Boolean, penColor: String, penWidth: Float, highlighter: Boolean, eraser: Boolean, eraserSize: Float, fingerInk: Boolean, smoothPen: Boolean,
     ink: List<InkStroke>, onInk: (List<InkStroke>) -> Unit, onError: () -> Unit,
     onTap: (List<PdfWord>, PdfWord) -> Unit, onRange: (Int, Int, List<PdfWord>, Rect) -> Unit, onRangeEnd: () -> Unit, onDoubleTap: (Offset) -> Unit,
     onArea: (ImageBitmap, PdfRect) -> Unit) {
     val currentInk by rememberUpdatedState(ink)
     val saveInk by rememberUpdatedState(onInk)
     var preview by remember(handle, index) { mutableStateOf<List<InkStroke>?>(null) }
+    var eraserCursor by remember(handle, index) { mutableStateOf<Offset?>(null) }
     val livePoints = remember(handle, index) { mutableStateListOf<Float>() }
     val aspect = layout.aspects[index] ?: 1.414f
     var image by remember(handle, index) { mutableStateOf<ImageBitmap?>(layout.cachedImage(index)) }
@@ -705,8 +717,8 @@ private data class PdfTextNoteEditor(
         width = it.width; viewport = Size(it.width.toFloat(), it.height.toFloat())
     }.background(MaterialTheme.colorScheme.surface)) {
         Box(Modifier.fillMaxSize().onGloballyPositioned { coordinates = it }
-        .pointerInput(penMode, penColor, penWidth, highlighter, eraser, fingerInk, viewport) {
-            if (penMode) awaitPointerEventScope {
+        .pointerInput(penMode, penColor, penWidth, highlighter, eraser, eraserSize, fingerInk, smoothPen, viewport, displayZoom) {
+            if (penMode && viewport.width > 0f && viewport.height > 0f) awaitPointerEventScope {
                 while (true) {
                     val down = awaitPointerEvent(PointerEventPass.Initial).changes.firstOrNull {
                         it.pressed && !it.previousPressed && (it.type == PointerType.Stylus ||
@@ -714,6 +726,9 @@ private data class PdfTextNoteEditor(
                     } ?: continue
                     down.consume()
                     val erase = eraser || down.type == PointerType.Eraser
+                    val stabilize = smoothPen && !erase && !highlighter
+                    val pixelsPerDp = density.density / displayZoom
+                    val yScale = viewport.height / viewport.width
                     val original = currentInk
                     var strokes = original
                     val points = mutableListOf<Float>()
@@ -721,16 +736,22 @@ private data class PdfTextNoteEditor(
                     var filtered: Offset? = null
                     fun update(point: Offset) {
                         val raw = normalized(point)
-                        val n = filtered?.let { it + (raw - it) * .5f } ?: raw
+                        val n = filtered?.let { previousPoint ->
+                            if (stabilize) smoothInkPoint(previousPoint, raw, viewport, pixelsPerDp)
+                            else previousPoint + (raw - previousPoint) * .5f
+                        } ?: raw
                         filtered = n
                         if (erase) {
                             val start = previous ?: n
-                            val steps = kotlin.math.ceil((n - start).getDistance() / .005f).toInt().coerceAtLeast(1)
+                            val delta = n - start
+                            val distance = Offset(delta.x, delta.y * yScale).getDistance()
+                            val steps = kotlin.math.ceil(distance / .005f).toInt().coerceAtLeast(1)
                             for (step in 0..steps) {
-                                val point = start + (n - start) * (step.toFloat() / steps)
-                                strokes = strokes.filterNot { inkHit(it, point.x, point.y) }
+                                val point = start + delta * (step.toFloat() / steps)
+                                strokes = strokes.filterNot { inkHit(it, point.x, point.y, eraserSize, yScale) }
                             }
                             previous = n
+                            eraserCursor = n
                         } else { points += n.x; points += n.y; livePoints.add(n.x); livePoints.add(n.y) }
                         if (erase) preview = strokes
                     }
@@ -744,6 +765,7 @@ private data class PdfTextNoteEditor(
                             if (down.type == PointerType.Touch && event.changes.count { it.pressed } > 1) {
                                 pinch = true
                                 preview = null
+                                eraserCursor = null
                                 do {
                                     val remaining = awaitPointerEvent(PointerEventPass.Initial)
                                 } while (remaining.changes.any { it.pressed })
@@ -759,7 +781,11 @@ private data class PdfTextNoteEditor(
                             width = penWidth * if (highlighter) 3f else 1f,
                             points = simplifyInkPoints(points), highlighter = highlighter)
                         if (!pinch && result != original) saveInk(result)
-                    } finally { preview = null; livePoints.clear() }
+                    } finally {
+                        preview = null
+                        eraserCursor = null
+                        livePoints.clear()
+                    }
                 }
             }
         }
@@ -854,6 +880,13 @@ private data class PdfTextNoteEditor(
             box?.let { rectangle(it, primary.copy(alpha = .25f)) }
         }
         Canvas(Modifier.fillMaxSize()) {
+            eraserCursor?.let { cursor ->
+                val center = Offset(cursor.x * size.width, cursor.y * size.height)
+                val radius = eraserSize * size.width
+                val outline = 1.dp.toPx() / displayZoom.coerceAtLeast(1f)
+                drawCircle(Color.White, radius, center, style = Stroke(outline * 3f))
+                drawCircle(Color.Black, radius, center, style = Stroke(outline))
+            }
             val points = livePoints.toList()
             if (points.size >= 2) {
                 val color = inkColor(penColor, primary, secondary, tertiary).copy(alpha = if (highlighter) .35f else .9f)
@@ -913,11 +946,11 @@ private fun inkColor(key: String, primary: androidx.compose.ui.graphics.Color,
 @Composable
 private fun PdfInkToolbar(
     modifier: Modifier, minimized: Boolean, expanded: Boolean, penColor: String, recentColors: List<String>,
-    penWidth: Float, eraser: Boolean, highlighter: Boolean, fingerInk: Boolean, vertical: Boolean, onToggleOrientation: () -> Unit,
+    toolSize: Float, eraser: Boolean, highlighter: Boolean, fingerInk: Boolean, smoothPen: Boolean, vertical: Boolean, onToggleOrientation: () -> Unit,
     onMinimize: () -> Unit, onRestore: () -> Unit, onExpand: () -> Unit,
     onMove: (Offset) -> Unit, onDragEnd: () -> Unit,
     onColor: (String) -> Unit, onWidth: (Float) -> Unit, onEraser: (Boolean) -> Unit,
-    onHighlighter: (Boolean) -> Unit, onFinger: (Boolean) -> Unit,
+    onHighlighter: (Boolean) -> Unit, onFinger: (Boolean) -> Unit, onSmoothPen: (Boolean) -> Unit,
     onToggleEraser: () -> Unit,
     onUndo: () -> Unit, onClear: () -> Unit, canUndo: Boolean, canClear: Boolean,
 ) {
@@ -969,11 +1002,12 @@ private fun PdfInkToolbar(
                                 }
                             }
                         }
-                        if (vertical) {
-                            PdfInkWidthControl(penWidth, vertical = true, onWidth = onWidth)
-                        } else PdfInkWidthControl(penWidth, vertical = false, onWidth = onWidth)
+                        PdfInkWidthControl(toolSize, vertical, eraser, onWidth)
                         IconToggleButton(checked = !eraser && !highlighter, onCheckedChange = { onEraser(false); onHighlighter(false) },
                             modifier = Modifier.size(44.dp).semantics { contentDescription = "Pen" }) { Icon(Icons.Default.Edit, "Pen", Modifier.size(20.dp)) }
+                        FilterChip(selected = smoothPen, enabled = !eraser && !highlighter,
+                            onClick = { onSmoothPen(!smoothPen) },
+                            label = { Text(stringResource(Res.string.pdf_smooth_pen)) })
                         IconToggleButton(checked = highlighter, onCheckedChange = onHighlighter,
                             modifier = Modifier.size(44.dp).semantics { contentDescription = "Highlighter" }) { Icon(Icons.Default.Highlight, "Highlighter", Modifier.size(20.dp)) }
                         IconToggleButton(checked = eraser, onCheckedChange = onEraser,
@@ -1027,36 +1061,23 @@ private fun PdfInkToolbar(
 }
 
 @Composable
-private fun PdfInkWidthControl(value: Float, vertical: Boolean, onWidth: (Float) -> Unit) {
-    val fraction = ((value - PDF_INK_MIN_WIDTH) / (PDF_INK_MAX_WIDTH - PDF_INK_MIN_WIDTH)).coerceIn(0f, 1f)
+internal fun PdfInkWidthControl(value: Float, vertical: Boolean, eraser: Boolean, onWidth: (Float) -> Unit) {
+    val range = if (eraser) PDF_ERASER_MIN_SIZE..PDF_ERASER_MAX_SIZE else PDF_INK_MIN_WIDTH..PDF_INK_MAX_WIDTH
+    val fraction = ((value - range.start) / (range.endInclusive - range.start)).coerceIn(0f, 1f)
     val previewHeight = (2f + fraction * 8f).dp
     val valueLabel = "${(value * 1000f).toInt() / 10f}%"
-    val description = stringResource(Res.string.pdf_pen_thickness)
+    val description = stringResource(if (eraser) Res.string.pdf_eraser_size else Res.string.pdf_pen_thickness)
 
     Surface(shape = RoundedCornerShape(18.dp), color = MaterialTheme.colorScheme.surfaceContainerLow) {
-        if (vertical) {
-            Column(Modifier.width(82.dp).padding(8.dp), horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                Text(description, style = MaterialTheme.typography.labelSmall, maxLines = 1)
+        Column(Modifier.width(if (vertical) 148.dp else 196.dp).padding(horizontal = 10.dp, vertical = 8.dp),
+            verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(description, Modifier.weight(1f), style = MaterialTheme.typography.labelSmall)
                 Text(valueLabel, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
-                Box(Modifier.width(48.dp).height(136.dp), contentAlignment = Alignment.Center) {
-                    Slider(value = value, onValueChange = onWidth, valueRange = PDF_INK_MIN_WIDTH..PDF_INK_MAX_WIDTH,
-                        modifier = Modifier.width(132.dp).height(44.dp).graphicsLayer { rotationZ = -90f }
-                            .semantics { contentDescription = description })
-                }
-                PdfInkWidthPreview(previewHeight, Modifier.width(36.dp))
             }
-        } else {
-            Column(Modifier.width(196.dp).padding(horizontal = 10.dp, vertical = 8.dp),
-                verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(description, Modifier.weight(1f), style = MaterialTheme.typography.labelSmall, maxLines = 1)
-                    Text(valueLabel, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
-                }
-                Slider(value = value, onValueChange = onWidth, valueRange = PDF_INK_MIN_WIDTH..PDF_INK_MAX_WIDTH,
-                    modifier = Modifier.fillMaxWidth().height(34.dp).semantics { contentDescription = description })
-                PdfInkWidthPreview(previewHeight, Modifier.fillMaxWidth())
-            }
+            Slider(value = value, onValueChange = onWidth, valueRange = range,
+                modifier = Modifier.fillMaxWidth().height(40.dp).semantics { contentDescription = description })
+            PdfInkWidthPreview(previewHeight, Modifier.fillMaxWidth())
         }
     }
 }

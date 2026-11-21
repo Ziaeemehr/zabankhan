@@ -17,6 +17,7 @@ import okio.Path
 import okio.Buffer
 import io.ktor.utils.io.*
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.IO
 import kotlinx.coroutines.withContext
@@ -75,6 +76,18 @@ class DatasetRepository(
         } catch (_: Exception) { cached }
     }
 
+    internal suspend fun renameLegacyDecks() = withContext(Dispatchers.IO) {
+        db.useWriterConnection { connection -> connection.immediateTransaction {
+            val dao = db.vocab()
+            val lists = dao.observeLists(language.code).first()
+            val names = lists.mapTo(mutableSetOf()) { it.name.lowercase() }
+            for (list in lists) {
+                val newName = datasetDeckNames[list.name] ?: continue
+                if (names.add(newName.lowercase())) dao.renameList(list.id, newName)
+            }
+        } }
+    }
+
     suspend fun installDeck(pack: DatasetDeckPack, progress: (Long, Long?) -> Unit = { _, _ -> }): DatasetInstallResult = withContext(Dispatchers.IO) {
         download(pack, progress)
         val rows = parseDatasetDeck(asset(pack.source, pack.file))
@@ -83,8 +96,8 @@ class DatasetRepository(
         db.useWriterConnection { connection -> connection.immediateTransaction {
             db.vocab().withJournalSuppressed {
             val lists = db.vocab().observeLists(language.code).first()
-            val listId = lists.firstOrNull { it.name.equals(pack.name, true) }?.id
-                ?: db.vocab().insertList(VocabList(lang = language.code, name = pack.name))
+            val listId = lists.firstOrNull { it.matches(pack) }?.id
+                ?: db.vocab().insertList(VocabList(lang = language.code, name = pack.displayName))
             val existing = db.vocab().getAll(language.code)
                 .filter { it.listId == listId }
                 .map { it.word.lowercase() }
@@ -116,6 +129,41 @@ class DatasetRepository(
         } }
     }
 
+    // Older installs dropped the lesson suffix when the source card had no translation.
+    internal suspend fun restoreMissingLessonLabels(manifest: DatasetManifest) = withContext(Dispatchers.IO) {
+        val dao = db.vocab()
+        val lists = dao.observeLists(language.code).first().associateBy { it.name.lowercase() }
+        val candidates = dao.getAll(language.code)
+            .filter { it.textId == 0L && it.meaning.isNullOrBlank() }
+            .groupBy { it.listId }
+        for (pack in manifest.decks) {
+            val list = lists[pack.displayName.lowercase()] ?: lists[pack.name.lowercase()] ?: continue
+            val entries = candidates[list.id] ?: continue
+            if (pack.source is DatasetSource.Remote && !FileSystem.SYSTEM.exists(datasetRoot(pack.source) / pack.file)) continue
+            val rows = try {
+                parseDatasetDeck(asset(pack.source, pack.file))
+            } catch (error: CancellationException) {
+                throw error
+            } catch (_: Exception) {
+                continue
+            }.filter { it.meaning.isBlank() && it.lesson != null }
+                .associateBy { it.word.lowercase() to it.sentence }
+            val ids = entries.filter { (it.word.lowercase() to it.sentence) in rows }.map { it.id }
+            if (ids.isEmpty()) continue
+            db.useWriterConnection { connection -> connection.immediateTransaction {
+                dao.withJournalSuppressed {
+                    for (batch in ids.chunked(500)) {
+                        for (entry in dao.getByIds(batch)) {
+                            if (entry.listId != list.id || entry.textId != 0L || !entry.meaning.isNullOrBlank()) continue
+                            val row = rows[entry.word.lowercase() to entry.sentence] ?: continue
+                            dao.updateRaw(entry.copy(meaning = datasetMeaning(row.meaning, row.lesson, manifest.lessonLabel)))
+                        }
+                    }
+                }
+            } }
+        }
+    }
+
     suspend fun removeOrphanedDatasetCards(): Int = withContext(Dispatchers.IO) {
         val manifest = loadManifest()
         val rowsByPack = manifest.decks.mapNotNull { pack ->
@@ -125,7 +173,7 @@ class DatasetRepository(
             db.vocab().withJournalSuppressed {
             val lists = db.vocab().observeLists(language.code).first()
             val packs = rowsByPack.map { (pack, rows) ->
-                rows to lists.firstOrNull { it.name.equals(pack.name, ignoreCase = true) }?.id
+                rows to lists.firstOrNull { it.matches(pack) }?.id
             }
             val plan = planDatasetCardCleanup(packs, db.vocab().getAll(language.code), manifest.lessonLabel)
             plan.deleteIds.chunked(500).forEach { db.vocab().deleteIds(it) }
@@ -191,7 +239,7 @@ class DatasetRepository(
         val storyKeys = db.texts().observeAll(language.code).first().mapNotNull { it.externalKey }.toSet()
         DatasetStatus(
             decks = manifest.decks.associate { pack ->
-                val installed = lists.firstOrNull { it.name.equals(pack.name, true) }
+                val installed = lists.firstOrNull { it.matches(pack) }
                     ?.let { list -> entries.count { it.listId == list.id } }
                     ?: 0
                 pack.key to DatasetPackStatus(installed, pack.count)
@@ -326,3 +374,6 @@ internal object DatasetSources {
     private val bundledLanguages = setOf("fr")
     fun bundled(language: String): DatasetSource.Bundled? = language.takeIf { it in bundledLanguages }?.let { DatasetSource.Bundled(it) }
 }
+
+private fun VocabList.matches(pack: DatasetDeckPack): Boolean =
+    name.equals(pack.displayName, ignoreCase = true) || name.equals(pack.name, ignoreCase = true)

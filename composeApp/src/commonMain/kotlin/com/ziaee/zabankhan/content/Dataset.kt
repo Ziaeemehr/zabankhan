@@ -141,7 +141,10 @@ internal fun parseDatasetStories(json: String): List<DatasetStoryRow> =
 private fun JsonObject.string(key: String): String = (get(key) as? JsonPrimitive)?.contentOrNull.orEmpty()
 
 internal fun datasetMeaning(meaning: String, lesson: String?, lessonLabel: String = "Lesson"): String =
-    lesson?.takeIf { it.isNotBlank() && meaning.isNotBlank() }?.let { "$meaning — $lessonLabel $it" } ?: meaning
+    lesson?.takeIf(String::isNotBlank)?.let {
+        val label = "$lessonLabel $it"
+        if (meaning.isBlank()) label else "$meaning — $label"
+    } ?: meaning
 
 /** Uncategorized dataset cards to delete, and ones to move back into their (re-added) deck. */
 internal data class DatasetCardCleanup(val deleteIds: Set<Long>, val moveToList: Map<Long, Long>) {
@@ -171,6 +174,7 @@ internal fun planDatasetCardCleanup(
         val legacy = HashSet<Pair<String, String>>()
         rows.forEach { row ->
             current += row.word.lowercase() to datasetMeaning(row.meaning, row.lesson, lessonLabel)
+            if (row.meaning.isBlank()) current += row.word.lowercase() to row.meaning
             if (row.sentence.isNotBlank()) legacy += row.sentence.lowercase() to datasetMeaning(row.word, row.lesson, lessonLabel)
         }
         val inDeck = listId?.let { id ->
@@ -201,3 +205,19 @@ internal fun planDatasetCardCleanup(
 }
 
 private fun VocabEntry.hasProgress() = lastReviewedAtMs != null || leitnerBox > 1
+
+internal val datasetDeckNames = mapOf(
+    "Grammaire en dialogues A1 · Mots" to "Grammaire en dialogues A1 · Fr->Fa",
+    "Grammaire en dialogues B1 · Mots" to "Grammaire en dialogues B1 · Fr->Fa",
+    "Grammaire en dialogues B1 · Phrases" to "Grammaire en dialogues B1 · Fa->Fr",
+    "Vocabulaire en dialogues A1 · Mots" to "Vocabulaire en dialogues A1 · Fr->Fa",
+    "Vocabulaire progressif A2-B1 · Mots" to "Vocabulaire progressif A2-B1 · Fr->Fa (1)",
+    "Vocabulaire progressif A2-B1 · Phrases" to "Vocabulaire progressif A2-B1 · Fr->Fa (2)",
+    "Communication essentielle A1 · Phrases" to "Communication essentielle A1 · Fr->Fa",
+    "Communication essentielle A2 · Phrases" to "Communication essentielle A2 · Fr->Fa",
+    "Communication en dialogues A2-B1" to "Communication en dialogues A2-B1 · Fr->Fa",
+    "Comm_diag_a2b1 · FA→FR" to "Communication en dialogues A2-B1 · Fa->Fr"
+)
+
+internal val DatasetDeckPack.displayName: String
+    get() = datasetDeckNames[name] ?: name

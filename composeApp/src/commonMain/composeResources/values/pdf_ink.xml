@@ -9,4 +9,6 @@
     <string name="pdf_note_open">Open note for %1$s</string>
     <string name="pdf_note_title">Note · page %1$d</string>
     <string name="pdf_note_hint">Write a note for this passage…</string>
+    <string name="pdf_eraser_size">Eraser size</string>
+    <string name="pdf_smooth_pen">Smooth pen</string>
 </resources>

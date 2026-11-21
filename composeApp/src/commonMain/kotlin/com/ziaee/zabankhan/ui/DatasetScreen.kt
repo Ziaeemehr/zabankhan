@@ -1,5 +1,8 @@
 package com.ziaee.zabankhan.ui
 
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -34,9 +37,12 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import org.jetbrains.compose.resources.DrawableResource
+import org.jetbrains.compose.resources.painterResource
 import org.jetbrains.compose.resources.stringResource
 import org.jetbrains.compose.resources.getString
 import androidx.compose.ui.unit.dp
@@ -48,6 +54,7 @@ import com.ziaee.zabankhan.app.AppViewModel
 import com.ziaee.zabankhan.data.AppSettings
 import com.ziaee.zabankhan.lang.Languages
 import com.ziaee.zabankhan.content.DatasetDeckPack
+import com.ziaee.zabankhan.content.displayName
 import com.ziaee.zabankhan.content.DatasetInstallResult
 import com.ziaee.zabankhan.content.DatasetManifest
 import com.ziaee.zabankhan.content.DatasetPackStatus
@@ -94,6 +101,13 @@ class DatasetViewModel(
             try { com.ziaee.zabankhan.content.DatasetSeeder.seedIfNeeded(repository, database, cache) }
             catch (error: CancellationException) { throw error }
             catch (_: Exception) { /* Keep cached/offline catalogs usable; pending seeding retries later. */ }
+            // One-time migration; new installs already write the lesson label.
+            val labelsKey = "dataset:${repository.language.code}:lesson_labels_restored"
+            if (cache.get(labelsKey) != "true") try {
+                repository.restoreMissingLessonLabels(requireNotNull(manifest))
+                cache.put(labelsKey, "true")
+            } catch (error: CancellationException) { throw error }
+            catch (_: Exception) { /* Retry on next open. */ }
             status = repository.status(manifest)
             val current = requireNotNull(manifest)
             sizes = coroutineScope {
@@ -252,9 +266,13 @@ fun DatasetScreen(vm: AppViewModel, settings: AppSettings, onBack: () -> Unit) {
                     )
                 }
                 if (manifest.decks.isEmpty() && manifest.stories.isEmpty()) item { Text(stringResource(Res.string.dataset_empty_language), style = MaterialTheme.typography.bodyMedium) }
+                val books = manifest.decks.mapNotNull { pack ->
+                    deckBookCover(pack.id)?.let { it to pack }
+                }.groupBy({ it.first }, { it.second }).toList()
+                if (books.isNotEmpty()) item { DatasetBookSlides(books) }
                 items(manifest.decks, key = { it.key }) { pack ->
                     DatasetItem(
-                        name = pack.name,
+                        name = pack.displayName,
                         level = pack.level,
                         count = stringResource(Res.string.dataset_cards_count, pack.count),
                         status = viewModel.status?.decks?.get(pack.key),
@@ -308,6 +326,52 @@ fun DatasetScreen(vm: AppViewModel, settings: AppSettings, onBack: () -> Unit) {
                 }
             }
         )
+    }
+}
+
+private fun deckBookCover(packId: String): DrawableResource? = when (packId) {
+    "gram-dial-a1-vocab" -> Res.drawable.deck_cover_gram_dial_a1
+    "gram-dial-b1-vocab", "gram-dial-b1-phrases" -> Res.drawable.deck_cover_gram_dial_b1
+    "voc-dial-a1-vocab" -> Res.drawable.deck_cover_voc_dial_a1
+    "voc-prog-a2b1-vocab", "voc-prog-a2b1-phrases" -> Res.drawable.deck_cover_voc_prog_a2b1
+    "comm-ess-a1-phrases" -> Res.drawable.deck_cover_comm_ess_a1
+    "comm-ess-a2-phrases" -> Res.drawable.deck_cover_comm_ess_a2
+    "comm-dial-a2b1-phrases", "comm-diag-a2b1-fa-fr" -> Res.drawable.deck_cover_comm_dial_a2b1
+    else -> null
+}
+
+@Composable
+private fun DatasetBookSlides(books: List<Pair<DrawableResource, List<DatasetDeckPack>>>) {
+    val pager = rememberPagerState { books.size }
+    val scope = rememberCoroutineScope()
+    Card {
+        HorizontalPager(state = pager, modifier = Modifier.fillMaxWidth()) { page ->
+            val (cover, packs) = books[page]
+            Column(
+                Modifier.fillMaxWidth().padding(16.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Image(painterResource(cover), contentDescription = null, modifier = Modifier.height(180.dp))
+                packs.forEach { pack ->
+                    Text(pack.displayName, style = MaterialTheme.typography.titleSmall)
+                    Text(stringResource(Res.string.dataset_cards_count, pack.count), style = MaterialTheme.typography.bodySmall)
+                }
+            }
+        }
+        if (books.size > 1) {
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                TextButton(
+                    enabled = pager.currentPage > 0,
+                    onClick = { scope.launch { pager.animateScrollToPage((pager.currentPage - 1).coerceAtLeast(0)) } }
+                ) { Text(stringResource(Res.string.pack_previous)) }
+                Text("${pager.currentPage + 1} / ${books.size}", style = MaterialTheme.typography.labelMedium)
+                TextButton(
+                    enabled = pager.currentPage < books.lastIndex,
+                    onClick = { scope.launch { pager.animateScrollToPage((pager.currentPage + 1).coerceAtMost(books.lastIndex)) } }
+                ) { Text(stringResource(Res.string.pack_next)) }
+            }
+        }
     }
 }
 
