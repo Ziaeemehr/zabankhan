@@ -18,7 +18,7 @@
   <string name="dataset_remove_deleted_deck_cards_confirm">Clean up uncategorized cards from built-in decks? Copies from deleted decks are removed. Copies of decks you added again are merged back into the deck, keeping whichever copy has review progress. Your own words are not touched.</string>
   <string name="dataset_removed_result">Removed %1$d cards</string>
   <string name="dataset_empty_language">No content packs for this language yet</string>
-  <string name="dataset_download_install">Download (install)</string>
+  <string name="dataset_download_install">Download</string>
   <string name="dataset_pack_size">Download size: %1$s</string>
   <string name="dataset_size_unknown">Size unavailable</string>
   <string name="dataset_installed_count">Installed %1$d / %2$d</string>

@@ -33,6 +33,7 @@ import androidx.compose.ui.window.Dialog
 import com.ziaee.zabankhan.app.AppViewModel
 import com.ziaee.zabankhan.content.*
 import com.ziaee.zabankhan.data.*
+import com.ziaee.zabankhan.datapack.LanguageDataPacks
 import com.ziaee.zabankhan.files.*
 import com.ziaee.zabankhan.lang.*
 import com.ziaee.zabankhan.resources.*
@@ -155,8 +156,12 @@ fun VocabListScreen(
     val filtered = remember(scoped, query, selectedStatus, spec) {
         filterVocabulary(scoped, -1L, query, selectedStatus, spec)
     }
-    val completions = remember(asTab, filtered, query, spec) {
-        if (asTab) vocabularyCompletions(filtered, query, spec) else emptyList()
+    val lemmaWords by produceState<Set<String>>(emptySet(), settings.learningLang) {
+        value = settings.learningLang?.let { LanguageDataPacks.load(it) }?.lemmas?.wordForms.orEmpty()
+    }
+    val completions by produceState<List<String>>(emptyList(), entries, query, spec, lemmaWords) {
+        value = if (query.trim().length < 2) emptyList()
+        else withContext(Dispatchers.Default) { vocabularyCompletions(entries, query, spec, lemmaWords) }
     }
     val logs by vm.logs.collectAsState()
     val dueCount = remember(filtered, logs, settings.dailyNewCards) {
@@ -324,7 +329,7 @@ fun VocabListScreen(
                     },
                     actions = {
                         IconButton(onClick = { showManualDictionary = true }) {
-                            Icon(Icons.Default.Add, contentDescription = stringResource(Res.string.b_words_manual_dictionary_action))
+                            Icon(Icons.Default.ManageSearch, contentDescription = stringResource(Res.string.b_words_manual_dictionary_action))
                         }
                         IconButton(onClick = { showImportHelp = true }) {
                             Icon(Icons.Default.Upload, contentDescription = stringResource(Res.string.b_words_anki_import_action))

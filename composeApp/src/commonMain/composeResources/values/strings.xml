@@ -334,6 +334,7 @@
     <string name="vocab_list_new">New list</string>
     <string name="vocab_list_select">Choose a list</string>
     <string name="vocab_list_uncategorized">Uncategorized</string>
+    <string name="action_clear">Clear</string>
     <string name="action_close">Close</string>
     <string name="gesture_reading_row_2">Word → select; drag handles to extend</string>
     <string name="gesture_reading_row_4">Selection → toolbar: highlight, define/save, more</string>
@@ -382,4 +383,10 @@
     <string name="video_playlist_choose">Choose playlists</string>
     <string name="done">Done</string>
     <string name="videos_playlists">Playlists</string>
+    <string name="highlight_custom_color">Custom color</string>
+    <string name="highlight_hue">Hue</string>
+    <string name="selection_extend">Extend selection</string>
+    <string name="selection_extend_hint">Tap a word to extend the selection</string>
+    <string name="library_select_folder">Select folder</string>
+    <string name="library_folder_selection_count">%1$d folders selected</string>
 </resources>

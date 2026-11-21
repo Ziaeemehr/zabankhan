@@ -26,12 +26,24 @@ internal class LocalTts(private val context: android.content.Context, private va
     override val synthesisProgress = progress.asStateFlow()
     private var job: Job? = null
     private var generation = 0
-    private var selectedSpeaker: String? = null
-    private var speakersCache: List<String> = emptyList()
+    @Volatile private var selectedSpeaker: String? = null
+    @Volatile private var speakersCache: List<String> = emptyList()
+    private var speakersFetch: Job? = null
     private val cache = mutableMapOf<String, File>()
 
-    override fun voices(langCode: String) = speakersCache.map { TtsVoice(it, it) }
-    override fun setVoice(id: String?) { selectedSpeaker = id }
+    override fun voices(langCode: String): List<TtsVoice> {
+        if (speakersCache.isEmpty() && speakersFetch?.isActive != true) {
+            speakersFetch = scope.launch {
+                val speakers = runCatching { withContext(Dispatchers.IO) { speakers() } }.getOrDefault(emptyList())
+                if (speakers.isNotEmpty()) { updateSpeakers(speakers); selectDefaultSpeaker(speakers, langCode) }
+            }
+        }
+        return speakersCache.map { TtsVoice(it, it) }
+    }
+    override fun setVoice(id: String?) {
+        selectedSpeaker = id?.takeIf(String::isNotBlank)
+        selectedSpeaker?.let { LocalTtsPrefs.setSpeaker(context, it) }
+    }
     fun updateSpeakers(value: List<String>) { speakersCache = value }
     fun speakers(): List<String> {
         val base = serverBase() ?: return emptyList()
@@ -74,7 +86,10 @@ internal class LocalTts(private val context: android.content.Context, private va
         val usePair = prefs.usePaired(context) && pairPrefs.paired != null
         val base = (if (usePair) pairPrefs.ttsUrl().orEmpty() else prefs.serverUrl(context)).trim().trimEnd('/')
         require(base.isNotBlank()) { "Set a local TTS server address or pair a computer first" }
-        val speaker = requestedSpeaker?.takeIf { it != "local" } ?: prefs.speaker(context)
+        val speaker = requestedSpeaker?.takeIf { it.isNotBlank() && it != "local" }
+            ?: prefs.speaker(context).takeIf(String::isNotBlank)
+            ?: selectDefaultSpeaker(speakersCache.ifEmpty { speakers() }, langCode).orEmpty()
+        require(speaker.isNotBlank()) { "Local TTS server has no speakers" }
         val cacheKey = "$base|$langCode|$speaker|$rate|$text"
         cache[cacheKey]?.takeIf(File::exists)?.let { return it }
         val conn = (URL("$base/synthesize").openConnection() as HttpURLConnection).apply {
@@ -95,6 +110,32 @@ internal class LocalTts(private val context: android.content.Context, private va
             return file
         } catch (error: Exception) { if (error is IOException) retryPairedAddress(pairPrefs, base); throw error }
         finally { conn.disconnect() }
+    }
+
+    private fun selectDefaultSpeaker(speakers: List<String>, langCode: String): String? {
+        if (speakers.isEmpty()) return null
+        val saved = LocalTtsPrefs.speaker(context).takeIf(String::isNotBlank)
+        val selected = saved?.takeIf { it in speakers } ?: speakers.firstOrNull { speakerMatchesLanguage(it, langCode) } ?: speakers.first()
+        selectedSpeaker = selected
+        LocalTtsPrefs.setSpeaker(context, selected)
+        return selected
+    }
+
+    private fun speakerMatchesLanguage(name: String, langCode: String): Boolean {
+        val language = langCode.substringBefore('-').substringBefore('_').lowercase()
+        if (language.isBlank()) return false
+        val normalized = name.lowercase()
+        val hint = when (language) {
+            "fa" -> listOf("persian", "farsi", "فارسی")
+            "fr" -> listOf("french", "français", "francais")
+            "en" -> listOf("english")
+            "es" -> listOf("spanish", "español", "espanol")
+            "de" -> listOf("german", "deutsch")
+            "it" -> listOf("italian", "italiano")
+            "ar" -> listOf("arabic", "العربية")
+            else -> listOf(language)
+        }
+        return hint.any(normalized::contains)
     }
 
     private fun serverBase(): String? {

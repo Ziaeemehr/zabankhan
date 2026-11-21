@@ -45,6 +45,20 @@ fun shadowAverage(rows: List<ShadowAttempt>): Int = rows.filter { it.total > 0 }
     if (valid.isEmpty()) 0 else (valid.map { 100.0 * it.matched.coerceIn(0, it.total) / it.total }.average()).roundToInt()
 }
 
+data class TrendDelta(val percent: Int, val rising: Boolean)
+fun trendDelta(current: Double, previous: Double): TrendDelta {
+    if (previous <= 0.0) return TrendDelta(if (current > 0.0) 100 else 0, current > previous)
+    val change = ((current - previous) / previous * 100.0).roundToInt()
+    return TrendDelta(kotlin.math.abs(change), change >= 0)
+}
+
+data class WordStatusCounts(val new: Int, val learning: Int, val known: Int) { val total get() = new + learning + known }
+fun wordStatusCounts(words: List<VocabEntry>): WordStatusCounts = WordStatusCounts(
+    new = words.count { !it.learned && it.leitnerBox <= 1 },
+    learning = words.count { !it.learned && it.leitnerBox in 2..3 },
+    known = words.count { it.learned || it.leitnerBox >= 4 },
+)
+
 /** Daily activity keeps the automatic and manually entered portions available for detail views. */
 data class StudyDayActivity(
     val date: LocalDate,
@@ -55,6 +69,9 @@ data class StudyDayActivity(
 }
 
 fun studyActivityIntensity(totalMinutes: Double): Float = (totalMinutes / 90.0).coerceIn(0.0, 1.0).toFloat()
+
+fun monthlyTotals(days: List<StudyDayActivity>, year: Int): List<Double> =
+    (1..12).map { month -> days.filter { it.date.year == year && it.date.monthNumber == month }.sumOf { it.totalMinutes } }
 
 fun combinedStudyDays(
     lang: String,
@@ -137,3 +154,9 @@ private fun calendarWeeks(first: LocalDate, last: LocalDate): List<List<LocalDat
     }
     return weeks
 }
+
+/** Minutes per skill for sessions dated in [from, to] inclusive; zero-minute skills omitted, descending. */
+fun minutesBySkill(entries: List<StudySession>, from: LocalDate, to: LocalDate): List<Pair<StudySkill, Int>> =
+    entries.filter { it.date in from.toEpochDays()..to.toEpochDays() }
+        .groupBy { it.skill }.map { (skill, rows) -> skill to rows.sumOf { it.durationMin } }
+        .filter { it.second > 0 }.sortedByDescending { it.second }

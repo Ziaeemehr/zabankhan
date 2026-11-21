@@ -325,34 +325,29 @@ private fun DatasetItem(
     onAdd: () -> Unit
 ) {
     Card {
-        Row(
-            Modifier.fillMaxWidth().padding(16.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Column(Modifier.weight(1f)) {
-                Text(name, style = MaterialTheme.typography.titleMedium)
-                Text("$level · $count", style = MaterialTheme.typography.bodySmall)
-                val size = downloadSize?.let(::formatDatasetBytes) ?: stringResource(Res.string.dataset_size_unknown)
-                Text(stringResource(Res.string.dataset_pack_size, size), style = MaterialTheme.typography.bodySmall)
-                Text(stringResource(Res.string.dataset_installed_count, status?.installed ?: 0, status?.total ?: 0), style = MaterialTheme.typography.bodySmall)
-            }
-            if (busy) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    CircularProgressIndicator(Modifier.size(24.dp), strokeWidth = 2.dp)
+        Column(Modifier.fillMaxWidth().padding(16.dp)) {
+            Text(name, style = MaterialTheme.typography.titleMedium)
+            Text("$level · $count", style = MaterialTheme.typography.bodySmall)
+            val size = downloadSize?.let(::formatDatasetBytes) ?: stringResource(Res.string.dataset_size_unknown)
+            Text(stringResource(Res.string.dataset_pack_size, size), style = MaterialTheme.typography.bodySmall)
+            Text(stringResource(Res.string.dataset_installed_count, status?.installed ?: 0, status?.total ?: 0), style = MaterialTheme.typography.bodySmall)
+            Row(Modifier.fillMaxWidth().padding(top = 8.dp), horizontalArrangement = Arrangement.End, verticalAlignment = Alignment.CenterVertically) {
+                if (busy) {
                     progress?.let { (done, total) ->
                         val pct = total?.takeIf { it > 0 }?.let { "${(done * 100 / it).coerceIn(0, 100)}%" }
-                        if (pct != null) Text(pct, style = MaterialTheme.typography.labelSmall)
+                        if (pct != null) Text(pct, style = MaterialTheme.typography.labelSmall, modifier = Modifier.padding(end = 8.dp))
                     }
-                }
-            } else {
-                Button(onClick = onAdd, enabled = enabled && status?.complete != true) {
-                    val label = when {
-                        status?.complete == true -> Res.string.dataset_added
-                        (status?.installed ?: 0) > 0 -> Res.string.dataset_add_missing
-                        remote -> Res.string.dataset_download_install
-                        else -> Res.string.dataset_add
+                    CircularProgressIndicator(Modifier.size(24.dp), strokeWidth = 2.dp)
+                } else {
+                    Button(onClick = onAdd, enabled = enabled && status?.complete != true) {
+                        val label = when {
+                            status?.complete == true -> Res.string.dataset_added
+                            (status?.installed ?: 0) > 0 -> Res.string.dataset_add_missing
+                            remote -> Res.string.dataset_download_install
+                            else -> Res.string.dataset_add
+                        }
+                        Text(stringResource(label), maxLines = 1)
                     }
-                    Text(stringResource(label))
                 }
             }
         }

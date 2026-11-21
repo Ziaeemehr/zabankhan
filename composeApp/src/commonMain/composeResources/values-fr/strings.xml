@@ -330,6 +330,7 @@
     <string name="vocab_list_new">Nouvelle liste</string>
     <string name="vocab_list_select">Choisir une liste</string>
     <string name="vocab_list_uncategorized">Sans catégorie</string>
+    <string name="action_clear">Effacer</string>
     <string name="action_close">Fermer</string>
     <string name="gesture_reading_row_2">Mot → sélectionner ; étirer avec les poignées</string>
     <string name="gesture_reading_row_4">Sélection → barre : surligner, définir/enregistrer, plus</string>
@@ -378,4 +379,10 @@
     <string name="video_playlist_choose">Choisir les listes</string>
     <string name="done">Terminé</string>
     <string name="videos_playlists">Listes</string>
+    <string name="highlight_custom_color">Couleur personnalisée</string>
+    <string name="highlight_hue">Teinte</string>
+    <string name="selection_extend">Étendre la sélection</string>
+    <string name="selection_extend_hint">Touchez un mot pour étendre la sélection</string>
+    <string name="library_select_folder">Sélectionner le dossier</string>
+    <string name="library_folder_selection_count">%1$d dossiers sélectionnés</string>
 </resources>

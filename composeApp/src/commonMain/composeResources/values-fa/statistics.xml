@@ -18,4 +18,23 @@
     <string name="h2_daily_goal">هدف روزانه (دقیقه)</string>
     <string name="h2_discover">کشف محتوا</string>
     <string name="h2_find_content">یافتن محتوا</string>
+    <string name="stats_words_learned">واژه‌های آموخته‌شده</string>
+    <string name="stats_streak">روزهای پیاپی</string>
+    <string name="stats_minutes_week">دقایق این هفته</string>
+    <string name="stats_trend_up">٪%1$d+</string>
+    <string name="stats_trend_down">٪%1$d−</string>
+    <string name="stats_study_chart">زمان مطالعه</string>
+    <string name="stats_period_week">هفته</string>
+    <string name="stats_period_month">ماه</string>
+    <string name="stats_period_year">سال</string>
+    <string name="stats_selected_value">%1$s: %2$d دقیقه</string>
+    <string name="stats_selected_count">%1$s: %2$d</string>
+    <string name="stats_word_status">وضعیت واژه‌ها</string>
+    <string name="stats_new">جدید</string>
+    <string name="stats_learning">در حال یادگیری</string>
+    <string name="stats_known">آموخته‌شده</string>
+    <string name="stats_time_by_skill">زمان بر حسب مهارت</string>
+    <string name="stats_time_by_skill_empty">هنوز زمانی ثبت نشده</string>
+    <string name="stats_duration_min">%1$d دقیقه</string>
+    <string name="stats_duration_h_min">%1$d ساعت و %2$d دقیقه</string>
 </resources>

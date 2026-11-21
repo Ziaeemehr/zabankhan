@@ -135,14 +135,23 @@ internal fun classifySelection(text: String, selection: TextRange, lang: Languag
     val tokens = tokenizeSurface(text, lang)
     val first = tokens.firstOrNull { it.end > rawStart && it.start < rawEnd } ?: return null
     val last = tokens.lastOrNull { it.end > rawStart && it.start < rawEnd } ?: return null
-    val start = first.start
-    val end = last.end
-    val snapped = text.substring(start, end)
-    return if (snapped.none(Char::isWhitespace)) {
-        val word = wordAt(text, end - 1, lang) ?: last
-        SelectionKind.Word(word.text, TextRange(word.start, word.end))
-    } else SelectionKind.Phrase(snapped, TextRange(start, end))
+    val range = TextRange(first.start, last.end)
+    return if (first == last) {
+        val word = wordAt(text, last.end - 1, lang) ?: last
+        SelectionKind.Word(word.text, range)
+    } else SelectionKind.Phrase(text.substring(range.min, range.max), range)
 }
+
+/** Copy rendered text from the covered blocks while retaining source offsets for highlights. */
+internal fun selectedReaderText(parts: List<Paragraph>, range: IntRange): String =
+    parts.asSequence()
+        .filter { it.offset <= range.last && it.offset + it.text.length > range.first }
+        .mapNotNull { part ->
+            val start = part.sourceOffsets.indexOfFirst { it in range }
+            val end = part.sourceOffsets.indexOfLast { it in range }
+            if (start < 0) null else part.block.plainText.substring(start, end + 1)
+        }
+        .joinToString("\n")
 
 /** Reference follow thresholds, factored for deterministic viewport tests. */
 internal fun followScrollDelta(itemTop: Float, itemSize: Float, viewportStart: Float,

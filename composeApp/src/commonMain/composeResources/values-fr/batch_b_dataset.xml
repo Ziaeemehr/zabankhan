@@ -18,7 +18,7 @@
   <string name="dataset_remove_deleted_deck_cards_confirm">Nettoyer les cartes non classées des paquets intégrés ? Les copies des paquets supprimés sont effacées. Les copies des paquets ajoutés à nouveau sont fusionnées en conservant la progression. Vos propres mots restent inchangés.</string>
   <string name="dataset_removed_result">%1$d cartes supprimées</string>
   <string name="dataset_empty_language">Aucun paquet de contenu pour cette langue pour le moment</string>
-  <string name="dataset_download_install">Télécharger et installer</string>
+  <string name="dataset_download_install">Télécharger</string>
   <string name="dataset_pack_size">Taille du téléchargement : %1$s</string>
   <string name="dataset_size_unknown">Taille indisponible</string>
   <string name="dataset_installed_count">Installé : %1$d / %2$d</string>

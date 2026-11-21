@@ -334,6 +334,7 @@
     <string name="vocab_list_new">لیست جدید</string>
     <string name="vocab_list_select">انتخاب لیست</string>
     <string name="vocab_list_uncategorized">بدون دسته</string>
+    <string name="action_clear">پاک کردن</string>
     <string name="action_close">بستن</string>
     <string name="gesture_reading_row_2">واژه ← انتخاب؛ دستگیره‌ها را برای گسترش بکشید</string>
     <string name="gesture_reading_row_4">انتخاب ← نوار ابزار: هایلایت، معنی/ذخیره، بیشتر</string>
@@ -382,4 +383,10 @@
     <string name="video_playlist_choose">انتخاب فهرست‌ها</string>
     <string name="done">تمام</string>
     <string name="videos_playlists">فهرست‌ها</string>
+    <string name="highlight_custom_color">رنگ دلخواه</string>
+    <string name="highlight_hue">فام</string>
+    <string name="selection_extend">گسترش انتخاب</string>
+    <string name="selection_extend_hint">برای گسترش انتخاب، روی یک واژه بزنید</string>
+    <string name="library_select_folder">انتخاب پوشه</string>
+    <string name="library_folder_selection_count">%1$d پوشه انتخاب شده</string>
 </resources>

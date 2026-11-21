@@ -52,7 +52,7 @@ class ReaderPortLogicTest {
     }
 
     @Test fun selectionUsesLanguageElisionAndJoinerRules() {
-        assertEquals(SelectionKind.Word("appartement", TextRange(2, 13)),
+        assertEquals(SelectionKind.Word("appartement", TextRange(0, 13)),
             classifySelection("l’appartement", TextRange(0, 13), Languages.FRENCH))
         val text = "او می‌رود خانه"
         val word = classifySelection(text, TextRange(4, 6), Languages.PERSIAN) as SelectionKind.Word

@@ -67,8 +67,10 @@
     <string name="study_log_no_default_skill">بدون مهارت پیشنهادی</string>
     <string name="study_log_year_view">سال</string>
     <string name="study_log_month_view">ماه</string>
+    <string name="study_log_less">کمتر</string>
+    <string name="study_log_more">بیشتر</string>
     <string name="study_log_combined_total">مجموع زمان: %1$d دقیقه</string>
-    <string name="study_log_weekly_study_time">زمان مطالعه · ۷ روز گذشته (دقیقه)</string>
+    <string name="study_log_year_summary">%1$s · بهترین ماه %2$s</string>
     <string name="study_log_weekly_reviews">مرور · ۷ روز گذشته: %1$d</string>
     <string name="study_month_january">ژانویه</string><string name="study_month_february">فوریه</string><string name="study_month_march">مارس</string><string name="study_month_april">آوریل</string><string name="study_month_may">مه</string><string name="study_month_june">ژوئن</string><string name="study_month_july">ژوئیه</string><string name="study_month_august">اوت</string><string name="study_month_september">سپتامبر</string><string name="study_month_october">اکتبر</string><string name="study_month_november">نوامبر</string><string name="study_month_december">دسامبر</string>
     <string name="study_month_short_january">ژان</string><string name="study_month_short_february">فور</string><string name="study_month_short_march">مار</string><string name="study_month_short_april">آور</string><string name="study_month_short_may">مه</string><string name="study_month_short_june">ژوئن</string><string name="study_month_short_july">ژوئیه</string><string name="study_month_short_august">اوت</string><string name="study_month_short_september">سپ</string><string name="study_month_short_october">اکت</string><string name="study_month_short_november">نوا</string><string name="study_month_short_december">دسا</string>

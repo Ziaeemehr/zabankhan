@@ -81,3 +81,19 @@ fun visibleFolderTree(folders: List<LibraryFolder>, expandedIds: Set<Long>): Lis
     }
     return result
 }
+
+/** Count documents under each folder in the same hierarchy that the tree displays. */
+internal fun libraryFolderCounts(
+    folders: List<LibraryFolder>,
+    directCounts: Map<Long?, Int>
+): Map<Long, Int> {
+    val childCounts = IntArray(folders.size + 1)
+    return buildMap {
+        for ((folder, depth) in flattenTree(folders).asReversed()) {
+            val count = directCounts.getOrElse(folder.id) { 0 } + childCounts[depth + 1]
+            childCounts[depth + 1] = 0
+            childCounts[depth] += count
+            put(folder.id, count)
+        }
+    }
+}

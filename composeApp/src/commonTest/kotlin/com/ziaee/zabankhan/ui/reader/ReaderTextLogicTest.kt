@@ -1,10 +1,39 @@
 package com.ziaee.zabankhan.ui.reader
 
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.TextRange
+import com.ziaee.zabankhan.data.HighlightEntry
 import com.ziaee.zabankhan.lang.Languages
 import com.ziaee.zabankhan.lang.tokenizeSurface
 import kotlin.test.*
 
 class ReaderTextLogicTest {
+    @Test fun selectionKeepsElidedPrefixesAtLineStart() {
+        listOf("s'arranger", "l’ami", "d’accord", "qu’il", "j’aime").forEach { word ->
+            val text = "Avant\n$word"
+            val start = text.indexOf('\n') + 1
+            val selection = classifySelection(text, TextRange(start + 3, text.length), Languages.FRENCH)
+            assertEquals(TextRange(start, text.length), (selection as SelectionKind.Word).range)
+        }
+    }
+
+    @Test fun copyUsesRenderedTextAcrossParagraphsAndListItems() {
+        val body = "Intro text\n\n- first [link](https://example.com)\n- second item"
+        val range = body.indexOf("text") until body.indexOf(" item")
+        assertEquals("text\nfirst link\nsecond", selectedReaderText(paragraphs(body), range))
+    }
+
+    @Test fun highlightsUseContrastingInkForLegacyAndCustomColors() {
+        fun style(key: String) = applyHighlights("word",
+            listOf(HighlightEntry(textId = 1, startOffset = 0, endOffset = 4, colorKey = key)),
+            surface = Color.Black).spanStyles.single().item
+        assertEquals(Color.Black, style("yellow").color)
+        val navy = Color(0xFF26456E)
+        assertEquals("#FF26456E", navy.toHighlightKey())
+        assertEquals(navy, style(navy.toHighlightKey()).background)
+        assertEquals(Color.White, style(navy.toHighlightKey()).color)
+    }
+
     @Test fun phraseSelectionSnapsBothDirectionsAndKeepsPunctuation() {
         val text = "l’ami,  vient!"
         val words = tokenizeSurface(text, Languages.FRENCH).map { it.start until it.end }

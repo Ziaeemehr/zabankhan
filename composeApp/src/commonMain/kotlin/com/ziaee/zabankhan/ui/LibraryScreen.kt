@@ -14,9 +14,11 @@ import com.ziaee.zabankhan.lang.*
 import com.ziaee.zabankhan.resources.*
 import org.jetbrains.compose.resources.stringResource
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.withContext
 
-/** AppViewModel/Room KMP host for French Reader's unmodified stateless LibraryContent. */
+/** AppViewModel and Room host for LibraryContent. */
 @Composable
 fun LibraryScreen(vm: AppViewModel, settings: AppSettings, open: (Long) -> Unit, add: () -> Unit,
     watch: () -> Unit, discover: () -> Unit = {}, openAt: (Long, String) -> Unit = { id, _ -> open(id) }) {
@@ -35,14 +37,24 @@ fun LibraryScreen(vm: AppViewModel, settings: AppSettings, open: (Long) -> Unit,
     var level by remember(lang) { mutableStateOf<LevelFilter>(LevelFilter.All) }
     var tagIds by remember(lang) { mutableStateOf(emptySet<Long>()) }
     var selected by remember(lang) { mutableStateOf(emptySet<Long>()) }
-    var snippets by remember(lang) { mutableStateOf(emptyMap<Long, String>()) }
+    var snippets by remember(lang, query) { mutableStateOf(emptyMap<Long, String>()) }
     LaunchedEffect(lang, query, texts) {
+        if (query.isBlank()) return@LaunchedEffect
         delay(250)
-        val match = textSearchMatch(query)
-        snippets = if (match == null) emptyMap() else try {
-            dao.searchFullText(lang, match, Int.MAX_VALUE).associate { it.id to it.snippet }
-        } catch (error: CancellationException) { throw error }
-        catch (_: Exception) { texts.mapNotNull { doc -> bodySnippet(doc.body, query, spec)?.let { doc.id to it } }.toMap() }
+        val indexed = try {
+            textSearchMatch(query)?.let { match ->
+                dao.searchFullText(lang, match, Int.MAX_VALUE).associate { it.id to it.snippet }
+            }.orEmpty()
+        } catch (error: CancellationException) {
+            throw error
+        } catch (_: Exception) {
+            emptyMap()
+        }
+        snippets = withContext(Dispatchers.Default) {
+            texts.mapNotNull { doc ->
+                (indexed[doc.id] ?: bodySnippet(doc.body, query, spec))?.let { doc.id to it }
+            }.toMap()
+        }
     }
     val tagIdsByText = remember(refs) { refs.groupBy { it.textId }.mapValues { (_, refs) -> refs.mapTo(mutableSetOf()) { it.tagId } } }
     val completionCache = remember(lang) { LibraryCompletionCache() }
@@ -126,7 +138,7 @@ fun LibraryScreen(vm: AppViewModel, settings: AppSettings, open: (Long) -> Unit,
         onCreateFolderAndMoveSelected = { name -> vm.action { createFolder(name)?.let { parent -> selection.forEach { dao.setFolder(it, parent) } }; selected = emptySet() } },
         onCreateTagAndAddToSelected = { name, ids -> vm.action { createTag(name)?.let { organizer.addTagsToTexts(selection.toList(), (ids + it).toList()) }; selected = emptySet() } },
         importAction = { ImportAddMenu(vm, settings, add, open, watch, discover, trigger = { onImport, busy ->
-            IconButton(onClick = onImport, enabled = !busy) { Icon(Icons.Default.Add, stringResource(Res.string.add_text)) }
+            FilledIconButton(onClick = onImport, enabled = !busy, modifier = Modifier.size(40.dp)) { Icon(Icons.Default.Add, stringResource(Res.string.add_text), modifier = Modifier.size(24.dp)) }
         }) }
     )
 }

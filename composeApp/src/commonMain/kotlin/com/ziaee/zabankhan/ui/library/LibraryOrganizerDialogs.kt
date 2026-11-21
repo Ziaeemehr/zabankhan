@@ -2,21 +2,45 @@ package com.ziaee.zabankhan.ui
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.Folder
+import androidx.compose.material.icons.outlined.Sell
+import androidx.compose.material.icons.outlined.Edit
+import androidx.compose.material.icons.outlined.Delete
+import androidx.compose.material.icons.outlined.CreateNewFolder
+import androidx.compose.material.icons.outlined.DriveFileMove
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.CreateNewFolder
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.DriveFileMove
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Surface
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -25,6 +49,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -36,12 +61,14 @@ import androidx.compose.ui.platform.testTag
 import org.jetbrains.compose.resources.stringResource
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.graphics.Color
 import com.ziaee.zabankhan.resources.*
 import org.jetbrains.compose.resources.StringResource
 import com.ziaee.zabankhan.data.LibraryFolder
 import com.ziaee.zabankhan.data.LibraryTag
 import com.ziaee.zabankhan.data.TextDocument
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 internal fun LibraryOrganizerDialog(
     folders: List<LibraryFolder>,
@@ -67,12 +94,21 @@ internal fun LibraryOrganizerDialog(
     var confirmDeleteFolderWithFiles by remember { mutableStateOf<LibraryFolder?>(null) }
     var deleteTag by remember { mutableStateOf<LibraryTag?>(null) }
 
-    AlertDialog(
-        modifier = Modifier.testTag("libraryOrganizerDialog"),
-        onDismissRequest = onDismiss,
-        title = { Text(stringResource(Res.string.library_manage_organizer)) },
-        text = {
-            Column(Modifier.heightIn(max = 520.dp).verticalScroll(rememberScrollState())) {
+    Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
+        Surface(
+            modifier = Modifier.fillMaxWidth().imePadding().padding(horizontal = 16.dp).testTag("libraryOrganizerDialog"),
+            shape = RoundedCornerShape(28.dp),
+            color = MaterialTheme.colorScheme.surface
+        ) {
+            Column(Modifier.heightIn(max = 600.dp)) {
+                Row(Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Text(stringResource(Res.string.library_manage_organizer), style = MaterialTheme.typography.titleLarge, modifier = Modifier.weight(1f))
+                    IconButton(onClick = onDismiss) {
+                        Icon(Icons.Default.Close, contentDescription = stringResource(Res.string.action_close))
+                    }
+                }
+                HorizontalDivider()
+                Column(Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(horizontal = 16.dp)) {
                 FolderOrganizerSection(
                     folders = folders,
                     input = folderName,
@@ -94,19 +130,16 @@ internal fun LibraryOrganizerDialog(
                     onDelete = { id -> deleteTag = tags.first { it.id == id } },
                     testTag = "tag"
                 )
+                }
+                HorizontalDivider()
+                Row(Modifier.fillMaxWidth().padding(16.dp), horizontalArrangement = Arrangement.End) {
+                    OutlinedButton(
+                        onClick = onDismiss, modifier = Modifier.testTag("libraryOrganizerDone")
+                    ) { Text(stringResource(Res.string.action_close)) }
+                }
             }
-        },
-        confirmButton = {
-            TextButton(
-                onClick = {
-                    if (folderName.isNotBlank()) onCreateFolder(folderName)
-                    if (tagName.isNotBlank()) onCreateTag(tagName)
-                    onDismiss()
-                },
-                modifier = Modifier.testTag("libraryOrganizerDone")
-            ) { Text(stringResource(Res.string.action_close)) }
         }
-    )
+    }
 
     addSubfolderTo?.let { parent ->
         NameOrganizerDialog(
@@ -189,6 +222,7 @@ internal fun LibraryOrganizerDialog(
 }
 
 @Composable
+@OptIn(ExperimentalLayoutApi::class)
 private fun FolderOrganizerSection(
     folders: List<LibraryFolder>,
     input: String,
@@ -199,30 +233,23 @@ private fun FolderOrganizerSection(
     onMove: (LibraryFolder) -> Unit,
     onDelete: (LibraryFolder) -> Unit
 ) {
-    Text(
-        stringResource(Res.string.library_folders),
-        style = MaterialTheme.typography.titleMedium,
-        modifier = Modifier.padding(top = 8.dp)
-    )
+    Text(stringResource(Res.string.library_folders), style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(top = 16.dp, bottom = 8.dp))
     flattenTree(folders).forEach { (folder, depth) ->
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier.fillMaxWidth().padding(start = (depth * 16).dp)
-                .testTag("folderRow_${folder.id}")
-        ) {
-            Text(folder.name, modifier = Modifier.weight(1f))
-            IconButton(
-                onClick = { onAddSubfolder(folder) },
-                modifier = Modifier.testTag("folderAddSubfolder_${folder.id}")
-            ) { Icon(Icons.Default.CreateNewFolder, contentDescription = stringResource(Res.string.add_subfolder)) }
-            IconButton(onClick = { onRename(folder) }, modifier = Modifier.testTag("folderRename_${folder.id}")) {
-                Icon(Icons.Default.Edit, contentDescription = stringResource(Res.string.action_edit))
-            }
-            IconButton(onClick = { onMove(folder) }, modifier = Modifier.testTag("folderMove_${folder.id}")) {
-                Icon(Icons.Default.DriveFileMove, contentDescription = stringResource(Res.string.move_folder))
-            }
-            IconButton(onClick = { onDelete(folder) }, modifier = Modifier.testTag("folderDelete_${folder.id}")) {
-                Icon(Icons.Default.Delete, contentDescription = stringResource(Res.string.action_delete))
+        Row(Modifier.fillMaxWidth().padding(start = (depth * 16).dp, bottom = 8.dp).testTag("folderRow_${folder.id}")) {
+            if (depth > 0) Box(Modifier.width(1.dp).heightIn(min = 48.dp).background(MaterialTheme.colorScheme.outlineVariant))
+            Surface(shape = RoundedCornerShape(16.dp), color = MaterialTheme.colorScheme.surfaceContainer, modifier = Modifier.weight(1f)) {
+                Column(Modifier.padding(12.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        OrganizerIcon(Icons.Outlined.Folder, MaterialTheme.colorScheme.primaryContainer, MaterialTheme.colorScheme.onPrimaryContainer)
+                        Text(folder.name, modifier = Modifier.weight(1f).padding(start = 10.dp), style = MaterialTheme.typography.titleSmall)
+                    }
+                    FlowRow(horizontalArrangement = Arrangement.End, modifier = Modifier.fillMaxWidth()) {
+                        OrganizerAction(Icons.Outlined.CreateNewFolder, stringResource(Res.string.add_subfolder), { onAddSubfolder(folder) }, "folderAddSubfolder_${folder.id}")
+                        OrganizerAction(Icons.Outlined.Edit, stringResource(Res.string.action_edit), { onRename(folder) }, "folderRename_${folder.id}")
+                        OrganizerAction(Icons.Outlined.DriveFileMove, stringResource(Res.string.move_folder), { onMove(folder) }, "folderMove_${folder.id}")
+                        OrganizerAction(Icons.Outlined.Delete, stringResource(Res.string.action_delete), { onDelete(folder) }, "folderDelete_${folder.id}", destructive = true)
+                    }
+                }
             }
         }
     }
@@ -247,15 +274,14 @@ private fun OrganizerSection(
     onDelete: (Long) -> Unit,
     testTag: String
 ) {
-    Text(title, style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(top = 8.dp))
+    Spacer(Modifier.height(16.dp)); HorizontalDivider(); Text(title, style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(top = 16.dp, bottom = 8.dp))
     items.forEach { (id, name) ->
-        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
-            Text(name, modifier = Modifier.weight(1f))
-            IconButton(onClick = { onRename(id) }, modifier = Modifier.testTag("${testTag}Rename_$id")) {
-                Icon(Icons.Default.Edit, contentDescription = stringResource(Res.string.action_edit))
-            }
-            IconButton(onClick = { onDelete(id) }, modifier = Modifier.testTag("${testTag}Delete_$id")) {
-                Icon(Icons.Default.Delete, contentDescription = stringResource(Res.string.action_delete))
+        Surface(shape = RoundedCornerShape(16.dp), color = MaterialTheme.colorScheme.surfaceContainer, modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp)) {
+            Row(Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                OrganizerIcon(Icons.Outlined.Sell, MaterialTheme.colorScheme.primaryContainer, MaterialTheme.colorScheme.onPrimaryContainer)
+                Text(name, modifier = Modifier.weight(1f).padding(start = 10.dp))
+                OrganizerAction(Icons.Outlined.Edit, stringResource(Res.string.action_edit), { onRename(id) }, "${testTag}Rename_$id")
+                OrganizerAction(Icons.Outlined.Delete, stringResource(Res.string.action_delete), { onDelete(id) }, "${testTag}Delete_$id", destructive = true)
             }
         }
     }
@@ -279,10 +305,30 @@ private fun OrganizerInput(
             singleLine = true,
             keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
             keyboardActions = KeyboardActions(onDone = { if (input.isNotBlank()) onAdd() }),
+            shape = RoundedCornerShape(16.dp),
             modifier = Modifier.weight(1f).testTag(inputTestTag)
         )
         IconButton(onClick = onAdd, enabled = input.isNotBlank(), modifier = Modifier.testTag("${testTag}Add")) {
             Icon(Icons.Default.Add, contentDescription = stringResource(Res.string.action_add))
+        }
+    }
+}
+
+@Composable
+private fun OrganizerIcon(icon: androidx.compose.ui.graphics.vector.ImageVector, background: Color, tint: Color) {
+    Surface(shape = CircleShape, color = background, modifier = Modifier.size(36.dp)) {
+        Box(contentAlignment = Alignment.Center) { Icon(icon, contentDescription = null, tint = tint, modifier = Modifier.size(20.dp)) }
+    }
+}
+
+@Composable
+private fun OrganizerAction(icon: androidx.compose.ui.graphics.vector.ImageVector, label: String, onClick: () -> Unit, tag: String, destructive: Boolean = false) {
+    val scheme = MaterialTheme.colorScheme
+    IconButton(onClick = onClick, modifier = Modifier.size(40.dp).testTag(tag)) {
+        Surface(shape = CircleShape, color = if (destructive) scheme.errorContainer else scheme.secondaryContainer, modifier = Modifier.size(32.dp)) {
+            Box(contentAlignment = Alignment.Center) {
+                Icon(icon, contentDescription = label, tint = if (destructive) scheme.onErrorContainer else scheme.onSecondaryContainer, modifier = Modifier.size(20.dp))
+            }
         }
     }
 }

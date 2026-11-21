@@ -105,6 +105,8 @@ private class ReadingViewport {
 }
 private val LocalReadingViewport = compositionLocalOf<ReadingViewport?> { null }
 private val LocalReaderLanguage = staticCompositionLocalOf { Languages.ENGLISH }
+private val LocalExtendedSelection = compositionLocalOf<IntRange?> { null }
+private val LocalExtendingSelection = compositionLocalOf { false }
 private val LocalReaderFindRevision = staticCompositionLocalOf { 0 }
 
 @OptIn(ExperimentalMaterial3Api::class, kotlinx.coroutines.FlowPreview::class)
@@ -170,6 +172,8 @@ fun ReadingScreen(vm: AppViewModel, settings: AppSettings, textId: Long, onBack:
     var rate by remember { mutableFloatStateOf(settings.speechRate) }
     var dictionaryTarget by remember(textId) { mutableStateOf<ReaderSelection?>(null) }
     var selection by remember(textId) { mutableStateOf<ReaderSelection?>(null) }
+    var extensionAnchor by remember(textId) { mutableStateOf<ReaderSelection?>(null) }
+    var extendedSelection by remember(textId) { mutableStateOf(false) }
     var clearSelectionTick by remember { mutableIntStateOf(0) }
     var textSelectionActive by remember { mutableStateOf(false) }
     var showHighlightPalette by remember { mutableStateOf(false) }
@@ -344,7 +348,19 @@ fun ReadingScreen(vm: AppViewModel, settings: AppSettings, textId: Long, onBack:
             }
         }
     }
-    fun clearSelection() { selection = null; showHighlightPalette = false; processTextTarget = null; clearSelectionTick++ }
+    fun clearSelection() {
+        selection = null
+        extensionAnchor = null
+        extendedSelection = false
+        showHighlightPalette = false
+        processTextTarget = null
+        clearSelectionTick++
+    }
+    fun extendSelection() {
+        extensionAnchor = selection
+        clearSelectionTick++
+        textSelectionActive = false
+    }
     fun applyHighlight(key: String) {
         val selected = selection ?: return
         vm.action {
@@ -357,14 +373,32 @@ fun ReadingScreen(vm: AppViewModel, settings: AppSettings, textId: Long, onBack:
         clearSelection()
     }
     fun select(word: String, sentence: String, range: TextRange, openDictionary: Boolean) {
+        val anchor = extensionAnchor
+        if (anchor != null) {
+            if (openDictionary) {
+                val extended = minOf(anchor.range.first, range.min) until maxOf(anchor.range.last + 1, range.max)
+                selection = ReaderSelection(selectedReaderText(parts, extended), anchor.sentence, extended,
+                    sentenceActions = true, sentenceRange = anchor.sentenceRange)
+                extensionAnchor = null
+                extendedSelection = true
+            }
+            return
+        }
         val around = sentenceAround(text.body, range.min, lang)
         val selected = ReaderSelection(word, sentence, range.min until range.max,
             tokenizeSurface(word, lang).size > 1, around)
         if (openDictionary) { playback.pause(); dictionaryTarget = selected; clearSelection() }
-        else { selection = selected; showHighlightPalette = false; processTextTarget = null }
+        else {
+            selection = selected
+            extendedSelection = false
+            showHighlightPalette = false
+            processTextTarget = null
+        }
     }
     if (showGestureGuide) { GestureGuideScreen(lang) { showGestureGuide = false }; return }
     CompositionLocalProvider(LocalReaderLanguage provides lang, LocalReadingViewport provides readingViewport,
+        LocalExtendedSelection provides selection?.range?.takeIf { extendedSelection || extensionAnchor != null },
+        LocalExtendingSelection provides (extensionAnchor != null),
         LocalTextToolbar provides selectionToolbarController,
         LocalTextContextMenuToolbarProvider provides selectionToolbarController,
         LocalTextContextMenuDropdownProvider provides selectionToolbarController,
@@ -679,10 +713,20 @@ fun ReadingScreen(vm: AppViewModel, settings: AppSettings, textId: Long, onBack:
         }
         val selected = selection
         val toolbarRect = selectionToolbarController.rect
-        if (selected != null && toolbarRect != null && selectionToolbarController.status == TextToolbarStatus.Shown) {
+        if (extensionAnchor != null) {
+            Popup(alignment = Alignment.BottomCenter, onDismissRequest = ::clearSelection,
+                properties = androidx.compose.ui.window.PopupProperties(dismissOnClickOutside = false)) {
+                Surface(shape = RoundedCornerShape(8.dp), tonalElevation = 6.dp, shadowElevation = 6.dp) {
+                    Column(Modifier.padding(horizontal = 12.dp, vertical = 4.dp)) {
+                        Text(stringResource(Res.string.selection_extend_hint))
+                        TextButton(onClick = ::clearSelection) { Text(stringResource(Res.string.cancel)) }
+                    }
+                }
+            }
+        } else if (selected != null && (extendedSelection ||
+                toolbarRect != null && selectionToolbarController.status == TextToolbarStatus.Shown)) {
             val ids = overlappingHighlightIds(TextRange(selected.range.first, selected.range.last + 1), highlights)
-            Popup(popupPositionProvider = SelectionRectPositionProvider(toolbarRect, with(density) { 8.dp.toPx() }),
-                properties = androidx.compose.ui.window.PopupProperties(dismissOnClickOutside = false), onDismissRequest = ::clearSelection) {
+            val toolbarContent: @Composable () -> Unit = {
                 val delete: (() -> Unit)? = ids.takeIf { it.isNotEmpty() }?.let { found -> {
                     vm.action { found.forEach { vm.container.highlights.delete(it) } }; clearSelection()
                 } }
@@ -695,14 +739,22 @@ fun ReadingScreen(vm: AppViewModel, settings: AppSettings, textId: Long, onBack:
                     !selected.sentenceActions -> DefineToolbarContent(
                         onDefine = { playback.pause(); dictionaryTarget = selected; clearSelection() },
                         onHighlight = { applyHighlight(lastHighlightColorKey) }, onChooseHighlightColor = { showHighlightPalette = true },
-                        onDeleteHighlight = delete, onMore = { processTextTarget = selected.word })
+                        onDeleteHighlight = delete, onMore = { processTextTarget = selected.word }, onExtend = ::extendSelection)
                     else -> SelectionToolbarContent(
                         onCopy = { clipboard.setText(AnnotatedString(selected.word)); clearSelection() },
                         onSave = { playback.pause(); dictionaryTarget = selected; clearSelection() },
                         onListen = { playback.sentenceOnly(selected.word, selected.range.first, rate, settings.ttsVoices[lang.code]); clearSelection() },
                         onHighlight = { applyHighlight(lastHighlightColorKey) }, onChooseHighlightColor = { showHighlightPalette = true },
-                        onDeleteHighlight = delete, onMore = { processTextTarget = selected.word })
+                        onDeleteHighlight = delete, onMore = { processTextTarget = selected.word }, onExtend = ::extendSelection)
                 }
+            }
+            val popupProperties = androidx.compose.ui.window.PopupProperties(dismissOnClickOutside = false)
+            if (extendedSelection) {
+                Popup(alignment = Alignment.BottomCenter, properties = popupProperties,
+                    onDismissRequest = ::clearSelection, content = toolbarContent)
+            } else if (toolbarRect != null) {
+                Popup(popupPositionProvider = SelectionRectPositionProvider(toolbarRect, with(density) { 8.dp.toPx() }),
+                    properties = popupProperties, onDismissRequest = ::clearSelection, content = toolbarContent)
             }
         }
     }
@@ -1190,7 +1242,8 @@ private fun SentenceFlowText(
         highlights,
         documentStartOffset,
         findRanges,
-        activeFindRange
+        activeFindRange,
+        palette.background
     ) {
         buildAnnotatedString {
             ranges.clear()
@@ -1210,28 +1263,15 @@ private fun SentenceFlowText(
                     addStyle(style, match.range.first, match.range.last + 1)
                 }
             }
-            // Manual highlights are a separate, offset-based layer. Apply
-            // their background after vocabulary styles so a saved-word tint
-            // cannot hide the color the reader explicitly chose; the vocab
-            // underline and foreground color remain intact.
-            val localHighlights = highlights.mapNotNull { highlight ->
-                val positions = (sliceStart until sliceEnd).filter { chunk.sourceOffsets.getOrElse(it) { documentStartOffset + it } in highlight.startOffset until highlight.endOffset }
-                val start = positions.firstOrNull()?.minus(sliceStart) ?: return@mapNotNull null
-                val end = (positions.last() + 1 - sliceStart)
-                if (start < end) highlight.copy(startOffset = start, endOffset = end) else null
-            }
-            applyHighlights(full, localHighlights).spanStyles.forEach { span ->
-                addStyle(span.item, span.start, span.end)
-            }
-            // Find-in-text matches sit on top of manual highlights so they stay visible; the
-            // current match is stronger than the rest.
+            // Underlining keeps find matches visible where they overlap a manual highlight.
             for (range in findRanges) {
                 if (range.first < 0 || range.last >= full.length) continue
                 val active = range == activeFindRange
                 addStyle(
                     SpanStyle(
                         background = palette.accent.copy(alpha = if (active) 0.55f else 0.22f),
-                        fontWeight = if (active) FontWeight.SemiBold else null
+                        fontWeight = if (active) FontWeight.SemiBold else null,
+                        textDecoration = TextDecoration.Underline
                     ),
                     range.first,
                     range.last + 1
@@ -1249,6 +1289,16 @@ private fun SentenceFlowText(
                         range.last + 1
                     )
                 }
+            }
+            // Keep the manual highlight's foreground and background paired during playback and find.
+            val localHighlights = highlights.mapNotNull { highlight ->
+                val positions = (sliceStart until sliceEnd).filter { chunk.sourceOffsets.getOrElse(it) { documentStartOffset + it } in highlight.startOffset until highlight.endOffset }
+                val start = positions.firstOrNull()?.minus(sliceStart) ?: return@mapNotNull null
+                val end = (positions.last() + 1 - sliceStart)
+                if (start < end) highlight.copy(startOffset = start, endOffset = end) else null
+            }
+            applyHighlights(full, localHighlights, surface = palette.background).spanStyles.forEach { span ->
+                addStyle(span.item, span.start, span.end)
             }
             for (span in chunk.block.emphasisSpans) {
                 val start = maxOf(span.start, sliceStart)
@@ -1268,6 +1318,8 @@ private fun SentenceFlowText(
 
     var selection by remember(chunk.sentences, sliceStart, sliceEnd, clearSelectionSignal) { mutableStateOf(TextRange.Zero) }
     LaunchedEffect(clearSelectionSignal) { onSelectionActiveChange(false) }
+    val extendedRange = LocalExtendedSelection.current
+    val extendingSelection = LocalExtendingSelection.current
     val viewport = LocalReadingViewport.current
     DisposableEffect(viewport, documentStartOffset) {
         onDispose { viewport?.offsets?.remove(documentStartOffset) }
@@ -1383,7 +1435,7 @@ private fun SentenceFlowText(
                 }
             },
             readOnly = true,
-            modifier = Modifier.bringIntoViewRequester(findRequester).pointerInput(displayed, documentStartOffset) {
+            modifier = Modifier.bringIntoViewRequester(findRequester).pointerInput(displayed, documentStartOffset, extendingSelection) {
                 awaitEachGesture {
                     val down = awaitFirstDown(false, PointerEventPass.Initial)
                     var moved = false
@@ -1401,7 +1453,10 @@ private fun SentenceFlowText(
                         val offset = listOf(cursor, cursor - 1).firstOrNull {
                             it in displayed.indices && layout.getBoundingBox(it).contains(up.position)
                         } ?: return@awaitEachGesture
-                        val bounds = wordAt(displayed.text, offset, readerLanguage)?.let { it.start until it.end } ?: return@awaitEachGesture
+                        val token = if (extendingSelection) {
+                            tokenizeSurface(displayed.text, readerLanguage).firstOrNull { offset in it.start until it.end }
+                        } else wordAt(displayed.text, offset, readerLanguage)
+                        val bounds = token?.let { it.start until it.end } ?: return@awaitEachGesture
                         up.consume()
                         onWordLookup(
                             displayed.text.substring(bounds.first, bounds.last + 1),
@@ -1452,6 +1507,14 @@ private fun SentenceFlowText(
             }.drawWithContent {
                 drawContent()
                 val layout = textLayout ?: return@drawWithContent
+                if (extendedRange != null) {
+                    val covered = (sliceStart until sliceEnd).filter { chunk.sourceOffset(it) in extendedRange }
+                    if (covered.isNotEmpty()) {
+                        drawPath(layout.getPathForRange(covered.first() - sliceStart, covered.last() + 1 - sliceStart),
+                            color = palette.selectionBg)
+                    }
+                    return@drawWithContent
+                }
                 if (selection.collapsed || annotated.isEmpty()) return@drawWithContent
                 val start = selection.min.coerceIn(0, annotated.lastIndex)
                 val endChar = (selection.max - 1).coerceIn(0, annotated.lastIndex)

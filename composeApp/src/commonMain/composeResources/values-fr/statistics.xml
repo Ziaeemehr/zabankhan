@@ -18,4 +18,23 @@
     <string name="h2_daily_goal">Objectif quotidien (minutes)</string>
     <string name="h2_discover">Découvrir</string>
     <string name="h2_find_content">Trouver du contenu</string>
+    <string name="stats_words_learned">Mots appris</string>
+    <string name="stats_streak">Série</string>
+    <string name="stats_minutes_week">Minutes cette semaine</string>
+    <string name="stats_trend_up">+%1$d%%</string>
+    <string name="stats_trend_down">−%1$d%%</string>
+    <string name="stats_study_chart">Temps d’étude</string>
+    <string name="stats_period_week">Semaine</string>
+    <string name="stats_period_month">Mois</string>
+    <string name="stats_period_year">Année</string>
+    <string name="stats_selected_value">%1$s : %2$d min</string>
+    <string name="stats_selected_count">%1$s : %2$d</string>
+    <string name="stats_word_status">État des mots</string>
+    <string name="stats_new">Nouveaux</string>
+    <string name="stats_learning">En cours</string>
+    <string name="stats_known">Connus</string>
+    <string name="stats_time_by_skill">Temps par compétence</string>
+    <string name="stats_time_by_skill_empty">Aucun temps d\'étude</string>
+    <string name="stats_duration_min">%1$d min</string>
+    <string name="stats_duration_h_min">%1$d h %2$d min</string>
 </resources>

@@ -95,6 +95,16 @@ class LibraryFolderTreeTest {
         assertEquals(listOf(culture, grammar), visibleFolderTree(folders, setOf(verbs.id)).map { it.folder })
     }
 
+    @Test
+    fun `folder counts include nested documents and exclude unfiled documents`() {
+        val counts = libraryFolderCounts(
+            folders,
+            mapOf(null to 10, grammar.id to 1, irregular.id to 2, adjectives.id to 3)
+        )
+
+        assertEquals(mapOf(grammar.id to 6, verbs.id to 2, irregular.id to 2, adjectives.id to 3, culture.id to 0), counts)
+    }
+
     private fun folder(id: Long, name: String, parentId: Long? = null) =
         LibraryFolder(id = id, lang = "en", name = name, createdAtMs = id, parentId = parentId)
 }

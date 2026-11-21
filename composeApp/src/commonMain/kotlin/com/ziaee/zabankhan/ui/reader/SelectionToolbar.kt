@@ -25,11 +25,13 @@ import androidx.compose.material.icons.filled.MenuBook
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.NoteAdd
 import androidx.compose.material.icons.filled.Palette
+import androidx.compose.material.icons.filled.SelectAll
 import androidx.compose.material.icons.filled.VolumeUp
 import androidx.compose.material.icons.filled.Translate
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Slider
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -42,9 +44,11 @@ import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.first
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.foundation.layout.Box
@@ -150,7 +154,8 @@ fun SelectionToolbarContent(
     onMore: () -> Unit,
     onTranslate: (() -> Unit)? = null,
     showReadingActions: Boolean = true,
-    showListen: Boolean = showReadingActions
+    showListen: Boolean = showReadingActions,
+    onExtend: (() -> Unit)? = null
 ) {
     val actions = buildList {
         if (showReadingActions) {
@@ -158,6 +163,7 @@ fun SelectionToolbarContent(
             add(ToolbarItem(Icons.Default.Palette, stringResource(Res.string.highlight_choose_color), onChooseHighlightColor))
             onDeleteHighlight?.let { add(ToolbarItem(Icons.Default.Delete, stringResource(Res.string.highlight_delete), it)) }
         }
+        onExtend?.let { add(ToolbarItem(Icons.Default.SelectAll, stringResource(Res.string.selection_extend), it)) }
         onNote?.let { add(ToolbarItem(Icons.Default.NoteAdd, stringResource(Res.string.pdf_note_add), it)) }
         add(ToolbarItem(Icons.Default.ContentCopy, stringResource(Res.string.selection_action_copy), onCopy))
         add(ToolbarItem(Icons.Default.BookmarkAdd, stringResource(Res.string.selection_action_save), onSave))
@@ -228,39 +234,60 @@ internal fun semicirclePosition(index: Int, count: Int, radius: Float): Pair<Flo
     return radius + radius * kotlin.math.cos(angle) to radius - radius * kotlin.math.sin(angle)
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun HighlightPalettePopupContent(
     onColorSelected: (String) -> Unit,
     onBack: (() -> Unit)? = null
 ) {
+    var custom by remember { mutableStateOf(false) }
+    var hue by remember { mutableStateOf(48f) }
     Surface(
         shape = RoundedCornerShape(8.dp),
         tonalElevation = 6.dp,
         shadowElevation = 6.dp,
         color = MaterialTheme.colorScheme.surface
     ) {
-        Column(modifier = Modifier.padding(10.dp)) {
+        Column(modifier = Modifier.width(274.dp).padding(10.dp)) {
             Text(
-                text = stringResource(Res.string.highlight_choose_color),
+                text = stringResource(if (custom) Res.string.highlight_custom_color else Res.string.highlight_choose_color),
                 style = MaterialTheme.typography.labelMedium,
                 modifier = Modifier.padding(horizontal = 4.dp, vertical = 4.dp)
             )
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(10.dp),
-                verticalAlignment = Alignment.CenterVertically
+            if (custom) {
+                val hueLabel = stringResource(Res.string.highlight_hue)
+                Slider(value = hue, onValueChange = { hue = it }, valueRange = 0f..360f,
+                    modifier = Modifier.semantics { contentDescription = hueLabel })
+            }
+            val swatches = if (custom) {
+                listOf(.30f, .45f, .60f, .75f, .87f).associate { lightness ->
+                    val color = Color.hsl(hue, .75f, lightness)
+                    color.toHighlightKey() to color
+                }
+            } else HIGHLIGHT_PALETTE
+            FlowRow(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+                maxItemsInEachRow = 6
             ) {
-                HIGHLIGHT_PALETTE.forEach { (key, color) ->
-                    androidx.compose.foundation.layout.Box(
+                swatches.forEach { (key, color) ->
+                    Box(
                         modifier = Modifier
-                            .size(32.dp)
+                            .size(36.dp)
                             .clip(androidx.compose.foundation.shape.CircleShape)
                             .background(color)
                             .clickable { onColorSelected(key) }
+                            .semantics { contentDescription = color.toHighlightKey() }
                     )
                 }
             }
-            onBack?.let { callback ->
-                IconButton(onClick = callback) {
+            if (!custom) {
+                TextButton(onClick = { custom = true }) {
+                    Text(stringResource(Res.string.highlight_custom_color))
+                }
+            }
+            if (custom || onBack != null) {
+                IconButton(onClick = { if (custom) custom = false else onBack?.invoke() }) {
                     Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(Res.string.accessibility_back))
                 }
             }
@@ -279,7 +306,8 @@ fun DefineToolbarContent(
     onHighlight: () -> Unit,
     onChooseHighlightColor: () -> Unit,
     onDeleteHighlight: (() -> Unit)?,
-    onMore: () -> Unit
+    onMore: () -> Unit,
+    onExtend: (() -> Unit)? = null
 ) {
     Surface(
         shape = RoundedCornerShape(8.dp),
@@ -311,6 +339,11 @@ fun DefineToolbarContent(
             TextButton(onClick = onDefine) {
                 Icon(Icons.Default.MenuBook, contentDescription = null, modifier = Modifier.padding(end = 4.dp))
                 Text(stringResource(Res.string.selection_action_define))
+            }
+            onExtend?.let { extend ->
+                IconButton(onClick = extend) {
+                    Icon(Icons.Default.SelectAll, contentDescription = stringResource(Res.string.selection_extend))
+                }
             }
             IconButton(onClick = onMore) {
                 Icon(Icons.Default.MoreVert, contentDescription = stringResource(Res.string.selection_action_more))
