@@ -190,6 +190,7 @@ fun ReadingScreen(vm: AppViewModel, settings: AppSettings, textId: Long, onBack:
     var selection by remember(textId) { mutableStateOf<ReaderSelection?>(null) }
     var extensionAnchor by remember(textId) { mutableStateOf<ReaderSelection?>(null) }
     var extendedSelection by remember(textId) { mutableStateOf(false) }
+    var draggingHandle by remember { mutableStateOf(false) }
     var clearSelectionTick by remember { mutableIntStateOf(0) }
     var textSelectionActive by remember { mutableStateOf(false) }
     var showHighlightPalette by remember { mutableStateOf(false) }
@@ -366,14 +367,22 @@ fun ReadingScreen(vm: AppViewModel, settings: AppSettings, textId: Long, onBack:
     }
     fun clearSelection() {
         selection = null
+        selectionToolbarController.touchSelectionRect = null
+        textSelectionActive = false
         extensionAnchor = null
         extendedSelection = false
         showHighlightPalette = false
         processTextTarget = null
         clearSelectionTick++
     }
+    LaunchedEffect(listState.isScrollInProgress) {
+        if (listState.isScrollInProgress && !draggingHandle && !extendedSelection && selectionToolbarController.touchSelectionRect != null) {
+            clearSelection()
+        }
+    }
     fun extendSelection() {
         extensionAnchor = selection
+        selectionToolbarController.touchSelectionRect = null
         clearSelectionTick++
         textSelectionActive = false
     }
@@ -606,8 +615,8 @@ fun ReadingScreen(vm: AppViewModel, settings: AppSettings, textId: Long, onBack:
         }) { padding ->
             var boxOrigin by remember { mutableStateOf(androidx.compose.ui.geometry.Offset.Zero) }
             Box(Modifier.fillMaxSize().padding(padding).onGloballyPositioned { boxOrigin = it.positionInWindow() }
-                .pointerInput(Unit) {
-                                        awaitEachGesture {
+                .pointerInput(parts, pageNavigation, lang) {
+                    awaitEachGesture {
                         val down = awaitFirstDown(false, PointerEventPass.Initial)
                         val selected = selection ?: return@awaitEachGesture
                         val containerOrigin = boxOrigin
@@ -616,60 +625,61 @@ fun ReadingScreen(vm: AppViewModel, settings: AppSettings, textId: Long, onBack:
                             val coords = entry.coordinates?.takeIf { it.isAttached } ?: return@mapNotNull null
                             val layout = entry.layout ?: return@mapNotNull null
                             val local = coords.windowToLocal(containerOrigin + down.position)
-                            val part = parts.getOrNull(entry.paragraphIndex) ?: return@mapNotNull null
                             val range = selected.range
-                            val endpointIndexes = entry.sourceOffsets.indices.map { it + entry.sliceStart }
-                                .filter { i -> i in part.sourceOffsets.indices && part.sourceOffsets[i] in setOf(range.first, range.last) }
-                            endpointIndexes.firstNotNullOfOrNull { paragraphIndex ->
-                                val char = paragraphIndex - entry.sliceStart
+                            listOf(range.first to true, range.last to false).firstNotNullOfOrNull { (endpoint, isStart) ->
+                                val char = if (isStart) entry.sourceOffsets.indexOf(endpoint) else entry.sourceOffsets.lastIndexOf(endpoint)
                                 if (char !in layout.layoutInput.text.indices) return@firstNotNullOfOrNull null
-                                val rect = layout.getBoundingBox(char)
                                 val line = layout.getLineForOffset(char)
-                                val barX = if (part.sourceOffsets[paragraphIndex] == range.first) rect.left else rect.right
+                                val barX = layout.selectionHandleX(char, isStart)
                                 val area = androidx.compose.ui.geometry.Rect(barX - 10.dp.toPx(), layout.getLineBottom(line), barX + 10.dp.toPx(), layout.getLineBottom(line) + 20.dp.toPx())
-                                if (area.contains(local)) Triple(entry, part.sourceOffsets[paragraphIndex], paragraphIndex) else null
+                                if (area.contains(local)) isStart else null
                             }
                         }.firstOrNull() ?: return@awaitEachGesture
-                        val entry = hitHandle.first
-                        val anchor = if (hitHandle.second == selected.range.first) selected.range.last else selected.range.first
+                        val anchor = if (hitHandle) selected.range.last else selected.range.first
+                        draggingHandle = true
+                        selectionToolbarController.touchSelectionRect = null
                         var change = down
                         var dragging = false
-                        var lastWindow = down.position + entry.coordinates!!.positionInWindow()
+                        var lastWindow = containerOrigin + down.position
                         var autoScrollJob: Job? = null
-                        while (change.pressed) {
-                            val event = awaitPointerEvent(PointerEventPass.Initial)
-                            change = event.changes.firstOrNull { it.id == down.id } ?: break
-                            lastWindow = containerOrigin + change.position
-                            if (!dragging && (change.position - down.position).getDistance() > viewConfiguration.touchSlop) dragging = true
-                            if (dragging) {
-                                change.consume()
-                                updateCrossParagraphSelection(anchor, lastWindow.x, lastWindow.y)
-                                val viewport = readingViewport.bounds
-                                val edge = 56.dp.toPx()
-                                val delta = when {
-                                    lastWindow.y < viewport.top + edge -> -((viewport.top + edge - lastWindow.y) * .16f).coerceAtMost(24f)
-                                    lastWindow.y > viewport.bottom - edge -> ((lastWindow.y - (viewport.bottom - edge)) * .16f).coerceAtMost(24f)
-                                    else -> 0f
-                                }
-                                if (pageNavigation == PageNavigation.SCROLL && delta != 0f && autoScrollJob == null) {
-                                    autoScrollJob = scope.launch {
-                                        while (isActive) {
-                                            val currentViewport = readingViewport.bounds
-                                            val currentDelta = when {
-                                                lastWindow.y < currentViewport.top + edge -> -((currentViewport.top + edge - lastWindow.y) * .16f).coerceAtMost(24f)
-                                                lastWindow.y > currentViewport.bottom - edge -> ((lastWindow.y - (currentViewport.bottom - edge)) * .16f).coerceAtMost(24f)
-                                                else -> 0f
-                                            }
-                                            if (currentDelta == 0f) break
-                                            listState.scrollBy(currentDelta)
-                                            withFrameNanos { }
-                                            updateCrossParagraphSelection(anchor, lastWindow.x, lastWindow.y)
-                                        }
+                        try {
+                            while (change.pressed) {
+                                val event = awaitPointerEvent(PointerEventPass.Initial)
+                                change = event.changes.firstOrNull { it.id == down.id } ?: break
+                                lastWindow = containerOrigin + change.position
+                                if (!dragging && (change.position - down.position).getDistance() > viewConfiguration.touchSlop) dragging = true
+                                if (dragging) {
+                                    change.consume()
+                                    updateCrossParagraphSelection(anchor, lastWindow.x, lastWindow.y)
+                                    val viewport = readingViewport.bounds
+                                    val edge = 56.dp.toPx()
+                                    val delta = when {
+                                        lastWindow.y < viewport.top + edge -> -((viewport.top + edge - lastWindow.y) * .16f).coerceAtMost(24f)
+                                        lastWindow.y > viewport.bottom - edge -> ((lastWindow.y - (viewport.bottom - edge)) * .16f).coerceAtMost(24f)
+                                        else -> 0f
                                     }
-                                } else if (delta == 0f) { autoScrollJob?.cancel(); autoScrollJob = null }
+                                    if (pageNavigation == PageNavigation.SCROLL && delta != 0f && autoScrollJob?.isActive != true) {
+                                        autoScrollJob = scope.launch {
+                                            while (isActive) {
+                                                val currentViewport = readingViewport.bounds
+                                                val currentDelta = when {
+                                                    lastWindow.y < currentViewport.top + edge -> -((currentViewport.top + edge - lastWindow.y) * .16f).coerceAtMost(24f)
+                                                    lastWindow.y > currentViewport.bottom - edge -> ((lastWindow.y - (currentViewport.bottom - edge)) * .16f).coerceAtMost(24f)
+                                                    else -> 0f
+                                                }
+                                                if (currentDelta == 0f) break
+                                                listState.scrollBy(currentDelta)
+                                                withFrameNanos { }
+                                                updateCrossParagraphSelection(anchor, lastWindow.x, lastWindow.y)
+                                            }
+                                        }
+                                    } else if (delta == 0f) { autoScrollJob?.cancel(); autoScrollJob = null }
+                                }
                             }
+                        } finally {
+                            autoScrollJob?.cancel()
+                            draggingHandle = false
                         }
-                        autoScrollJob?.cancel()
                     }
                 }) {
                 if (pageNavigation == PageNavigation.SCROLL) LazyColumn(state = listState,
@@ -828,7 +838,8 @@ fun ReadingScreen(vm: AppViewModel, settings: AppSettings, textId: Long, onBack:
             }
         }
         val selected = selection
-        val toolbarRect = selectionToolbarController.rect
+        val touchSelectionRect = selectionToolbarController.touchSelectionRect
+        val toolbarRect = touchSelectionRect ?: selectionToolbarController.rect
         if (extensionAnchor != null) {
             Popup(alignment = Alignment.BottomCenter, onDismissRequest = ::clearSelection,
                 properties = androidx.compose.ui.window.PopupProperties(dismissOnClickOutside = false)) {
@@ -839,7 +850,7 @@ fun ReadingScreen(vm: AppViewModel, settings: AppSettings, textId: Long, onBack:
                     }
                 }
             }
-        } else if (selected != null && (extendedSelection ||
+        } else if (selected != null && (extendedSelection || touchSelectionRect != null ||
                 toolbarRect != null && selectionToolbarController.status == TextToolbarStatus.Shown)) {
             val ids = overlappingHighlightIds(TextRange(selected.range.first, selected.range.last + 1), highlights)
             val toolbarContent: @Composable () -> Unit = {
@@ -1271,7 +1282,7 @@ private fun TableBlock(
 }
 
 @Composable
-private fun SentenceFlowText(
+internal fun SentenceFlowText(
     chunk: ChunkState,
     isCurrentChunk: Boolean,
     currentPositionMs: Long,
@@ -1438,7 +1449,6 @@ private fun SentenceFlowText(
     }
 
     var selection by remember(chunk.sentences, sliceStart, sliceEnd, clearSelectionSignal) { mutableStateOf(TextRange.Zero) }
-    LaunchedEffect(clearSelectionSignal) { onSelectionActiveChange(false) }
     val extendedRange = LocalExtendedSelection.current
     val extendingSelection = LocalExtendingSelection.current
     val viewport = LocalReadingViewport.current
@@ -1468,6 +1478,9 @@ private fun SentenceFlowText(
         if (annotated.isNotEmpty()) findRequester.bringIntoView(layout.getBoundingBox(range.first.coerceIn(0, annotated.lastIndex)))
     }
     var layoutCoordinates by remember { mutableStateOf<LayoutCoordinates?>(null) }
+    val touchToolbar = LocalTextToolbar.current as? SelectionToolbarController
+    val focusRequester = remember { FocusRequester() }
+    var selectingByTouch by remember { mutableStateOf(false) }
     val headingFontFamily = readerHeadlineFamily(chunk.text)
 
     fun sentenceTextFor(offset: Int): String {
@@ -1513,6 +1526,26 @@ private fun SentenceFlowText(
         )
     }
 
+    fun updateSelection(range: TextRange) {
+        val kind = classifySelection(annotated.text, range, readerLanguage)
+        val (selectedText, snapped) = when (kind) {
+            is SelectionKind.Word -> kind.word to kind.range
+            is SelectionKind.Phrase -> kind.text to kind.range
+            null -> {
+                selection = TextRange.Zero
+                onSelectionActiveChange(false)
+                return
+            }
+        }
+        selection = if (range.reversed) TextRange(snapped.max, snapped.min) else snapped
+        onSelectionActiveChange(true)
+        onPhraseSelected(
+            selectedText,
+            sentenceTextFor(range.start),
+            TextRange(chunk.sourceOffset(sliceStart + snapped.min), chunk.sourceEnd(sliceStart + snapped.max))
+        )
+    }
+
     androidx.compose.runtime.CompositionLocalProvider(
         androidx.compose.foundation.text.selection.LocalTextSelectionColors provides
             androidx.compose.foundation.text.selection.TextSelectionColors(
@@ -1525,51 +1558,33 @@ private fun SentenceFlowText(
         BasicTextField(
             value = TextFieldValue(annotatedString = displayed, selection = selection),
             onValueChange = { newValue ->
-                onSelectionActiveChange(!newValue.selection.collapsed)
-                if (newValue.selection.collapsed) {
-                    selection = TextRange.Zero
-                } else {
-                    val kind = classifySelection(annotated.text, newValue.selection, readerLanguage)
-                    // Show the word-snapped range, not the raw handle offset, so a handle
-                    // dropped mid-word still selects the whole word (keep drag direction).
-                    val snapped = when (kind) {
-                        is SelectionKind.Word -> kind.range
-                        is SelectionKind.Phrase -> kind.range
-                        null -> null
-                    }
-                    selection = when {
-                        snapped == null -> newValue.selection
-                        newValue.selection.reversed -> TextRange(snapped.max, snapped.min)
-                        else -> snapped
-                    }
-                    when (kind) {
-                        is SelectionKind.Word ->
-                            onPhraseSelected(
-                                kind.word,
-                                sentenceTextFor(newValue.selection.start),
-                                TextRange(
-                                    chunk.sourceOffset(sliceStart + kind.range.min),
-                                    chunk.sourceEnd(sliceStart + kind.range.max)
-                                )
-                            )
-                        is SelectionKind.Phrase ->
-                            onPhraseSelected(
-                                kind.text,
-                                sentenceTextFor(newValue.selection.start),
-                                TextRange(
-                                    chunk.sourceOffset(sliceStart + kind.range.min),
-                                    chunk.sourceEnd(sliceStart + kind.range.max)
-                                )
-                            )
-                        null -> {
-                            selection = TextRange.Zero
-                            onSelectionActiveChange(false)
-                        }
-                    }
+                if (!selectingByTouch) {
+                    if (newValue.selection.collapsed && !selection.collapsed) touchToolbar?.touchSelectionRect = null
+                    updateSelection(newValue.selection)
                 }
             },
             readOnly = true,
-            modifier = Modifier.bringIntoViewRequester(findRequester).pointerInput(displayed, documentStartOffset, extendingSelection) {
+            modifier = Modifier.bringIntoViewRequester(findRequester).focusRequester(focusRequester)
+                .readOnlyTouchSelection(displayed.text, readerLanguage, enabled = !extendingSelection, layout = { textLayout }) { range, released ->
+                    if (released) {
+                        selectingByTouch = false
+                        val layout = textLayout
+                        val coordinates = layoutCoordinates?.takeIf { it.isAttached }
+                        if (layout != null && coordinates != null && !selection.collapsed) {
+                            val bounds = layout.getPathForRange(selection.min, selection.max).getBounds()
+                            touchToolbar?.touchSelectionRect = androidx.compose.ui.geometry.Rect(
+                                coordinates.localToWindow(bounds.topLeft), coordinates.localToWindow(bounds.bottomRight)
+                            )
+                        }
+                    } else {
+                        if (!selectingByTouch) {
+                            selectingByTouch = true
+                            touchToolbar?.touchSelectionRect = null
+                            focusRequester.requestFocus()
+                        }
+                        updateSelection(range)
+                    }
+                }.pointerInput(displayed, documentStartOffset, extendingSelection) {
                 awaitEachGesture {
                     val down = awaitFirstDown(false, PointerEventPass.Initial)
                     var moved = false
@@ -1657,8 +1672,8 @@ private fun SentenceFlowText(
                 if (selection.collapsed || annotated.isEmpty()) return@drawWithContent
                 val start = selection.min.coerceIn(0, annotated.lastIndex)
                 val endChar = (selection.max - 1).coerceIn(0, annotated.lastIndex)
-                if (chunk.sourceOffset(sliceStart + start) == selection.min) drawSlimSelectionHandle(layout, start, isStart = true, color = palette.selectionHandle)
-                if (chunk.sourceOffset(sliceStart + endChar) == selection.max - 1) drawSlimSelectionHandle(layout, endChar, isStart = false, color = palette.selectionHandle)
+                drawSlimSelectionHandle(layout, start, isStart = true, color = palette.selectionHandle)
+                drawSlimSelectionHandle(layout, endChar, isStart = false, color = palette.selectionHandle)
             },
             onTextLayout = {
                 textLayout = it
@@ -1828,17 +1843,21 @@ private fun ReadingFindBar(
 }
 
 
+private fun TextLayoutResult.selectionHandleX(charOffset: Int, isStart: Boolean): Float {
+    val box = getBoundingBox(charOffset)
+    return if (isStart == (getBidiRunDirection(charOffset) == androidx.compose.ui.text.style.ResolvedTextDirection.Ltr)) box.left else box.right
+}
+
 private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawSlimSelectionHandle(
     layout: TextLayoutResult,
     charOffset: Int,
     isStart: Boolean,
     color: Color
 ) {
-    val box = layout.getBoundingBox(charOffset)
     val rtl = layout.getBidiRunDirection(charOffset) == androidx.compose.ui.text.style.ResolvedTextDirection.Rtl
     // Visual edge of the selection and the direction pointing away from it.
     val leftEdge = isStart != rtl
-    val x = if (leftEdge) box.left else box.right
+    val x = layout.selectionHandleX(charOffset, isStart)
     val outward = if (leftEdge) -1f else 1f
     val line = layout.getLineForOffset(charOffset)
     val top = layout.getLineTop(line)

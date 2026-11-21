@@ -70,6 +70,7 @@ import com.ziaee.zabankhan.srs.*
 import com.ziaee.zabankhan.statistics.activityStreak
 import com.ziaee.zabankhan.statistics.localToday
 import com.ziaee.zabankhan.ui.reader.boxColor
+import com.ziaee.zabankhan.ui.reader.readOnlyTouchSelection
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
@@ -776,18 +777,24 @@ private fun SelectableCardText(text: String, style: TextStyle, language: Languag
     var layout by remember(text) { mutableStateOf<TextLayoutResult?>(null) }
     val lookup by rememberUpdatedState(onLookup)
     val clipboard = LocalClipboardManager.current
+    var selectingByTouch by remember(text) { mutableStateOf(false) }
+    fun updateValue(changed: TextFieldValue, copySelection: Boolean = true, released: Boolean = false) {
+        if (copySelection && (released || changed.selection != value.selection) && !changed.selection.collapsed) {
+            changed.text.substring(changed.selection.min, changed.selection.max).trim()
+                .takeIf(String::isNotEmpty)?.let { clipboard.setText(AnnotatedString(it)) }
+        }
+        value = changed
+    }
     BasicTextField(
         value = value,
-        onValueChange = { changed ->
-            if (changed.selection != value.selection && !changed.selection.collapsed) {
-                changed.text.substring(changed.selection.min, changed.selection.max).trim()
-                    .takeIf(String::isNotEmpty)?.let { clipboard.setText(AnnotatedString(it)) }
-            }
-            value = changed
-        },
+        onValueChange = { if (!selectingByTouch) updateValue(it) },
         readOnly = true,
         textStyle = style.copy(color = color),
-        modifier = modifier.fillMaxWidth().pointerInput(text, language) {
+        modifier = modifier.fillMaxWidth()
+            .readOnlyTouchSelection(text, language, layout = { layout }) { range, released ->
+                selectingByTouch = !released
+                updateValue(value.copy(selection = range), copySelection = released, released = released)
+            }.pointerInput(text, language) {
             awaitEachGesture {
                 val down = awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Initial)
                 var isTap = !down.isConsumed
@@ -813,7 +820,9 @@ private fun SelectableCardText(text: String, style: TextStyle, language: Languag
             }
         },
         onTextLayout = { layout = it },
-        decorationBox = { inner -> Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) { inner() } },
+        decorationBox = { inner ->
+            Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center, propagateMinConstraints = true) { inner() }
+        },
     )
 }
 

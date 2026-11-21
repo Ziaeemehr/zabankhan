@@ -15,14 +15,15 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performSemanticsAction
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.click
-import androidx.compose.ui.test.longClick
 import androidx.compose.ui.test.runComposeUiTest
 import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.unit.dp
 import com.ziaee.zabankhan.data.VocabEntry
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 
 @OptIn(ExperimentalTestApi::class)
 class ReviewCardInteractionTest {
@@ -61,8 +62,25 @@ class ReviewCardInteractionTest {
             CompositionLocalProvider(LocalClipboardManager provides clipboard) { Card { lookedUp = it } }
         }
 
-        onNodeWithText("le petit chat dort").performTouchInput { longClick() }
-        runOnIdle { assertEquals(null, lookedUp) }
+        val sentence = onNodeWithText(entry.sentence)
+        val layouts = mutableListOf<TextLayoutResult>()
+        sentence.performSemanticsAction(SemanticsActions.GetTextLayoutResult) { it(layouts) }
+        val petit = layouts.single().getBoundingBox(5).center
+        sentence.performTouchInput { down(petit) }
+        try {
+            waitUntil(timeoutMillis = 3_000) {
+                !sentence.fetchSemanticsNode().config[SemanticsProperties.TextSelectionRange].collapsed
+            }
+        } finally {
+            sentence.performTouchInput { advanceEventTime(650); up() }
+        }
+        waitUntil(timeoutMillis = 3_000) { copied == "petit" }
+        val longPressSelection = sentence.fetchSemanticsNode().config[SemanticsProperties.TextSelectionRange]
+        runOnIdle {
+            assertFalse(longPressSelection.collapsed)
+            assertEquals(entry.sentence.substring(longPressSelection.min, longPressSelection.max).trim(), copied)
+            assertEquals(null, lookedUp)
+        }
         onNodeWithText("le petit chat dort").performSemanticsAction(SemanticsActions.SetSelection) {
             it(3, 13, false)
         }

@@ -74,6 +74,8 @@ import kotlin.math.roundToInt
  * ready-made [onCopyRequested] clipboard callback -- the actual toolbar UI shown is
  * [SelectionToolbarContent], not the platform's default copy/paste bubble. */
 class SelectionToolbarController : TextToolbar, TextContextMenuProvider {
+    var touchSelectionRect by mutableStateOf<Rect?>(null)
+
     // Compose 1.9 Android routes selection through TextContextMenuProvider; older/iOS paths
     // still use TextToolbar. Both feed the identical copied reference popup.
     var coordinates by mutableStateOf<LayoutCoordinates?>(null)

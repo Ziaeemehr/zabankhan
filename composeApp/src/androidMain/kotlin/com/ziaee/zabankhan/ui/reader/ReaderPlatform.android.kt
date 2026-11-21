@@ -6,6 +6,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.platform.LocalContext
 
+internal actual val needsReadOnlyTouchSelection = false
+
 @Composable
 internal actual fun rememberReaderProcessTextActions(text: String): List<ProcessTextAction> {
     val context = LocalContext.current

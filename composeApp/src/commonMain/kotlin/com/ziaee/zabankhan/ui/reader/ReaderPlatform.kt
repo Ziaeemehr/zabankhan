@@ -43,6 +43,7 @@ internal expect fun rememberReaderProcessTextActions(text: String): List<Process
 
 internal expect fun formatReaderDate(timestampMs: Long): String
 internal expect fun formatReaderNumber(number: Int): String
+internal expect val needsReadOnlyTouchSelection: Boolean
 
 /** ACTION_PROCESS_TEXT sorting is copied from the reference, including duplicate labels. */
 internal data class ReaderProcessTextApp(val label: String, val packageName: String,

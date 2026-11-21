@@ -6,6 +6,7 @@ import platform.Foundation.*
 /** iOS has no equivalent to Android's installed ACTION_PROCESS_TEXT activity registry. */
 @Composable
 internal actual fun rememberReaderProcessTextActions(text: String): List<ProcessTextAction> = emptyList()
+internal actual val needsReadOnlyTouchSelection = true
 
 internal actual fun formatReaderDate(timestampMs: Long): String = NSDateFormatter().apply {
     dateStyle = NSDateFormatterMediumStyle
