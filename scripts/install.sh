@@ -27,8 +27,10 @@ Android flavors (ignored for ipad and mac):
             Same package name as play: installing one replaces the other.
 
 Environment:
-  ANDROID_SERIAL  Pick the phone when several are connected.
-  DEVICE_ID       iPad id (default 00008122-0019308201B9801C).
+  ANDROID_SERIAL  Use this adb device as is (skips Wi-Fi connect).
+  PHONE_IP        Phone Wi-Fi IP (default 192.168.1.71). Android installs over Wi-Fi, port 5555.
+  DEVICE_ID       iPad id (default 00008122-0019308201B9801C). Works over Wi-Fi
+                  once the iPad is paired and "Connect via network" is on in Xcode.
 
 Examples:
   scripts/install.sh android debug
@@ -51,6 +53,17 @@ case $TARGET in
   android)
     # Release needs ~/.android/zabankhan-release.properties; without it the APK is unsigned and install fails.
     cd "$ROOT"
+    if [[ -z ${ANDROID_SERIAL:-} ]]; then
+      PHONE="${PHONE_IP:-192.168.1.71}:5555"
+      # USB attached: switch it to Wi-Fi mode (needed once after each phone reboot).
+      adb devices | grep -qv -e '^List' -e ':5555' -e '^$' && { adb -d tcpip 5555 || true; sleep 2; }
+      if ! adb connect "$PHONE" | grep -q connected; then
+        # A sandboxed adb server reports "No route to host"; a fresh server fixes it.
+        adb kill-server; adb start-server
+        adb connect "$PHONE" | grep -q connected || { echo "Cannot reach $PHONE. Plug in USB once, or set PHONE_IP." >&2; exit 1; }
+      fi
+      export ANDROID_SERIAL=$PHONE
+    fi
     ./gradlew ":composeApp:install${(C)FLAVOR}${(C)BUILD}"
     ;;
   ipad)
