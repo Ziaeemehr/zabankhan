@@ -9,6 +9,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.material.icons.filled.ContentPaste
 import androidx.compose.ui.text.style.TextDirection
 import androidx.compose.ui.unit.dp
 import com.ziaee.zabankhan.app.AppContainer
@@ -127,6 +128,13 @@ internal fun TranslationEngineSettings(container: AppContainer, settings: AppSet
         if (last4 == null || replacing) OutlinedTextField(draft, { draft = it },
             label = { Text(stringResource(Res.string.api_key)) }, singleLine = true, enabled = !busy,
             visualTransformation = PasswordVisualTransformation(), textStyle = TextStyle(textDirection = TextDirection.Ltr),
+            // iOS shows no Paste menu on password fields, so offer an explicit paste button.
+            trailingIcon = {
+                @Suppress("DEPRECATION") val clipboard = androidx.compose.ui.platform.LocalClipboardManager.current
+                androidx.compose.material3.IconButton(enabled = !busy, onClick = {
+                    clipboard.getText()?.text?.trim()?.takeIf { it.isNotEmpty() }?.let { draft = it }
+                }) { androidx.compose.material3.Icon(androidx.compose.material.icons.Icons.Default.ContentPaste, stringResource(Res.string.add_text_paste)) }
+            },
             keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
             keyboardActions = KeyboardActions(onDone = { if (valid && !busy) save() }), modifier = Modifier.fillMaxWidth())
         Text(stringResource(Res.string.api_key_storage), style = MaterialTheme.typography.bodySmall)
