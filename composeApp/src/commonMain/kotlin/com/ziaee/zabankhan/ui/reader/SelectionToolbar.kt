@@ -155,9 +155,11 @@ fun SelectionToolbarContent(
     onTranslate: (() -> Unit)? = null,
     showReadingActions: Boolean = true,
     showListen: Boolean = showReadingActions,
-    onExtend: (() -> Unit)? = null
+    onExtend: (() -> Unit)? = null,
+    onDefine: (() -> Unit)? = null
 ) {
     val actions = buildList {
+        onDefine?.let { add(ToolbarItem(Icons.Default.MenuBook, stringResource(Res.string.selection_action_define), it)) }
         if (showReadingActions) {
             add(ToolbarItem(Icons.Default.FormatColorFill, stringResource(Res.string.selection_action_highlight), onHighlight))
             add(ToolbarItem(Icons.Default.Palette, stringResource(Res.string.highlight_choose_color), onChooseHighlightColor))
@@ -166,7 +168,7 @@ fun SelectionToolbarContent(
         onExtend?.let { add(ToolbarItem(Icons.Default.SelectAll, stringResource(Res.string.selection_extend), it)) }
         onNote?.let { add(ToolbarItem(Icons.Default.NoteAdd, stringResource(Res.string.pdf_note_add), it)) }
         add(ToolbarItem(Icons.Default.ContentCopy, stringResource(Res.string.selection_action_copy), onCopy))
-        add(ToolbarItem(Icons.Default.BookmarkAdd, stringResource(Res.string.selection_action_save), onSave))
+        if (onDefine == null) add(ToolbarItem(Icons.Default.BookmarkAdd, stringResource(Res.string.selection_action_save), onSave))
         if (showListen) add(ToolbarItem(Icons.Default.VolumeUp, stringResource(Res.string.selection_action_listen), onListen))
         onTranslate?.let { add(ToolbarItem(Icons.Default.Translate, stringResource(Res.string.pdf_translate), it)) }
         if (showReadingActions) add(ToolbarItem(Icons.Default.MoreVert, stringResource(Res.string.selection_action_more), onMore))
@@ -295,64 +297,7 @@ fun HighlightPalettePopupContent(
     }
 }
 
-/** The toolbar shown while a selection resolves to exactly one word: lets the user tap Define,
- * open the More actions, or keep dragging a handle to extend the selection into a phrase
- * (handled entirely by [SentenceFlowText] -- this toolbar doesn't need to do anything for
- * that case, it just doesn't get in the way). */
-@Composable
-@OptIn(ExperimentalLayoutApi::class)
-fun DefineToolbarContent(
-    onDefine: () -> Unit,
-    onHighlight: () -> Unit,
-    onChooseHighlightColor: () -> Unit,
-    onDeleteHighlight: (() -> Unit)?,
-    onMore: () -> Unit,
-    onExtend: (() -> Unit)? = null
-) {
-    Surface(
-        shape = RoundedCornerShape(8.dp),
-        tonalElevation = 6.dp,
-        shadowElevation = 6.dp,
-        color = MaterialTheme.colorScheme.surface
-    ) {
-        // Wraps onto a second line instead of scrolling sideways (owner's rule).
-        FlowRow(
-            modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp),
-            verticalArrangement = Arrangement.Center
-        ) {
-            TextButton(onClick = onHighlight) {
-                Icon(Icons.Default.FormatColorFill, contentDescription = null, modifier = Modifier.padding(end = 4.dp))
-                Text(stringResource(Res.string.selection_action_highlight))
-            }
-            IconButton(onClick = onChooseHighlightColor) {
-                Icon(
-                    Icons.Default.Palette,
-                    contentDescription = stringResource(Res.string.highlight_choose_color)
-                )
-            }
-            onDeleteHighlight?.let { delete ->
-                TextButton(onClick = delete) {
-                    Icon(Icons.Default.Delete, contentDescription = null, modifier = Modifier.padding(end = 4.dp))
-                    Text(stringResource(Res.string.highlight_delete))
-                }
-            }
-            TextButton(onClick = onDefine) {
-                Icon(Icons.Default.MenuBook, contentDescription = null, modifier = Modifier.padding(end = 4.dp))
-                Text(stringResource(Res.string.selection_action_define))
-            }
-            onExtend?.let { extend ->
-                IconButton(onClick = extend) {
-                    Icon(Icons.Default.SelectAll, contentDescription = stringResource(Res.string.selection_extend))
-                }
-            }
-            IconButton(onClick = onMore) {
-                Icon(Icons.Default.MoreVert, contentDescription = stringResource(Res.string.selection_action_more))
-            }
-        }
-    }
-}
-
-/** Replaces [SelectionToolbarContent]/[DefineToolbarContent] in the same popup when the user
+/** Replaces [SelectionToolbarContent] in the same popup when the user
  * taps More -- mirrors Android's own selection-toolbar overflow: a small anchored list of every
  * installed ACTION_PROCESS_TEXT app (Ask ChatGPT, Anki Card, Reverso Context, ...), with a Back
  * arrow to return to the main actions instead of a separate full-screen sheet. */

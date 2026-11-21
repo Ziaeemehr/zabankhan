@@ -25,6 +25,10 @@ import com.ziaee.zabankhan.files.*
 class ZabankhanApp : Application() {
     override fun onCreate() {
         super.onCreate()
+        // Compose 1.9 smart selection lets the system TextClassifier grow a long-pressed word
+        // to a whole sentence/line; the reader must select exactly the pressed word.
+        @OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
+        androidx.compose.foundation.ComposeFoundationFlags.isSmartSelectionEnabled = false
         com.ziaee.zabankhan.speech.initializeSpeech(this)
         com.ziaee.zabankhan.pdf.initializePdf(this)
         initializeSecretStore(this)

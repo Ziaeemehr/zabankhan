@@ -153,6 +153,59 @@ internal fun selectedReaderText(parts: List<Paragraph>, range: IntRange): String
         }
         .joinToString("\n")
 
+/** A rendered paragraph's location and text position for cross-paragraph handle drags. */
+internal data class SelectionParagraphHit(
+    val paragraphIndex: Int,
+    val characterIndex: Int,
+    val verticalDistance: Float = 0f,
+    val nearestParagraphIndex: Int? = null
+)
+
+internal data class SelectionHitCandidate(
+    val paragraphIndex: Int,
+    val characterIndex: Int,
+    val verticalDistance: Float
+)
+
+internal fun nearestSelectionHit(candidates: List<SelectionHitCandidate>): SelectionParagraphHit? =
+    candidates.minByOrNull { it.verticalDistance }?.let {
+        SelectionParagraphHit(it.paragraphIndex, it.characterIndex, it.verticalDistance)
+    }
+
+/** Snap both the fixed endpoint and dragged endpoint to complete surface tokens. */
+internal fun crossParagraphSelectionRange(
+    parts: List<Paragraph>,
+    anchorOffset: Int,
+    hit: SelectionParagraphHit,
+    lang: LanguageSpec,
+    nearestParagraphIndex: Int? = hit.nearestParagraphIndex
+): IntRange? {
+    if (parts.isEmpty()) return null
+    val anchor = parts.asSequence().mapNotNull { part ->
+        val token = tokenizeSurface(part.block.plainText, lang).firstOrNull { token ->
+            anchorOffset >= minOf(part.sourceOffsets[token.start], part.sourceOffsets[token.end - 1]) &&
+                anchorOffset <= maxOf(part.sourceOffsets[token.start], part.sourceOffsets[token.end - 1])
+        } ?: return@mapNotNull null
+        (minOf(part.sourceOffsets[token.start], part.sourceOffsets[token.end - 1]))..
+            (maxOf(part.sourceOffsets[token.start], part.sourceOffsets[token.end - 1]))
+    }.firstOrNull() ?: return null
+
+    val targetIndex = hit.paragraphIndex.takeIf { it in parts.indices } ?: return null
+    val targetPart = parts[targetIndex]
+    val targetTokens = tokenizeSurface(targetPart.block.plainText, lang)
+    val targetToken = targetTokens.firstOrNull { hit.characterIndex in it.start until it.end }
+        ?: targetTokens.minByOrNull { token ->
+            when {
+                hit.characterIndex < token.start -> token.start - hit.characterIndex
+                hit.characterIndex >= token.end -> hit.characterIndex - token.end + 1
+                else -> 0
+            }
+        } ?: return null
+    val targetStart = minOf(targetPart.sourceOffsets[targetToken.start], targetPart.sourceOffsets[targetToken.end - 1])
+    val targetEnd = maxOf(targetPart.sourceOffsets[targetToken.start], targetPart.sourceOffsets[targetToken.end - 1])
+    return minOf(anchor.first, targetStart)..maxOf(anchor.last, targetEnd)
+}
+
 /** Reference follow thresholds, factored for deterministic viewport tests. */
 internal fun followScrollDelta(itemTop: Float, itemSize: Float, viewportStart: Float,
     viewportEnd: Float, activeFraction: Float, entering: Boolean): Float? {

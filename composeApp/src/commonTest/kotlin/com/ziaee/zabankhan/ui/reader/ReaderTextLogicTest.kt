@@ -8,6 +8,34 @@ import com.ziaee.zabankhan.lang.tokenizeSurface
 import kotlin.test.*
 
 class ReaderTextLogicTest {
+    @Test fun nearestSelectionHitMapsRtlParagraphCharacterIndex() {
+        val hit = nearestSelectionHit(listOf(
+            SelectionHitCandidate(paragraphIndex = 2, characterIndex = 4, verticalDistance = 18f),
+            SelectionHitCandidate(paragraphIndex = 1, characterIndex = 7, verticalDistance = 3f)
+        ))
+        assertEquals(SelectionParagraphHit(1, 7, 3f), hit)
+    }
+
+    @Test fun crossParagraphSelectionMapsPagedSliceIndexToParagraphText() {
+        val parts = paragraphs("alpha beta\n\ngamma delta")
+        val hit = nearestSelectionHit(listOf(SelectionHitCandidate(1, 10, 0f)))!!
+        assertEquals(parts[0].sourceOffsets[0]..parts[1].sourceOffsets[10],
+            crossParagraphSelectionRange(parts, parts[0].sourceOffsets[1], hit, Languages.ENGLISH))
+    }
+
+    @Test fun crossParagraphHandleRangesSnapAcrossParagraphsAndReverse() {
+        val parts = paragraphs("alpha beta\n\ngamma delta\n\nepsilon zeta")
+        fun range(anchor: Int, paragraph: Int, character: Int) = crossParagraphSelectionRange(
+            parts, anchor, SelectionParagraphHit(paragraph, character), Languages.ENGLISH
+        )
+        assertEquals(parts[0].sourceOffsets[0]..parts[0].sourceOffsets[9], range(1, 0, 8))
+        assertEquals(parts[0].sourceOffsets[0]..parts[1].sourceOffsets[4], range(1, 1, 4))
+        assertEquals(parts[0].sourceOffsets[0]..parts[2].sourceOffsets[6], range(1, 2, 2))
+        assertEquals(parts[0].sourceOffsets[6]..parts[2].sourceOffsets[6],
+            range(parts[0].sourceOffsets[8], 2, 2))
+        assertNull(crossParagraphSelectionRange(emptyList(), 0, SelectionParagraphHit(0, 0), Languages.ENGLISH))
+    }
+
     @Test fun selectionKeepsElidedPrefixesAtLineStart() {
         listOf("s'arranger", "l’ami", "d’accord", "qu’il", "j’aime").forEach { word ->
             val text = "Avant\n$word"

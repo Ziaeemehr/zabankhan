@@ -54,6 +54,7 @@ import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.LayoutCoordinates
+import androidx.compose.foundation.gestures.scrollBy
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.platform.LocalDensity
@@ -85,6 +86,8 @@ import org.jetbrains.compose.resources.stringResource
 import androidx.compose.ui.window.Popup
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.isActive
 
 import com.ziaee.zabankhan.resources.*
 import com.ziaee.zabankhan.ui.theme.*
@@ -103,6 +106,18 @@ private class ReadingViewport {
     var bounds by mutableStateOf(androidx.compose.ui.geometry.Rect.Zero)
     val offsets = mutableStateMapOf<Int, Int>()
 }
+private class SelectionLayoutEntry(
+    var documentStart: Int,
+    var paragraphIndex: Int,
+    var sliceStart: Int,
+    var sourceOffsets: List<Int>,
+    var coordinates: LayoutCoordinates? = null,
+    var layout: TextLayoutResult? = null
+)
+private class SelectionLayoutRegistry {
+    val entries = mutableStateMapOf<String, SelectionLayoutEntry>()
+}
+private val LocalSelectionLayoutRegistry = compositionLocalOf<SelectionLayoutRegistry?> { null }
 private val LocalReadingViewport = compositionLocalOf<ReadingViewport?> { null }
 private val LocalReaderLanguage = staticCompositionLocalOf { Languages.ENGLISH }
 private val LocalExtendedSelection = compositionLocalOf<IntRange?> { null }
@@ -161,6 +176,7 @@ fun ReadingScreen(vm: AppViewModel, settings: AppSettings, textId: Long, onBack:
         )
     }
     val readingViewport = remember { ReadingViewport() }
+    val selectionLayouts = remember { SelectionLayoutRegistry() }
     val scope = rememberCoroutineScope()
     val clipboard = LocalClipboardManager.current
     val density = LocalDensity.current
@@ -395,8 +411,39 @@ fun ReadingScreen(vm: AppViewModel, settings: AppSettings, textId: Long, onBack:
             processTextTarget = null
         }
     }
+    fun updateCrossParagraphSelection(fixedOffset: Int, x: Float, y: Float) {
+        val registryEntries = selectionLayouts.entries.values.toList()
+        if (registryEntries.isEmpty()) return
+        val candidates = registryEntries.mapNotNull { entry ->
+            val coordinates = entry.coordinates?.takeIf { it.isAttached } ?: return@mapNotNull null
+            val layout = entry.layout ?: return@mapNotNull null
+            val local = coordinates.windowToLocal(androidx.compose.ui.geometry.Offset(x, y))
+            val box = coordinates.size
+            val localPosition = androidx.compose.ui.geometry.Offset(
+                local.x.coerceIn(0f, box.width.toFloat()), local.y.coerceIn(0f, box.height.toFloat())
+            )
+            val cursor = layout.getOffsetForPosition(localPosition)
+            val layoutText = layout.layoutInput.text
+            if (layoutText.isEmpty()) return@mapNotNull null
+            val charIndex = listOf(cursor, cursor - 1).firstOrNull { it in layoutText.indices }
+                ?: (if (cursor <= 0) 0 else layoutText.lastIndex)
+            val bounds = layout.getBoundingBox(charIndex)
+            val verticalDistance = kotlin.math.abs(bounds.center.y + coordinates.positionInWindow().y - y)
+            SelectionHitCandidate(entry.paragraphIndex, charIndex + entry.sliceStart, verticalDistance)
+        }
+        val hit = nearestSelectionHit(candidates) ?: return
+        val range = crossParagraphSelectionRange(parts, fixedOffset, hit, lang) ?: return
+        val sentenceRange = sentenceAround(text.body, range.first, lang)
+        val sentence = text.body.substring(sentenceRange.first.coerceIn(0, text.body.length),
+            (sentenceRange.last + 1).coerceIn(0, text.body.length))
+        selection = ReaderSelection(selectedReaderText(parts, range), sentence, range, sentenceActions = true)
+        extendedSelection = true
+        extensionAnchor = null
+        textSelectionActive = false
+    }
     if (showGestureGuide) { GestureGuideScreen(lang) { showGestureGuide = false }; return }
     CompositionLocalProvider(LocalReaderLanguage provides lang, LocalReadingViewport provides readingViewport,
+        LocalSelectionLayoutRegistry provides selectionLayouts,
         LocalExtendedSelection provides selection?.range?.takeIf { extendedSelection || extensionAnchor != null },
         LocalExtendingSelection provides (extensionAnchor != null),
         LocalTextToolbar provides selectionToolbarController,
@@ -557,7 +604,74 @@ fun ReadingScreen(vm: AppViewModel, settings: AppSettings, textId: Long, onBack:
                 }
             }
         }) { padding ->
-            Box(Modifier.fillMaxSize().padding(padding).onGloballyPositioned { readingViewport.bounds = it.boundsInWindow() }) {
+            var boxOrigin by remember { mutableStateOf(androidx.compose.ui.geometry.Offset.Zero) }
+            Box(Modifier.fillMaxSize().padding(padding).onGloballyPositioned { boxOrigin = it.positionInWindow() }
+                .pointerInput(Unit) {
+                                        awaitEachGesture {
+                        val down = awaitFirstDown(false, PointerEventPass.Initial)
+                        val selected = selection ?: return@awaitEachGesture
+                        val containerOrigin = boxOrigin
+                        val entries = selectionLayouts.entries.values.toList()
+                        val hitHandle = entries.asSequence().mapNotNull { entry ->
+                            val coords = entry.coordinates?.takeIf { it.isAttached } ?: return@mapNotNull null
+                            val layout = entry.layout ?: return@mapNotNull null
+                            val local = coords.windowToLocal(containerOrigin + down.position)
+                            val part = parts.getOrNull(entry.paragraphIndex) ?: return@mapNotNull null
+                            val range = selected.range
+                            val endpointIndexes = entry.sourceOffsets.indices.map { it + entry.sliceStart }
+                                .filter { i -> i in part.sourceOffsets.indices && part.sourceOffsets[i] in setOf(range.first, range.last) }
+                            endpointIndexes.firstNotNullOfOrNull { paragraphIndex ->
+                                val char = paragraphIndex - entry.sliceStart
+                                if (char !in layout.layoutInput.text.indices) return@firstNotNullOfOrNull null
+                                val rect = layout.getBoundingBox(char)
+                                val line = layout.getLineForOffset(char)
+                                val barX = if (part.sourceOffsets[paragraphIndex] == range.first) rect.left else rect.right
+                                val area = androidx.compose.ui.geometry.Rect(barX - 10.dp.toPx(), layout.getLineBottom(line), barX + 10.dp.toPx(), layout.getLineBottom(line) + 20.dp.toPx())
+                                if (area.contains(local)) Triple(entry, part.sourceOffsets[paragraphIndex], paragraphIndex) else null
+                            }
+                        }.firstOrNull() ?: return@awaitEachGesture
+                        val entry = hitHandle.first
+                        val anchor = if (hitHandle.second == selected.range.first) selected.range.last else selected.range.first
+                        var change = down
+                        var dragging = false
+                        var lastWindow = down.position + entry.coordinates!!.positionInWindow()
+                        var autoScrollJob: Job? = null
+                        while (change.pressed) {
+                            val event = awaitPointerEvent(PointerEventPass.Initial)
+                            change = event.changes.firstOrNull { it.id == down.id } ?: break
+                            lastWindow = containerOrigin + change.position
+                            if (!dragging && (change.position - down.position).getDistance() > viewConfiguration.touchSlop) dragging = true
+                            if (dragging) {
+                                change.consume()
+                                updateCrossParagraphSelection(anchor, lastWindow.x, lastWindow.y)
+                                val viewport = readingViewport.bounds
+                                val edge = 56.dp.toPx()
+                                val delta = when {
+                                    lastWindow.y < viewport.top + edge -> -((viewport.top + edge - lastWindow.y) * .16f).coerceAtMost(24f)
+                                    lastWindow.y > viewport.bottom - edge -> ((lastWindow.y - (viewport.bottom - edge)) * .16f).coerceAtMost(24f)
+                                    else -> 0f
+                                }
+                                if (pageNavigation == PageNavigation.SCROLL && delta != 0f && autoScrollJob == null) {
+                                    autoScrollJob = scope.launch {
+                                        while (isActive) {
+                                            val currentViewport = readingViewport.bounds
+                                            val currentDelta = when {
+                                                lastWindow.y < currentViewport.top + edge -> -((currentViewport.top + edge - lastWindow.y) * .16f).coerceAtMost(24f)
+                                                lastWindow.y > currentViewport.bottom - edge -> ((lastWindow.y - (currentViewport.bottom - edge)) * .16f).coerceAtMost(24f)
+                                                else -> 0f
+                                            }
+                                            if (currentDelta == 0f) break
+                                            listState.scrollBy(currentDelta)
+                                            withFrameNanos { }
+                                            updateCrossParagraphSelection(anchor, lastWindow.x, lastWindow.y)
+                                        }
+                                    }
+                                } else if (delta == 0f) { autoScrollJob?.cancel(); autoScrollJob = null }
+                            }
+                        }
+                        autoScrollJob?.cancel()
+                    }
+                }) {
                 if (pageNavigation == PageNavigation.SCROLL) LazyColumn(state = listState,
                     modifier = Modifier.widthIn(max = 640.dp).fillMaxWidth().align(Alignment.TopCenter)
                         .onGloballyPositioned { readingViewport.bounds = it.boundsInWindow() },
@@ -569,7 +683,8 @@ fun ReadingScreen(vm: AppViewModel, settings: AppSettings, textId: Long, onBack:
                         } ?: -1L else -1L
                         ChunkParagraph(chunk, active, localPosition, showTranslations, savedVocabStatuses, highlights,
                             parts[index].offset, palette, fontScale.multiplier,
-                            findMatches.filter { it.first == index }.map { it.second }, activeFind?.takeIf { it.first == index }?.second,
+                            paragraphIndex = index,
+                            findRanges = findMatches.filter { it.first == index }.map { it.second }, activeFindRange = activeFind?.takeIf { it.first == index }?.second,
                             onRetry = { playback.start(index, rate, settings.ttsVoices[lang.code], settings.speechRepeat) },
                             onWordLookup = { word, sentence, range -> select(word, sentence, range, true) },
                             onPhraseSelected = { phrase, sentence, range -> select(phrase, sentence, range, false) },
@@ -667,6 +782,7 @@ fun ReadingScreen(vm: AppViewModel, settings: AppSettings, textId: Long, onBack:
                                         savedVocabStatuses = savedVocabStatuses,
                                         highlights = highlights,
                                         documentStartOffset = chunk.sourceOffsets.getOrElse(start) { parts[fragment.chunkIndex].offset + start },
+                                        paragraphIndex = fragment.chunkIndex,
                                         palette = palette,
                                         fontScale = fontScale.multiplier,
                                         findRanges = pageFindRanges,
@@ -736,11 +852,8 @@ fun ReadingScreen(vm: AppViewModel, settings: AppSettings, textId: Long, onBack:
                         val apps = rememberReaderProcessTextActions(processTextTarget!!)
                         ProcessTextAppsPopupContent(apps, { it.invoke(); clearSelection() }, { processTextTarget = null })
                     }
-                    !selected.sentenceActions -> DefineToolbarContent(
-                        onDefine = { playback.pause(); dictionaryTarget = selected; clearSelection() },
-                        onHighlight = { applyHighlight(lastHighlightColorKey) }, onChooseHighlightColor = { showHighlightPalette = true },
-                        onDeleteHighlight = delete, onMore = { processTextTarget = selected.word }, onExtend = ::extendSelection)
                     else -> SelectionToolbarContent(
+                        onDefine = if (selected.sentenceActions) null else { { playback.pause(); dictionaryTarget = selected; clearSelection() } },
                         onCopy = { clipboard.setText(AnnotatedString(selected.word)); clearSelection() },
                         onSave = { playback.pause(); dictionaryTarget = selected; clearSelection() },
                         onListen = { playback.sentenceOnly(selected.word, selected.range.first, rate, settings.ttsVoices[lang.code]); clearSelection() },
@@ -784,6 +897,7 @@ private fun ChunkParagraph(
     onPhraseSelected: (phrase: String, sentence: String, range: TextRange) -> Unit,
     clearSelectionSignal: Int,
     onSelectionActiveChange: (Boolean) -> Unit = {},
+    paragraphIndex: Int,
     textStartOffset: Int = 0,
     textEndOffset: Int? = null
 ) {
@@ -831,6 +945,7 @@ private fun ChunkParagraph(
                         onPhraseSelected = onPhraseSelected,
                         clearSelectionSignal = clearSelectionSignal,
                         onSelectionActiveChange = onSelectionActiveChange,
+                        paragraphIndex = paragraphIndex,
                         justify = false,
                         textStartOffset = textStartOffset,
                         textEndOffset = textEndOffset
@@ -870,6 +985,7 @@ private fun ChunkParagraph(
                             onPhraseSelected = onPhraseSelected,
                             clearSelectionSignal = clearSelectionSignal,
                             onSelectionActiveChange = onSelectionActiveChange,
+                            paragraphIndex = paragraphIndex,
                             justify = false,
                             textStartOffset = textStartOffset,
                             textEndOffset = textEndOffset
@@ -894,6 +1010,7 @@ private fun ChunkParagraph(
                     onPhraseSelected = onPhraseSelected,
                     clearSelectionSignal = clearSelectionSignal,
                     onSelectionActiveChange = onSelectionActiveChange,
+                    paragraphIndex = paragraphIndex,
                     justify = true,
                     textStartOffset = textStartOffset,
                     textEndOffset = textEndOffset
@@ -910,7 +1027,8 @@ private fun ChunkParagraph(
                     onWordLookup = onWordLookup,
                     onPhraseSelected = onPhraseSelected,
                     clearSelectionSignal = clearSelectionSignal,
-                    onSelectionActiveChange = onSelectionActiveChange
+                    onSelectionActiveChange = onSelectionActiveChange,
+                    paragraphIndex = paragraphIndex
                 )
                 BlockType.IMAGE -> Unit
             }
@@ -1039,7 +1157,8 @@ private fun TableBlock(
     onWordLookup: (word: String, sentence: String, range: TextRange) -> Unit,
     onPhraseSelected: (phrase: String, sentence: String, range: TextRange) -> Unit,
     clearSelectionSignal: Int,
-    onSelectionActiveChange: (Boolean) -> Unit
+    onSelectionActiveChange: (Boolean) -> Unit,
+    paragraphIndex: Int
 ) {
     val block = chunk.block
     val rows = block.tableRows
@@ -1137,6 +1256,7 @@ private fun TableBlock(
                                 onPhraseSelected = onPhraseSelected,
                                 clearSelectionSignal = clearSelectionSignal,
                                 onSelectionActiveChange = onSelectionActiveChange,
+                                paragraphIndex = paragraphIndex,
                                 justify = false
                             )
                         }
@@ -1169,6 +1289,7 @@ private fun SentenceFlowText(
     onPhraseSelected: (phrase: String, sentence: String, range: TextRange) -> Unit,
     clearSelectionSignal: Int,
     onSelectionActiveChange: (Boolean) -> Unit = {},
+    paragraphIndex: Int,
     justify: Boolean,
     textStartOffset: Int = 0,
     textEndOffset: Int? = null
@@ -1321,8 +1442,21 @@ private fun SentenceFlowText(
     val extendedRange = LocalExtendedSelection.current
     val extendingSelection = LocalExtendingSelection.current
     val viewport = LocalReadingViewport.current
+    val selectionRegistry = LocalSelectionLayoutRegistry.current
     DisposableEffect(viewport, documentStartOffset) {
         onDispose { viewport?.offsets?.remove(documentStartOffset) }
+    }
+    val registryKey = "$documentStartOffset:$sliceStart:$sliceEnd"
+    val registryEntry = remember(registryKey) { SelectionLayoutEntry(documentStartOffset, paragraphIndex, sliceStart, emptyList()) }
+    SideEffect {
+        registryEntry.documentStart = documentStartOffset
+        registryEntry.paragraphIndex = paragraphIndex
+        registryEntry.sliceStart = sliceStart
+        registryEntry.sourceOffsets = (sliceStart until sliceEnd).map { chunk.sourceOffset(it) }
+    }
+    DisposableEffect(selectionRegistry, registryKey) {
+        if (chunk.block.type != BlockType.TABLE) selectionRegistry?.entries?.set(registryKey, registryEntry)
+        onDispose { selectionRegistry?.entries?.remove(registryKey) }
     }
     var textLayout by remember { mutableStateOf<TextLayoutResult?>(null) }
     val findRevision = LocalReaderFindRevision.current
@@ -1467,6 +1601,7 @@ private fun SentenceFlowText(
                 }
             }.onGloballyPositioned { coordinates ->
                 layoutCoordinates = coordinates
+                registryEntry.coordinates = coordinates
                 val layout = textLayout
                 if (viewport != null && layout != null) {
                     val bounds = coordinates.boundsInWindow()
@@ -1512,17 +1647,22 @@ private fun SentenceFlowText(
                     if (covered.isNotEmpty()) {
                         drawPath(layout.getPathForRange(covered.first() - sliceStart, covered.last() + 1 - sliceStart),
                             color = palette.selectionBg)
+                        val first = covered.first() - sliceStart
+                        val last = covered.last() - sliceStart
+                        if (chunk.sourceOffset(first + sliceStart) == extendedRange.first) drawSlimSelectionHandle(layout, first, isStart = true, color = palette.selectionHandle)
+                        if (chunk.sourceOffset(last + sliceStart) == extendedRange.last) drawSlimSelectionHandle(layout, last, isStart = false, color = palette.selectionHandle)
                     }
                     return@drawWithContent
                 }
                 if (selection.collapsed || annotated.isEmpty()) return@drawWithContent
                 val start = selection.min.coerceIn(0, annotated.lastIndex)
                 val endChar = (selection.max - 1).coerceIn(0, annotated.lastIndex)
-                drawSlimSelectionHandle(layout, start, isStart = true, color = palette.selectionHandle)
-                drawSlimSelectionHandle(layout, endChar, isStart = false, color = palette.selectionHandle)
+                if (chunk.sourceOffset(sliceStart + start) == selection.min) drawSlimSelectionHandle(layout, start, isStart = true, color = palette.selectionHandle)
+                if (chunk.sourceOffset(sliceStart + endChar) == selection.max - 1) drawSlimSelectionHandle(layout, endChar, isStart = false, color = palette.selectionHandle)
             },
             onTextLayout = {
                 textLayout = it
+                registryEntry.layout = it
                 layoutMaxWidth = it.layoutInput.constraints.maxWidth
             },
             textStyle = baseStyle,
