@@ -5,6 +5,15 @@ import androidx.compose.ui.geometry.Size
 import kotlin.test.*
 
 class PdfInkTest {
+    @Test fun partialEraserSplitsStrokeAndKeepsBothEnds() {
+        val stroke = InkStroke(points = listOf(.1f, .5f, .9f, .5f))
+        val parts = inkErasePart(stroke, .5f, .5f, .02f)
+        assertEquals(2, parts.size)
+        assertTrue(parts[0].points.first() < .2f && parts[0].points[parts[0].points.size - 2] < .49f)
+        assertTrue(parts[1].points.first() > .51f && parts[1].points[parts[1].points.size - 2] > .8f)
+        assertEquals(listOf(stroke), inkErasePart(stroke, .5f, .9f, .02f))
+    }
+
     @Test fun smoothPenDampensSmallMovesButKeepsFastStrokesResponsive() {
         val previous = Offset(.5f, .5f)
         val page = Size(500f, 1000f)

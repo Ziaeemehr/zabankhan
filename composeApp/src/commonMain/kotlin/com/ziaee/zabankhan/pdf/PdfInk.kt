@@ -83,5 +83,28 @@ fun inkHit(stroke: InkStroke, x: Float, y: Float, threshold: Float = PDF_ERASER_
     return false
 }
 
+/** Erase only the part of [stroke] within [threshold] of (x, y); the rest is split into new strokes. */
+fun inkErasePart(stroke: InkStroke, x: Float, y: Float, threshold: Float, yScale: Float = 1f): List<InkStroke> {
+    if (!inkHit(stroke, x, y, threshold, yScale)) return listOf(stroke)
+    val p = stroke.points
+    // Densify so long segments are cut where the eraser touches them, not at their far endpoints.
+    val dense = mutableListOf(p[0], p[1])
+    for (i in 2 until p.size - 1 step 2) {
+        val ax = p[i - 2]; val ay = p[i - 1]; val bx = p[i]; val by = p[i + 1]
+        val len = kotlin.math.sqrt(squaredDistance(ax, ay * yScale, bx, by * yScale))
+        val n = kotlin.math.ceil(len / (threshold / 3f)).toInt().coerceIn(1, 200)
+        for (s in 1..n) { val t = s.toFloat() / n; dense += ax + (bx - ax) * t; dense += ay + (by - ay) * t }
+    }
+    val result = mutableListOf<InkStroke>()
+    var run = mutableListOf<Float>()
+    fun flush() { if (run.size >= 4) result += stroke.copy(points = run); run = mutableListOf() }
+    for (i in 0 until dense.size - 1 step 2) {
+        if (squaredDistance(x, y * yScale, dense[i], dense[i + 1] * yScale) < threshold * threshold) flush()
+        else { run += dense[i]; run += dense[i + 1] }
+    }
+    flush()
+    return result.map { it.copy(points = simplifyInkPoints(it.points)) }.filter { it.points.size >= 4 }
+}
+
 private fun squaredDistance(ax: Float, ay: Float, bx: Float, by: Float): Float =
     (ax - bx) * (ax - bx) + (ay - by) * (ay - by)

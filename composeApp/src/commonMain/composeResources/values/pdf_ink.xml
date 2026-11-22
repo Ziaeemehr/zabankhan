@@ -11,4 +11,5 @@
     <string name="pdf_note_hint">Write a note for this passage…</string>
     <string name="pdf_eraser_size">Eraser size</string>
     <string name="pdf_smooth_pen">Smooth pen</string>
+    <string name="pdf_partial_eraser">Partial erase</string>
 </resources>

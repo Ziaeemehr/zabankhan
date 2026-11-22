@@ -38,6 +38,7 @@ import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.PointerType
+import androidx.compose.ui.input.pointer.PointerEventType
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.layout.boundsInRoot
@@ -229,6 +230,7 @@ private data class PdfTextNoteEditor(
     var highlighterWidth by rememberSaveable(path) { mutableFloatStateOf(.004f) }
     var eraserSize by rememberSaveable(path) { mutableFloatStateOf(PDF_ERASER_DEFAULT_SIZE) }
     var eraser by rememberSaveable(path) { mutableStateOf(false) }
+    var partialEraser by rememberSaveable(path) { mutableStateOf(false) }
     var lastInkToolHighlighter by rememberSaveable(path) { mutableStateOf(false) }
     var smoothPen by rememberSaveable(path) { mutableStateOf(false) }
     var fingerInk by rememberSaveable(path) { mutableStateOf(false) }
@@ -422,7 +424,7 @@ private data class PdfTextNoteEditor(
                             notes = notesByPage[index].orEmpty(), notesRtl = notesRtl, onOpenNote = ::openPdfNote,
                             listState = list,
                             penMode = penMode, penColor = penColor, penWidth = if (highlighter) highlighterWidth else penWidth, highlighter = highlighter,
-                            eraser = eraser, eraserSize = eraserSize, fingerInk = fingerInk, smoothPen = smoothPen,
+                            eraser = eraser, eraserSize = eraserSize, partialEraser = partialEraser, fingerInk = fingerInk, smoothPen = smoothPen,
                             ink = pageInk(index),
                             onInk = { saveInk(index, it) },
                             onError = { failed = true },
@@ -475,6 +477,7 @@ private data class PdfTextNoteEditor(
                     vertical = inkToolbarVertical, onToggleOrientation = { inkToolbarVertical = !inkToolbarVertical },
                     penColor = penColor, recentColors = recentInkColors, toolSize = if (eraser) eraserSize else if (highlighter) highlighterWidth else penWidth,
                     eraser = eraser, highlighter = highlighter, fingerInk = fingerInk, smoothPen = smoothPen,
+                    partialEraser = partialEraser, onPartialEraser = { partialEraser = it },
                     onMinimize = { inkToolbarMinimized = true }, onRestore = { inkToolbarMinimized = false },
                     onExpand = { inkToolbarExpanded = !inkToolbarExpanded },
                     onColor = { color ->
@@ -638,7 +641,7 @@ private data class PdfTextNoteEditor(
     selection: PdfRange?, highlights: List<PdfHighlight>, notes: List<PdfTextNote>, notesRtl: Boolean,
     onOpenNote: (PdfTextNote) -> Unit,
     listState: LazyListState,
-    penMode: Boolean, penColor: String, penWidth: Float, highlighter: Boolean, eraser: Boolean, eraserSize: Float, fingerInk: Boolean, smoothPen: Boolean,
+    penMode: Boolean, penColor: String, penWidth: Float, highlighter: Boolean, eraser: Boolean, eraserSize: Float, partialEraser: Boolean, fingerInk: Boolean, smoothPen: Boolean,
     ink: List<InkStroke>, onInk: (List<InkStroke>) -> Unit, onError: () -> Unit,
     onTap: (List<PdfWord>, PdfWord) -> Unit, onRange: (Int, Int, List<PdfWord>, Rect) -> Unit, onRangeEnd: () -> Unit, onDoubleTap: (Offset) -> Unit,
     onArea: (ImageBitmap, PdfRect) -> Unit) {
@@ -646,6 +649,7 @@ private data class PdfTextNoteEditor(
     val saveInk by rememberUpdatedState(onInk)
     var preview by remember(handle, index) { mutableStateOf<List<InkStroke>?>(null) }
     var eraserCursor by remember(handle, index) { mutableStateOf<Offset?>(null) }
+    var hoverCursor by remember(handle, index) { mutableStateOf<Offset?>(null) }
     val livePoints = remember(handle, index) { mutableStateListOf<Float>() }
     val aspect = layout.aspects[index] ?: 1.414f
     var image by remember(handle, index) { mutableStateOf<ImageBitmap?>(layout.cachedImage(index)) }
@@ -717,7 +721,18 @@ private data class PdfTextNoteEditor(
         width = it.width; viewport = Size(it.width.toFloat(), it.height.toFloat())
     }.background(MaterialTheme.colorScheme.surface)) {
         Box(Modifier.fillMaxSize().onGloballyPositioned { coordinates = it }
-        .pointerInput(penMode, penColor, penWidth, highlighter, eraser, eraserSize, fingerInk, smoothPen, viewport, displayZoom) {
+        // Pencil hover (iPad): show where the tip will land, before it touches the page.
+        .pointerInput(penMode) {
+            if (penMode) awaitPointerEventScope {
+                while (true) {
+                    val event = awaitPointerEvent(PointerEventPass.Initial)
+                    val change = event.changes.firstOrNull { it.type != PointerType.Touch }
+                    hoverCursor = if (change != null && !change.pressed && event.type != PointerEventType.Exit && size.width > 0)
+                        Offset(change.position.x / size.width, change.position.y / size.height) else null
+                }
+            } else hoverCursor = null
+        }
+        .pointerInput(penMode, penColor, penWidth, highlighter, eraser, eraserSize, partialEraser, fingerInk, smoothPen, viewport, displayZoom) {
             if (penMode && viewport.width > 0f && viewport.height > 0f) awaitPointerEventScope {
                 while (true) {
                     val down = awaitPointerEvent(PointerEventPass.Initial).changes.firstOrNull {
@@ -748,7 +763,8 @@ private data class PdfTextNoteEditor(
                             val steps = kotlin.math.ceil(distance / .005f).toInt().coerceAtLeast(1)
                             for (step in 0..steps) {
                                 val point = start + delta * (step.toFloat() / steps)
-                                strokes = strokes.filterNot { inkHit(it, point.x, point.y, eraserSize, yScale) }
+                                strokes = if (partialEraser) strokes.flatMap { inkErasePart(it, point.x, point.y, eraserSize, yScale) }
+                                    else strokes.filterNot { inkHit(it, point.x, point.y, eraserSize, yScale) }
                             }
                             previous = n
                             eraserCursor = n
@@ -880,6 +896,12 @@ private data class PdfTextNoteEditor(
             box?.let { rectangle(it, primary.copy(alpha = .25f)) }
         }
         Canvas(Modifier.fillMaxSize()) {
+            hoverCursor?.takeIf { eraserCursor == null }?.let { cursor ->
+                val center = Offset(cursor.x * size.width, cursor.y * size.height)
+                val radius = if (eraser) eraserSize * size.width
+                    else ((if (highlighter) penWidth * 3f else penWidth) * size.width / 2f).coerceAtLeast(2.dp.toPx())
+                drawCircle(if (eraser) Color.Gray.copy(alpha = .5f) else inkColor(penColor, primary, secondary, tertiary).copy(alpha = .5f), radius, center)
+            }
             eraserCursor?.let { cursor ->
                 val center = Offset(cursor.x * size.width, cursor.y * size.height)
                 val radius = eraserSize * size.width
@@ -946,7 +968,8 @@ private fun inkColor(key: String, primary: androidx.compose.ui.graphics.Color,
 @Composable
 private fun PdfInkToolbar(
     modifier: Modifier, minimized: Boolean, expanded: Boolean, penColor: String, recentColors: List<String>,
-    toolSize: Float, eraser: Boolean, highlighter: Boolean, fingerInk: Boolean, smoothPen: Boolean, vertical: Boolean, onToggleOrientation: () -> Unit,
+    toolSize: Float, eraser: Boolean, highlighter: Boolean, fingerInk: Boolean, smoothPen: Boolean,
+    partialEraser: Boolean, onPartialEraser: (Boolean) -> Unit, vertical: Boolean, onToggleOrientation: () -> Unit,
     onMinimize: () -> Unit, onRestore: () -> Unit, onExpand: () -> Unit,
     onMove: (Offset) -> Unit, onDragEnd: () -> Unit,
     onColor: (String) -> Unit, onWidth: (Float) -> Unit, onEraser: (Boolean) -> Unit,
@@ -1012,6 +1035,8 @@ private fun PdfInkToolbar(
                             modifier = Modifier.size(44.dp).semantics { contentDescription = "Highlighter" }) { Icon(Icons.Default.Highlight, "Highlighter", Modifier.size(20.dp)) }
                         IconToggleButton(checked = eraser, onCheckedChange = onEraser,
                             modifier = Modifier.size(44.dp).semantics { contentDescription = "Eraser" }) { Icon(Icons.Default.Delete, "Eraser", Modifier.size(20.dp)) }
+                        if (eraser) FilterChip(selected = partialEraser, onClick = { onPartialEraser(!partialEraser) },
+                            label = { Text(stringResource(Res.string.pdf_partial_eraser)) })
                         IconToggleButton(checked = fingerInk, onCheckedChange = onFinger,
                             modifier = Modifier.size(44.dp).semantics { contentDescription = "Finger ink" }) { Icon(Icons.Default.TouchApp, "Finger ink", Modifier.size(20.dp)) }
                         IconButton(enabled = canUndo, onClick = onUndo, modifier = Modifier.size(44.dp).semantics { contentDescription = "Undo ink" }) { Icon(Icons.Default.Undo, "Undo", Modifier.size(20.dp)) }

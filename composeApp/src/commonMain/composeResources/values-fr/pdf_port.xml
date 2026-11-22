@@ -13,4 +13,5 @@
   <string name="pdf_note_hint">Écrire une note pour ce passage…</string>
     <string name="pdf_eraser_size">Taille de la gomme</string>
     <string name="pdf_smooth_pen">Lissage du stylo</string>
+    <string name="pdf_partial_eraser">Gomme partielle</string>
 </resources>
