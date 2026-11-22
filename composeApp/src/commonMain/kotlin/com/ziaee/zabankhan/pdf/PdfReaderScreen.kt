@@ -226,6 +226,7 @@ private data class PdfTextNoteEditor(
     var penColor by rememberSaveable(path) { mutableStateOf("primary") }
     var penWidth by rememberSaveable(path) { mutableFloatStateOf(.004f) }
     var highlighter by rememberSaveable(path) { mutableStateOf(false) }
+    var highlighterWidth by rememberSaveable(path) { mutableFloatStateOf(.004f) }
     var eraserSize by rememberSaveable(path) { mutableFloatStateOf(PDF_ERASER_DEFAULT_SIZE) }
     var eraser by rememberSaveable(path) { mutableStateOf(false) }
     var lastInkToolHighlighter by rememberSaveable(path) { mutableStateOf(false) }
@@ -420,7 +421,7 @@ private data class PdfTextNoteEditor(
                         PdfPage(handle, layout, index, renderZoom, zoom, areaMode, range?.takeIf { it.page == index }, highlights.filter { it.page == index },
                             notes = notesByPage[index].orEmpty(), notesRtl = notesRtl, onOpenNote = ::openPdfNote,
                             listState = list,
-                            penMode = penMode, penColor = penColor, penWidth = penWidth, highlighter = highlighter,
+                            penMode = penMode, penColor = penColor, penWidth = if (highlighter) highlighterWidth else penWidth, highlighter = highlighter,
                             eraser = eraser, eraserSize = eraserSize, fingerInk = fingerInk, smoothPen = smoothPen,
                             ink = pageInk(index),
                             onInk = { saveInk(index, it) },
@@ -472,7 +473,7 @@ private data class PdfTextNoteEditor(
                     onMove = { delta -> moveToolbar(delta) }, onDragEnd = { settleToolbar() },
                     minimized = inkToolbarMinimized, expanded = inkToolbarExpanded,
                     vertical = inkToolbarVertical, onToggleOrientation = { inkToolbarVertical = !inkToolbarVertical },
-                    penColor = penColor, recentColors = recentInkColors, toolSize = if (eraser) eraserSize else penWidth,
+                    penColor = penColor, recentColors = recentInkColors, toolSize = if (eraser) eraserSize else if (highlighter) highlighterWidth else penWidth,
                     eraser = eraser, highlighter = highlighter, fingerInk = fingerInk, smoothPen = smoothPen,
                     onMinimize = { inkToolbarMinimized = true }, onRestore = { inkToolbarMinimized = false },
                     onExpand = { inkToolbarExpanded = !inkToolbarExpanded },
@@ -482,7 +483,7 @@ private data class PdfTextNoteEditor(
                         eraser = false
                         recentInkColors = (listOf(color) + recentInkColors.filterNot { it == color }).take(6)
                     },
-                    onWidth = { if (eraser) eraserSize = it else penWidth = it },
+                    onWidth = { if (eraser) eraserSize = it else if (highlighter) highlighterWidth = it else penWidth = it },
                     onEraser = {
                         eraser = it
                         if (it) {
@@ -494,8 +495,7 @@ private data class PdfTextNoteEditor(
                     onSmoothPen = { smoothPen = it },
                     onToggleEraser = { if (eraser) { eraser = false; highlighter = lastInkToolHighlighter } else { if (!highlighter) lastInkToolHighlighter = false; eraser = true; highlighter = false } },
                     onUndo = { if (pageInk(undoPage).isNotEmpty()) saveInk(undoPage, pageInk(undoPage).dropLast(1)) },
-                    onClear = { if (pageInk(page).isNotEmpty()) saveInk(page, emptyList()) },
-                    canUndo = pageInk(undoPage).isNotEmpty(), canClear = pageInk(page).isNotEmpty()
+                    canUndo = pageInk(undoPage).isNotEmpty()
                 )
             }
         }
@@ -952,7 +952,7 @@ private fun PdfInkToolbar(
     onColor: (String) -> Unit, onWidth: (Float) -> Unit, onEraser: (Boolean) -> Unit,
     onHighlighter: (Boolean) -> Unit, onFinger: (Boolean) -> Unit, onSmoothPen: (Boolean) -> Unit,
     onToggleEraser: () -> Unit,
-    onUndo: () -> Unit, onClear: () -> Unit, canUndo: Boolean, canClear: Boolean,
+    onUndo: () -> Unit, canUndo: Boolean,
 ) {
     val palette = remember { mutableStateOf(false) }
     val currentToolIcon = when { eraser -> Icons.Default.Delete; highlighter -> Icons.Default.Highlight; else -> Icons.Default.Edit }
@@ -1015,7 +1015,6 @@ private fun PdfInkToolbar(
                         IconToggleButton(checked = fingerInk, onCheckedChange = onFinger,
                             modifier = Modifier.size(44.dp).semantics { contentDescription = "Finger ink" }) { Icon(Icons.Default.TouchApp, "Finger ink", Modifier.size(20.dp)) }
                         IconButton(enabled = canUndo, onClick = onUndo, modifier = Modifier.size(44.dp).semantics { contentDescription = "Undo ink" }) { Icon(Icons.Default.Undo, "Undo", Modifier.size(20.dp)) }
-                        IconButton(enabled = canClear, onClick = onClear, modifier = Modifier.size(44.dp).semantics { contentDescription = "Clear page ink" }) { Icon(Icons.Default.Clear, "Clear", Modifier.size(20.dp)) }
                     }
                     if (vertical) FlowColumn(Modifier.widthIn(max = this@BoxWithConstraints.maxWidth).heightIn(max = this@BoxWithConstraints.maxHeight * .72f).verticalScroll(rememberScrollState()).padding(horizontal = 8.dp, vertical = 5.dp),
                         maxItemsInEachColumn = 8, horizontalArrangement = Arrangement.Center, verticalArrangement = Arrangement.Center) { expandedItems() }
@@ -1036,9 +1035,10 @@ private fun PdfInkToolbar(
                         modifier = Modifier.size(40.dp).semantics { contentDescription = "Highlighter" }) { Icon(Icons.Default.Highlight, "Highlighter", Modifier.size(19.dp)) }
                     IconToggleButton(checked = eraser, onCheckedChange = onEraser,
                         modifier = Modifier.size(40.dp).semantics { contentDescription = "Eraser" }) { Icon(Icons.Default.Delete, "Eraser", Modifier.size(19.dp)) }
-                    Box(Modifier.size(32.dp).background(inkColor(penColor, MaterialTheme.colorScheme.primary,
-                        MaterialTheme.colorScheme.secondary, MaterialTheme.colorScheme.tertiary), CircleShape)
-                        .semantics { contentDescription = "Current ink color" })
+                    IconButton(onClick = onExpand, modifier = Modifier.size(40.dp).semantics { contentDescription = "Current ink color" }) {
+                        Box(Modifier.size(20.dp).background(inkColor(penColor, MaterialTheme.colorScheme.primary,
+                            MaterialTheme.colorScheme.secondary, MaterialTheme.colorScheme.tertiary), CircleShape))
+                    }
                     IconButton(onClick = onExpand, modifier = Modifier.size(44.dp).semantics { contentDescription = if (expanded) "Hide pen tools" else "More pen tools" }) {
                         Icon(if (expanded) Icons.Default.ExpandMore else Icons.Default.ExpandLess,
                             if (expanded) "Hide pen tools" else "More pen tools", Modifier.size(20.dp))
@@ -1069,7 +1069,7 @@ internal fun PdfInkWidthControl(value: Float, vertical: Boolean, eraser: Boolean
     val description = stringResource(if (eraser) Res.string.pdf_eraser_size else Res.string.pdf_pen_thickness)
 
     Surface(shape = RoundedCornerShape(18.dp), color = MaterialTheme.colorScheme.surfaceContainerLow) {
-        Column(Modifier.width(if (vertical) 148.dp else 196.dp).padding(horizontal = 10.dp, vertical = 8.dp),
+        Column(Modifier.width(148.dp).padding(horizontal = 10.dp, vertical = 8.dp),
             verticalArrangement = Arrangement.spacedBy(2.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(description, Modifier.weight(1f), style = MaterialTheme.typography.labelSmall)
