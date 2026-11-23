@@ -17,21 +17,19 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.Button
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -209,16 +207,11 @@ fun DatasetScreen(vm: AppViewModel, settings: AppSettings, onBack: () -> Unit) {
     Scaffold(
         snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
-            TopAppBar(
-                title = { Text(stringResource(Res.string.dataset_title)) },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(
-                            Icons.AutoMirrored.Filled.ArrowBack,
-                            stringResource(Res.string.accessibility_back)
-                        )
-                    }
-                },
+            EditorialTopAppBar(
+                title = stringResource(Res.string.dataset_title),
+                back = onBack,
+                backLabel = stringResource(Res.string.accessibility_back),
+                windowInsets = TopAppBarDefaults.windowInsets,
                 actions = {
                     TextButton(
                         onClick = viewModel::addAll,
@@ -388,9 +381,9 @@ private fun DatasetItem(
     progress: Pair<Long, Long?>?,
     onAdd: () -> Unit
 ) {
-    Card {
-        Column(Modifier.fillMaxWidth().padding(16.dp)) {
-            Text(name, style = MaterialTheme.typography.titleMedium)
+    EditorialCard {
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Text(name, style = MaterialTheme.typography.titleMedium.merge(contentStyle(name)))
             Text("$level · $count", style = MaterialTheme.typography.bodySmall)
             val size = downloadSize?.let(::formatDatasetBytes) ?: stringResource(Res.string.dataset_size_unknown)
             Text(stringResource(Res.string.dataset_pack_size, size), style = MaterialTheme.typography.bodySmall)
@@ -410,7 +403,7 @@ private fun DatasetItem(
                             remote -> Res.string.dataset_download_install
                             else -> Res.string.dataset_add
                         }
-                        Text(stringResource(label), maxLines = 1)
+                        Text(stringResource(label))
                     }
                 }
             }
