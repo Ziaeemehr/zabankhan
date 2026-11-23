@@ -1,5 +1,6 @@
 package com.ziaee.zabankhan.watch
 
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -27,6 +28,8 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.backhandler.BackHandler
 import androidx.compose.ui.text.intl.Locale
 import androidx.compose.ui.text.style.TextOverflow
@@ -38,6 +41,17 @@ import com.ziaee.zabankhan.resources.*
 import com.ziaee.zabankhan.ui.*
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
+import io.ktor.client.HttpClient
+import io.ktor.client.request.prepareGet
+import io.ktor.client.statement.bodyAsChannel
+import io.ktor.http.HttpHeaders
+import io.ktor.utils.io.readAvailable
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.IO
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
+import okio.Buffer
+import org.jetbrains.compose.resources.decodeToImageBitmap
 import org.jetbrains.compose.resources.stringResource
 
 fun watchRoute(videoId: String = "", path: String = "", subs: String = "", shadow: Boolean = false) =
@@ -242,7 +256,7 @@ fun watchRoute(videoId: String = "", path: String = "", subs: String = "", shado
             if (showingFavorites) {
                 val matches = savedVideos.filter { it.title.contains(query.trim(), ignoreCase = true) }
                 items(matches, key = { it.stableKey }) { video ->
-                    VideoRow(video.title.ifBlank { video.path.substringAfterLast('/').ifBlank { video.videoId } }, video.channel,
+                    VideoRow(video.title.ifBlank { video.path.substringAfterLast('/').ifBlank { video.videoId } }, video.channel, vm.container.http, video.videoId,
                         isFavorite = true, favoriteLabel = stringResource(Res.string.videos_favorite_remove, video.title),
                         onToggleFavorite = { toggleFavorite(video.videoId, video.path, video.subtitlePath, video.title, video.channel) },
                         onPlaylist = { playlistMembershipVideo = video.stableKey },
@@ -257,7 +271,7 @@ fun watchRoute(videoId: String = "", path: String = "", subs: String = "", shado
                     val playlistVideos = allSavedVideos.filter { video -> membershipRows.any { it.videoKey == video.stableKey } && video.title.contains(query.trim(), ignoreCase = true) }
                     item { Text(playlists.firstOrNull { it.syncId == playlistId }?.name.orEmpty(), style = MaterialTheme.typography.titleMedium) }
                     items(playlistVideos, key = { "playlist:${it.stableKey}" }) { video ->
-                        VideoRow(video.title.ifBlank { video.videoId.ifBlank { video.path } }, video.channel,
+                        VideoRow(video.title.ifBlank { video.videoId.ifBlank { video.path } }, video.channel, vm.container.http, video.videoId,
                             isFavorite = video.isFavorite, favoriteLabel = stringResource(if (video.isFavorite) Res.string.videos_favorite_remove else Res.string.videos_favorite_add, video.title),
                             onToggleFavorite = { toggleFavorite(video.videoId, video.path, video.subtitlePath, video.title, video.channel) },
                             onPlaylist = { playlistMembershipVideo = video.stableKey }, onClick = { open(video.videoId,
@@ -275,7 +289,7 @@ fun watchRoute(videoId: String = "", path: String = "", subs: String = "", shado
                     items(recents, key = { "recent:${it.path ?: it.videoId}" }) { item ->
                         val key = if (item.videoId.isNotBlank() || !item.path.isNullOrBlank())
                             com.ziaee.zabankhan.data.savedVideoStableKey(lang.code, item.videoId, item.path.orEmpty()) else ""
-                        RecentVideoRow(item, onWatch = { open(item.videoId, item.path.orEmpty(), item.subs.orEmpty()) },
+                        RecentVideoRow(item, vm.container.http, onWatch = { open(item.videoId, item.path.orEmpty(), item.subs.orEmpty()) },
                             favorite = key in favoriteKeys,
                             favoriteLabel = stringResource(if (key in favoriteKeys) Res.string.videos_favorite_remove else Res.string.videos_favorite_add, item.title),
                             favoriteEnabled = key.isNotBlank(),
@@ -350,7 +364,7 @@ fun watchRoute(videoId: String = "", path: String = "", subs: String = "", shado
                     searchChannelVideos(feeds[selected.channelId].orEmpty(), query, lang) else emptyList()
                 items(videos, key = { it.videoId }) { video ->
                     val key = com.ziaee.zabankhan.data.savedVideoStableKey(lang.code, video.videoId, "")
-                    VideoRow(video.title, video.published.take(10), isFavorite = key in favoriteKeys,
+                    VideoRow(video.title, video.published.take(10), vm.container.http, video.videoId, isFavorite = key in favoriteKeys,
                         favoriteLabel = stringResource(if (key in favoriteKeys) Res.string.videos_favorite_remove else Res.string.videos_favorite_add, video.title),
                         onToggleFavorite = { toggleFavorite(video.videoId, "", "", video.title, selected.title) },
                         onPlaylist = { scope.launch { savedVideoRepository.setFavorite(lang.code, video.videoId, "", "", video.title, selected.title, key in favoriteKeys); playlistMembershipVideo = key } }, onClick = { open(video.videoId, "", "") })
@@ -362,13 +376,13 @@ fun watchRoute(videoId: String = "", path: String = "", subs: String = "", shado
 }
 
 @Composable
-private fun RecentVideoRow(video: RecentVideo, favorite: Boolean, favoriteLabel: String, favoriteEnabled: Boolean, onToggleFavorite: () -> Unit, onWatch: () -> Unit, onRemove: () -> Unit, onPlaylist: () -> Unit) {
+private fun RecentVideoRow(video: RecentVideo, http: HttpClient, favorite: Boolean, favoriteLabel: String, favoriteEnabled: Boolean, onToggleFavorite: () -> Unit, onWatch: () -> Unit, onRemove: () -> Unit, onPlaylist: () -> Unit) {
     var menu by remember { mutableStateOf(false) }
     Row(Modifier.fillMaxWidth().clickable(onClick = onWatch), verticalAlignment = Alignment.CenterVertically) {
         VideoRow(video.title.ifBlank { video.videoId },
             stringResource(Res.string.videos_progress, videoResumeTime(video.positionMs)) +
                 video.channel.takeIf { it.isNotBlank() }?.let { " · $it" }.orEmpty(),
-            modifier = Modifier.weight(1f), onClick = onWatch)
+            http = http, videoId = video.videoId, modifier = Modifier.weight(1f), onClick = onWatch)
         IconButton(enabled = favoriteEnabled, onClick = onToggleFavorite) {
             Icon(if (favorite) Icons.Default.Favorite else Icons.Default.FavoriteBorder, favoriteLabel)
         }
@@ -383,12 +397,12 @@ private fun RecentVideoRow(video: RecentVideo, favorite: Boolean, favoriteLabel:
 }
 
 @Composable
-private fun VideoRow(title: String, support: String, modifier: Modifier = Modifier, isFavorite: Boolean? = null,
+private fun VideoRow(title: String, support: String, http: HttpClient, videoId: String, modifier: Modifier = Modifier, isFavorite: Boolean? = null,
     favoriteLabel: String = "", onToggleFavorite: (() -> Unit)? = null, onPlaylist: (() -> Unit)? = null, onClick: () -> Unit) {
     Row(modifier.fillMaxWidth().padding(vertical = 6.dp),
         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
         Row(Modifier.weight(1f).clickable(onClick = onClick), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-        VideoThumbnail(Modifier.width(112.dp))
+        VideoThumbnail(Modifier.width(88.dp), http = http, videoId = videoId)
         Column(Modifier.weight(1f)) {
             Text(title, Modifier.fillMaxWidth(), maxLines = 2, overflow = TextOverflow.Ellipsis,
                 style = MaterialTheme.typography.bodyMedium.merge(contentStyle(title)))
@@ -402,11 +416,51 @@ private fun VideoRow(title: String, support: String, modifier: Modifier = Modifi
     }
 }
 
-/** shortcut: the project has no network image loader, so a 16:9 tinted frame stands in for the YouTube thumbnail; add one to show real thumbnails. */
 @Composable
-internal fun VideoThumbnail(modifier: Modifier = Modifier) {
-    Box(modifier.aspectRatio(16f / 9f).background(MaterialTheme.colorScheme.surfaceVariant), contentAlignment = Alignment.Center) {
-        Icon(Icons.Default.PlayCircle, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
+internal fun VideoThumbnail(modifier: Modifier = Modifier, http: HttpClient? = null, videoId: String = "") {
+    val id = remember(videoId) { YoutubeUrl.videoId(videoId) }
+    val bitmap by key(http, id) {
+        produceState<ImageBitmap?>(null) {
+            if (http != null && id != null) value = loadYoutubeThumbnail(http, id)
+        }
+    }
+    Box(
+        modifier.aspectRatio(16f / 9f).clip(MaterialTheme.shapes.small).background(MaterialTheme.colorScheme.surfaceVariant),
+        contentAlignment = Alignment.Center,
+    ) {
+        val thumbnail = bitmap
+        if (thumbnail != null) {
+            Image(thumbnail, contentDescription = null, modifier = Modifier.matchParentSize(), contentScale = ContentScale.Crop)
+        } else {
+            Icon(Icons.Default.PlayCircle, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+    }
+}
+
+private suspend fun loadYoutubeThumbnail(http: HttpClient, id: String): ImageBitmap? = withContext(Dispatchers.IO) {
+    withTimeoutOrNull(5_000) {
+        try {
+            http.prepareGet("https://i.ytimg.com/vi/$id/mqdefault.jpg").execute { response ->
+                if (response.status.value !in 200..299 ||
+                    !response.headers[HttpHeaders.ContentType].orEmpty().startsWith("image/", ignoreCase = true)
+                ) return@execute null
+
+                val channel = response.bodyAsChannel()
+                val buffer = Buffer()
+                val chunk = ByteArray(8192)
+                while (true) {
+                    val count = channel.readAvailable(chunk, 0, chunk.size)
+                    if (count == -1) break
+                    if (buffer.size + count > 512 * 1024) return@execute null
+                    buffer.write(chunk, 0, count)
+                }
+                buffer.readByteArray().decodeToImageBitmap()
+            }
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (_: Exception) {
+            null
+        }
     }
 }
 
