@@ -1,5 +1,7 @@
 package com.ziaee.zabankhan.dictionary
 
+import com.ziaee.zabankhan.ui.ActionMenuDivider
+import com.ziaee.zabankhan.ui.EditorialActionMenu
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Bookmark
@@ -345,10 +347,10 @@ internal fun OwnDictionarySenseSaveControl(
             IconButton(onClick = { listMenu = true }, modifier = Modifier.size(32.dp)) {
                 Icon(Icons.Default.ArrowDropDown, stringResource(Res.string.vocab_list_select), Modifier.size(18.dp))
             }
-            DropdownMenu(expanded = listMenu, onDismissRequest = { listMenu = false }) {
+            EditorialActionMenu(expanded = listMenu, onDismissRequest = { listMenu = false }) {
                 DropdownMenuItem(text = { Text(stringResource(Res.string.vocab_list_uncategorized)) }, onClick = { pendingListId = -1L; listMenu = false })
                 lists.forEach { list -> DropdownMenuItem(text = { Text(list.name) }, onClick = { pendingListId = list.id; listMenu = false }) }
-                HorizontalDivider()
+                ActionMenuDivider()
                 DropdownMenuItem(text = { Text("+ " + stringResource(Res.string.vocab_list_new)) }, onClick = { newList = true; listMenu = false })
             }
         }
@@ -459,7 +461,7 @@ internal fun OwnDictionaryEntryCard(entry: Entry, meanings: List<SenseMeaning>, 
                                 else -> Res.string.own_form_pres
                             }))
                         }
-                        DropdownMenu(
+                        EditorialActionMenu(
                             expanded = tenseMenu,
                             onDismissRequest = { tenseMenu = false }
                         ) {
@@ -610,7 +612,9 @@ private fun DictionaryDownloadBlock(
 @Composable
 fun OwnDictionarySettings(vm: AppViewModel, settings: AppSettings, openSearch: () -> Unit = {}) {
     val dictionary = vm.container.ownDictionary
-    TextButton(onClick = openSearch) { Text(stringResource(Res.string.own_search)) }
+    OutlinedButton(onClick = openSearch, modifier = Modifier.fillMaxWidth()) {
+        Text(stringResource(Res.string.own_search))
+    }
     var meaningMenu by remember { mutableStateOf(false) }
     ExposedDropdownMenuBox(expanded = meaningMenu, onExpandedChange = { meaningMenu = it }) {
         OutlinedButton(onClick = { meaningMenu = true }, modifier = Modifier.menuAnchor()) {

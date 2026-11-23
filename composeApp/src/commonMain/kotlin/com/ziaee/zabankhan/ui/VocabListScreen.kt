@@ -367,21 +367,24 @@ fun VocabListScreen(
                     )
                     Icon(Icons.Default.ArrowDropDown, contentDescription = null)
                 }
-                DropdownMenu(
+                EditorialActionMenu(
                     expanded = scopeMenuExpanded,
                     onDismissRequest = { scopeMenuExpanded = false }
                 ) {
                     DropdownMenuItem(
                         text = { Text(stringResource(Res.string.b_words_vocab_list_all)) },
+                        leadingIcon = { if (selectedScope == VOCAB_SCOPE_ALL) Icon(Icons.Default.Check, null) },
                         onClick = { selectedScope = VOCAB_SCOPE_ALL; scopeMenuExpanded = false }
                     )
                     DropdownMenuItem(
                         text = { Text(stringResource(Res.string.b_words_vocab_list_uncategorized)) },
+                        leadingIcon = { if (selectedScope == VOCAB_SCOPE_UNFILED) Icon(Icons.Default.Check, null) },
                         onClick = { selectedScope = VOCAB_SCOPE_UNFILED; scopeMenuExpanded = false }
                     )
                     lists.forEach { list ->
                         DropdownMenuItem(
-                            text = { Text(list.name) },
+                            text = { Text(list.name, style = MaterialTheme.typography.bodyMedium.merge(contentStyle(list.name))) },
+                            leadingIcon = { if (selectedScope == list.id) Icon(Icons.Default.Check, null) },
                             onClick = { selectedScope = list.id; scopeMenuExpanded = false },
                             trailingIcon = {
                                 Row {
@@ -398,6 +401,7 @@ fun VocabListScreen(
                             }
                         )
                     }
+                    ActionMenuDivider()
                     DropdownMenuItem(
                         text = { Text(stringResource(Res.string.b_words_vocab_list_new)) },
                         onClick = { showNewListDialog = true; scopeMenuExpanded = false },
@@ -659,9 +663,10 @@ fun VocabListScreen(
                                 showMoveToListDialog = false
                             },
                             modifier = Modifier.fillMaxWidth()
-                        ) { Text(list.name) }
+                        ) { Text(list.name, style = MaterialTheme.typography.labelLarge.merge(contentStyle(list.name))) }
                     }
                     item {
+                        ActionMenuDivider()
                         TextButton(
                             onClick = {
                                 createListForSelection = true
@@ -935,6 +940,7 @@ internal fun CsvImportDialog(
                         ExposedDropdownMenuBox(expanded = menuOpen, onExpandedChange = { menuOpen = it }) {
                             OutlinedTextField(
                                 value = existing?.name.orEmpty(),
+                                shape = MaterialTheme.shapes.medium,
                                 onValueChange = {},
                                 readOnly = true,
                                 trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = menuOpen) },
@@ -944,6 +950,7 @@ internal fun CsvImportDialog(
                                 lists.forEach { list ->
                                     DropdownMenuItem(
                                         text = { Text(list.name) },
+                                        leadingIcon = { if (existing?.id == list.id) Icon(Icons.Default.Check, null) },
                                         onClick = { existing = list; menuOpen = false }
                                     )
                                 }
@@ -955,6 +962,7 @@ internal fun CsvImportDialog(
                 if (choice == CsvTargetChoice.NEW) {
                     OutlinedTextField(
                         value = newName,
+                        shape = MaterialTheme.shapes.medium,
                         onValueChange = { newName = it },
                         singleLine = true,
                         label = { Text(stringResource(Res.string.b_words_csv_import_new_name)) },
