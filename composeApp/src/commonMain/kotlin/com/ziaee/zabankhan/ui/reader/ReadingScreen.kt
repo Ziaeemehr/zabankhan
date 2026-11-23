@@ -90,6 +90,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.isActive
 
 import com.ziaee.zabankhan.resources.*
+import com.ziaee.zabankhan.ui.EditorialBottomSheet
 import com.ziaee.zabankhan.ui.theme.*
 import com.ziaee.zabankhan.lang.*
 import com.ziaee.zabankhan.srs.*
@@ -1922,7 +1923,7 @@ private fun ContentsSheet(
     onDismiss: () -> Unit
 ) {
     val currentHeadingIndex = headings.indexOfLast { it.first <= currentChunkIndex }
-    ModalBottomSheet(onDismissRequest = onDismiss, containerColor = palette.background, contentColor = palette.ink) {
+    EditorialBottomSheet(onDismissRequest = onDismiss, containerColor = palette.background, contentColor = palette.ink) {
         Text(
             stringResource(Res.string.reading_contents),
             style = TextStyle(fontFamily = readerHeadlineFamily(stringResource(Res.string.reading_contents)), fontSize = 28.sp, lineHeight = 34.sp, fontWeight = FontWeight.SemiBold),
@@ -1987,7 +1988,7 @@ private fun SourceInfoSheet(
         }
     }
 
-    ModalBottomSheet(onDismissRequest = onDismiss, containerColor = palette.background, contentColor = palette.ink) {
+    EditorialBottomSheet(onDismissRequest = onDismiss, containerColor = palette.background, contentColor = palette.ink) {
         Column(modifier = Modifier.fillMaxWidth().padding(horizontal = ZabankhanDesign.spacing.medium).padding(bottom = ZabankhanDesign.spacing.large)) {
             Text(doc.title, style = TextStyle(fontFamily = readerHeadlineFamily(doc.title), fontSize = 28.sp, lineHeight = 34.sp, fontWeight = FontWeight.SemiBold))
             HorizontalDivider(Modifier.padding(vertical = ZabankhanDesign.spacing.small), color = palette.divider)

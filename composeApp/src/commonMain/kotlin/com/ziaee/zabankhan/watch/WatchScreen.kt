@@ -524,7 +524,7 @@ import kotlin.time.TimeSource
     }
     editingTranslation?.let { text ->
         var draft by remember(text) { mutableStateOf(translations.states[text]?.text.orEmpty()) }
-        ModalBottomSheet(onDismissRequest = { editingTranslation = null }) {
+        EditorialBottomSheet(onDismissRequest = { editingTranslation = null }) {
             Column(Modifier.fillMaxWidth().padding(20.dp).imePadding(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Text(text, style = contentStyle(text), maxLines = 3, overflow = TextOverflow.Ellipsis)
                 OutlinedTextField(draft, { draft = it }, Modifier.fillMaxWidth(), textStyle = MaterialTheme.typography.bodyLarge.merge(contentStyle(draft)), minLines = 2, maxLines = 6)

@@ -145,15 +145,27 @@ private fun NavHostController.navigateToTab(route: String) {
                 }
             }
             Scaffold(snackbarHost = { SnackbarHost(snackbar) }, bottomBar = {
-                if (route in routes && !(route == "review" && reviewingCards)) NavigationBar(containerColor = MaterialTheme.colorScheme.surface) {
-                    routes.forEachIndexed { i, target -> NavigationBarItem(selected = route == target,
-                        onClick = { nav.navigateToTab(target) },
-                        icon = { Icon(icons[i], stringResource(labels[i])) }, label = { EditorialNavigationLabel(stringResource(labels[i])) },
-                        colors = NavigationBarItemDefaults.colors(
-                            selectedIconColor = MaterialTheme.colorScheme.primary, selectedTextColor = MaterialTheme.colorScheme.primary,
-                            unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant, unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                            indicatorColor = androidx.compose.ui.graphics.Color.Transparent,
-                        )) }
+                if (route in routes && !(route == "review" && reviewingCards)) {
+                    Column {
+                        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+                        NavigationBar(containerColor = MaterialTheme.colorScheme.surface) {
+                            routes.forEachIndexed { index, target ->
+                                NavigationBarItem(
+                                    selected = route == target,
+                                    onClick = { nav.navigateToTab(target) },
+                                    icon = { Icon(icons[index], null) },
+                                    label = { EditorialNavigationLabel(stringResource(labels[index])) },
+                                    colors = NavigationBarItemDefaults.colors(
+                                        selectedIconColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                                        selectedTextColor = MaterialTheme.colorScheme.primary,
+                                        unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        indicatorColor = MaterialTheme.colorScheme.primaryContainer,
+                                    ),
+                                )
+                            }
+                        }
+                    }
                 }
             }) { padding ->
                 NavHost(nav, "home", Modifier.padding(padding).consumeWindowInsets(padding)) {

@@ -9,6 +9,7 @@ import com.ziaee.zabankhan.app.AppViewModel
 import com.ziaee.zabankhan.data.TextDocument
 import com.ziaee.zabankhan.lang.LanguageSpec
 import com.ziaee.zabankhan.resources.*
+import com.ziaee.zabankhan.ui.EditorialBottomSheet
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.stringResource
@@ -67,7 +68,7 @@ internal fun transcriptFileName(title: String): String = title.map { char ->
             finally { saving = false }
         }
     }
-    ModalBottomSheet(onDismissRequest = dismiss) {
+    EditorialBottomSheet(onDismissRequest = dismiss) {
         Column(Modifier.fillMaxWidth().navigationBarsPadding().padding(24.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text(stringResource(Res.string.watch_export), style = MaterialTheme.typography.titleLarge)
             TextButton(enabled = !saving, onClick = { saveDialog = true }) { Text(stringResource(Res.string.watch_export_library)) }

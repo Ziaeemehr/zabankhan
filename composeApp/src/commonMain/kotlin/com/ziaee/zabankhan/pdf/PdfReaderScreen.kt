@@ -559,7 +559,7 @@ private data class PdfTextNoteEditor(
         }
     }
     noteEditor?.let { editor ->
-        ModalBottomSheet(onDismissRequest = ::closePdfNote,
+        EditorialBottomSheet(onDismissRequest = ::closePdfNote,
             sheetMaxWidth = androidx.compose.ui.unit.Dp.Unspecified,
             sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)) {
             Column(Modifier.fillMaxWidth().fillMaxHeight(.98f).imePadding().padding(horizontal = 10.dp, vertical = 4.dp),
@@ -620,7 +620,7 @@ private data class PdfTextNoteEditor(
     }
     selection?.let { DictionarySheet(vm, settings, text, it, vocab, emptyList(), dismiss = { selection = null }) }
     areaText?.let { recognized ->
-        ModalBottomSheet(sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true), onDismissRequest = { areaText = null }) {
+        EditorialBottomSheet(sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true), onDismissRequest = { areaText = null }) {
             Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(20.dp).navigationBarsPadding(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Text(stringResource(Res.string.pdf_recognized_text), style = MaterialTheme.typography.titleLarge)
                 OutlinedTextField(recognized, { areaText = it }, modifier = Modifier.fillMaxWidth(), textStyle = contentStyle(recognized))
@@ -1158,7 +1158,7 @@ private fun PdfTranslationSheet(
         catch (_: Exception) { translation = null }
         finally { loading = false }
     }
-    ModalBottomSheet(sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true), onDismissRequest = dismiss) {
+    EditorialBottomSheet(sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true), onDismissRequest = dismiss) {
         Column(Modifier.fillMaxWidth().heightIn(max = maxHeight).verticalScroll(rememberScrollState())
             .padding(20.dp).navigationBarsPadding(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {

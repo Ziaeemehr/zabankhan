@@ -39,7 +39,7 @@ fun ProgressCard(state: HomeProgress, onOpen: () -> Unit, onSavedWords: () -> Un
     val progress = (state.todayMinutes.toFloat() / state.goalMinutes.coerceAtLeast(1)).coerceIn(0f, 1f)
     val goalReached = progress >= 1f
     val colors = MaterialTheme.colorScheme
-    Card(onClick = onOpen, modifier = modifier) {
+    EditorialCard(modifier, onClick = onOpen, containerColor = colors.primaryContainer) {
         Column(Modifier.padding(start = 14.dp, end = 6.dp, top = 12.dp, bottom = 6.dp)) {
             motivation?.let { summary ->
                 Row(Modifier.fillMaxWidth().padding(end = 8.dp), verticalAlignment = Alignment.CenterVertically,
@@ -100,7 +100,7 @@ private fun ProgressStat(icon: ImageVector, accent: Color, value: String, label:
 fun DailyReviewCard(dueCount: Int, onStart: () -> Unit, modifier: Modifier = Modifier) {
     val due = dueCount > 0
     val accent = if (due) MaterialTheme.colorScheme.secondary else MaterialTheme.colorScheme.tertiary
-    Card(onClick = onStart, enabled = due, modifier = modifier.fillMaxWidth()) {
+    EditorialCard(modifier, onClick = onStart, enabled = due) {
         Row(Modifier.fillMaxWidth().padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
             // Flashcards, not a book: the book icon belongs to "continue reading".
             Box(Modifier.size(48.dp).clip(CircleShape).background(accent.copy(alpha = 0.16f)), contentAlignment = Alignment.Center) {
@@ -127,7 +127,7 @@ fun DailyReviewCard(dueCount: Int, onStart: () -> Unit, modifier: Modifier = Mod
 
 @Composable
 private fun HomeEntryCard(icon: ImageVector, accent: Color, title: String, subtitle: String, onClick: () -> Unit, modifier: Modifier = Modifier) {
-    Card(onClick = onClick, modifier = modifier.fillMaxWidth()) {
+    EditorialCard(modifier, onClick = onClick) {
         Row(Modifier.fillMaxWidth().padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
             Box(Modifier.size(48.dp).clip(CircleShape).background(accent.copy(alpha = 0.16f)), contentAlignment = Alignment.Center) {
                 Icon(icon, contentDescription = null, tint = accent, modifier = Modifier.size(26.dp))
@@ -259,7 +259,7 @@ fun TextLevelBadge(level: String?, modifier: Modifier = Modifier) {
 @Composable
 fun ContinueReadingCard(doc: TextDocument, onClick: () -> Unit, modifier: Modifier = Modifier) {
     val metrics = remember(doc.id, doc.body, doc.lastOffset) { homeReadingMetrics(doc) }
-    Card(modifier.fillMaxWidth().clickable(onClick = onClick)) {
+    EditorialCard(modifier, onClick = onClick) {
         Row(Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
             DocumentThumbnail(doc, Modifier.size(ZabankhanDesign.sizes.thumbnailMedium))
             Spacer(Modifier.width(12.dp))
@@ -297,7 +297,7 @@ internal fun videoResumeTime(positionMs: Long): String {
 
 @Composable
 fun ContinueWatchingCard(video: RecentVideo, onClick: () -> Unit, modifier: Modifier = Modifier) {
-    Card(modifier.fillMaxWidth().clickable(onClick = onClick)) {
+    EditorialCard(modifier, onClick = onClick) {
         Row(Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
             VideoThumbnail(Modifier.width(ZabankhanDesign.sizes.thumbnailMedium).clip(RoundedCornerShape(8.dp)))
             Spacer(Modifier.width(12.dp))

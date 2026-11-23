@@ -25,7 +25,7 @@ fun NewsPreviewSheet(
     onDownloadOrOpen: () -> Unit, onDismiss: () -> Unit,
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-    ModalBottomSheet(onDismissRequest = onDismiss, sheetState = sheetState) {
+    EditorialBottomSheet(onDismissRequest = onDismiss, sheetState = sheetState) {
         Column(Modifier.fillMaxWidth().padding(horizontal = 20.dp).padding(bottom = 24.dp).navigationBarsPadding()) {
             NewsCardImage(headline, Modifier.fillMaxWidth().height(180.dp))
             Spacer(Modifier.height(16.dp))
