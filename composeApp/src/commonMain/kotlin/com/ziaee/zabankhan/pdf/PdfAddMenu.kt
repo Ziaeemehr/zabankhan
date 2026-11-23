@@ -2,6 +2,11 @@ package com.ziaee.zabankhan.pdf
 
 import androidx.compose.foundation.layout.Box
 import androidx.compose.material3.*
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.PictureAsPdf
+import androidx.compose.material.icons.filled.PlayCircle
+import com.ziaee.zabankhan.ui.EditorialActionMenu
 import com.ziaee.zabankhan.ui.EditorialPrimaryButton
 import androidx.compose.runtime.*
 import com.ziaee.zabankhan.app.AppViewModel
@@ -27,10 +32,13 @@ import org.jetbrains.compose.resources.stringResource
     }
     Box {
         EditorialPrimaryButton(stringResource(Res.string.add_text), onClick = { expanded = true })
-        DropdownMenu(expanded, { expanded = false }) {
-            DropdownMenuItem(text = { Text(stringResource(Res.string.add_text)) }, onClick = { expanded = false; addText() })
-            DropdownMenuItem(text = { Text(stringResource(Res.string.pdf_import)) }, onClick = { expanded = false; picker() })
-            if (watch != null) DropdownMenuItem(text = { Text(stringResource(Res.string.watch_video)) }, onClick = { expanded = false; watch() })
+        EditorialActionMenu(expanded, { expanded = false }) {
+            DropdownMenuItem(text = { Text(stringResource(Res.string.add_text)) },
+                leadingIcon = { Icon(Icons.Default.Edit, null, tint = MaterialTheme.colorScheme.primary) }, onClick = { expanded = false; addText() })
+            DropdownMenuItem(text = { Text(stringResource(Res.string.pdf_import)) },
+                leadingIcon = { Icon(Icons.Default.PictureAsPdf, null, tint = MaterialTheme.colorScheme.primary) }, onClick = { expanded = false; picker() })
+            if (watch != null) DropdownMenuItem(text = { Text(stringResource(Res.string.watch_video)) },
+                leadingIcon = { Icon(Icons.Default.PlayCircle, null, tint = MaterialTheme.colorScheme.primary) }, onClick = { expanded = false; watch() })
         }
     }
 }

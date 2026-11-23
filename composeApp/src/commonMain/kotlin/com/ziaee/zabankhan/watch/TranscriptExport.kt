@@ -1,6 +1,16 @@
 package com.ziaee.zabankhan.watch
 
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Description
+import androidx.compose.material.icons.filled.Share
+import androidx.compose.material.icons.filled.Folder
+import androidx.compose.material.icons.Icons
+import com.ziaee.zabankhan.ui.ActionMenuDivider
+import com.ziaee.zabankhan.ui.EditorialActionMenu
+import com.ziaee.zabankhan.ui.EditorialListRow
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
@@ -69,15 +79,16 @@ internal fun transcriptFileName(title: String): String = title.map { char ->
         }
     }
     EditorialBottomSheet(onDismissRequest = dismiss) {
-        Column(Modifier.fillMaxWidth().navigationBarsPadding().padding(24.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Column(Modifier.fillMaxWidth().navigationBarsPadding().verticalScroll(rememberScrollState()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text(stringResource(Res.string.watch_export), style = MaterialTheme.typography.titleLarge)
-            TextButton(enabled = !saving, onClick = { saveDialog = true }) { Text(stringResource(Res.string.watch_export_library)) }
-            TextButton(enabled = !saving, onClick = { export { share(transcriptBody(mergeSentenceUnits(captions.cues, lang).units), null) } }) {
-                Text(stringResource(Res.string.watch_export_share))
-            }
-            TextButton(enabled = !saving, onClick = { export { share(transcriptSrt(captions.cues), transcriptFileName(captions.title)) } }) {
-                Text(stringResource(Res.string.watch_export_srt))
-            }
+            EditorialListRow(stringResource(Res.string.watch_export_library), Icons.Default.Folder, enabled = !saving, onClick = { saveDialog = true })
+            ActionMenuDivider()
+            EditorialListRow(stringResource(Res.string.watch_export_share), Icons.Default.Share, enabled = !saving, onClick = {
+                export { share(transcriptBody(mergeSentenceUnits(captions.cues, lang).units), null) }
+            })
+            EditorialListRow(stringResource(Res.string.watch_export_srt), Icons.Default.Description, enabled = !saving, onClick = {
+                export { share(transcriptSrt(captions.cues), transcriptFileName(captions.title)) }
+            })
             if (saving) LinearProgressIndicator(Modifier.fillMaxWidth())
             if (failed) Text(stringResource(Res.string.watch_export_failed), color = MaterialTheme.colorScheme.error)
         }
@@ -90,9 +101,11 @@ internal fun transcriptFileName(title: String): String = title.map { char ->
                 OutlinedTextField(title, { title = it }, label = { Text(stringResource(Res.string.title)) }, singleLine = true)
                 Box {
                     TextButton(onClick = { folderMenu = true }) { Text(folders.firstOrNull { it.id == folderId }?.name ?: stringResource(Res.string.folder)) }
-                    DropdownMenu(folderMenu, { folderMenu = false }) {
-                        DropdownMenuItem(text = { Text(stringResource(Res.string.folder)) }, onClick = { folderId = null; folderMenu = false })
-                        folders.forEach { folder -> DropdownMenuItem(text = { Text(folder.name) }, onClick = { folderId = folder.id; folderMenu = false }) }
+                    EditorialActionMenu(folderMenu, { folderMenu = false }) {
+                        DropdownMenuItem(text = { Text(stringResource(Res.string.folder)) },
+                            leadingIcon = { if (folderId == null) Icon(Icons.Default.Check, null) }, onClick = { folderId = null; folderMenu = false })
+                        folders.forEach { folder -> DropdownMenuItem(text = { Text(folder.name) },
+                            leadingIcon = { if (folder.id == folderId) Icon(Icons.Default.Check, null) }, onClick = { folderId = folder.id; folderMenu = false }) }
                     }
                 }
                 OutlinedTextField(newFolder, { newFolder = it }, label = { Text(stringResource(Res.string.create_folder)) }, singleLine = true)

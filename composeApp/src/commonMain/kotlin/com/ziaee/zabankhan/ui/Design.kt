@@ -201,3 +201,25 @@ fun EditorialSearchEntry(
     }
 }
 
+
+@Composable
+internal fun EditorialActionMenu(
+    expanded: Boolean,
+    onDismissRequest: () -> Unit,
+    content: @Composable ColumnScope.() -> Unit,
+) {
+    DropdownMenu(
+        expanded = expanded,
+        onDismissRequest = onDismissRequest,
+        modifier = Modifier.widthIn(min = 224.dp, max = 320.dp),
+        content = content,
+    )
+}
+
+@Composable
+internal fun ActionMenuDivider() {
+    HorizontalDivider(
+        Modifier.padding(horizontal = 12.dp, vertical = 4.dp),
+        color = MaterialTheme.colorScheme.outlineVariant,
+    )
+}

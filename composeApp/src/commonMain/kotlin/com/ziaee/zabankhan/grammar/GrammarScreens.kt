@@ -2,6 +2,8 @@
 
 package com.ziaee.zabankhan.grammar
 
+import com.ziaee.zabankhan.ui.ActionMenuDivider
+import com.ziaee.zabankhan.ui.EditorialActionMenu
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.horizontalScroll
@@ -352,7 +354,7 @@ fun GrammarNoteScreen(
                     IconButton(onClick = { expanded = true }) {
                         Icon(Icons.Default.Share, stringResource(Res.string.grammar_export))
                     }
-                    DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+                    EditorialActionMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
                         DropdownMenuItem(text = { Text(stringResource(Res.string.grammar_share_text)) }, onClick = {
                             expanded = false; export(markdown, null, false)
                         })
@@ -362,6 +364,7 @@ fun GrammarNoteScreen(
                         DropdownMenuItem(text = { Text(stringResource(Res.string.grammar_share_pdf)) }, onClick = {
                             expanded = false; exportPdf(grammarNoteToPdfBlocks(note, labels), "${note.id}.pdf", labels.appName)
                         })
+                        ActionMenuDivider()
                         DropdownMenuItem(text = { Text(stringResource(Res.string.grammar_save_markdown)) }, onClick = {
                             expanded = false; export(markdown, "${note.id}.md", true)
                         })

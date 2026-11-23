@@ -1,5 +1,7 @@
 package com.ziaee.zabankhan.ui
 
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.Icons
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
@@ -87,12 +89,14 @@ internal fun TranslationEngineSettings(container: AppContainer, settings: AppSet
         Text(stringResource(Res.string.cloud_notice), style = MaterialTheme.typography.bodySmall)
         ExposedDropdownMenuBox(providerMenu, { if (!busy) providerMenu = it }) {
             OutlinedTextField(providerLabel(provider), {}, readOnly = true,
+                shape = MaterialTheme.shapes.medium,
                 label = { Text(stringResource(Res.string.provider)) },
                 trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(providerMenu) },
                 modifier = Modifier.menuAnchor().fillMaxWidth())
             ExposedDropdownMenu(providerMenu, { providerMenu = false }) {
                 LlmProvider.entries.forEach { item ->
-                    DropdownMenuItem(text = { Text(providerLabel(item)) }, onClick = {
+                    DropdownMenuItem(text = { Text(providerLabel(item)) },
+                        leadingIcon = { if (provider == item) Icon(Icons.Default.Check, null) }, onClick = {
                         prefs = prefs.copy(onlineProvider = item, onlineModel = item.defaultModel)
                         providerMenu = false
                     })
@@ -107,13 +111,15 @@ internal fun TranslationEngineSettings(container: AppContainer, settings: AppSet
         } else Text(provider.baseUrl, style = MaterialTheme.typography.bodySmall)
         ExposedDropdownMenuBox(modelMenu, { if (!busy) modelMenu = it }) {
             OutlinedTextField(prefs.onlineModel, { prefs = prefs.copy(onlineModel = it) },
+                shape = MaterialTheme.shapes.medium,
                 label = { Text(stringResource(Res.string.model)) }, singleLine = true, enabled = !busy,
                 textStyle = TextStyle(textDirection = TextDirection.Ltr),
                 trailingIcon = { if (provider.suggestedModels.isNotEmpty()) ExposedDropdownMenuDefaults.TrailingIcon(modelMenu) },
                 modifier = Modifier.menuAnchor().fillMaxWidth())
             if (provider.suggestedModels.isNotEmpty()) ExposedDropdownMenu(modelMenu, { modelMenu = false }) {
                 provider.suggestedModels.forEach { model ->
-                    DropdownMenuItem(text = { Text(model) }, onClick = { prefs = prefs.copy(onlineModel = model); modelMenu = false })
+                    DropdownMenuItem(text = { Text(model) },
+                        leadingIcon = { if (prefs.onlineModel == model) Icon(Icons.Default.Check, null) }, onClick = { prefs = prefs.copy(onlineModel = model); modelMenu = false })
                 }
             }
         }

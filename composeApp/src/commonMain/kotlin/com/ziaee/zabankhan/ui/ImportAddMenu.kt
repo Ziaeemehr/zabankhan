@@ -1,6 +1,10 @@
 package com.ziaee.zabankhan.ui
 
 import androidx.compose.foundation.layout.*
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.*
+import androidx.compose.ui.graphics.vector.ImageVector
+import org.jetbrains.compose.resources.StringResource
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
@@ -73,21 +77,36 @@ fun ImportAddMenu(
     Box {
         if (trigger != null) trigger({ expanded = true }, busy)
         else Button(enabled = !busy, onClick = { expanded = true }) { if (busy) CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp) else Text(stringResource(Res.string.add_text)) }
-        DropdownMenu(expanded, { expanded = false }) {
-            val options = listOf(
-                Res.string.add_text to addText,
-                Res.string.h2_find_content to discover,
-                Res.string.dataset_menu_title to openDatasets,
-                Res.string.pdf_import to pdf,
-                Res.string.h1_import_text to text,
-                Res.string.h1_import_epub to epub,
-                Res.string.h1_import_image to image,
-                Res.string.h1_import_csv to csv,
-                Res.string.h1_import_anki to json,
-                Res.string.h1_sample_csv to { sample = true },
-                Res.string.watch_video to watch,
+        EditorialActionMenu(expanded, { expanded = false }) {
+            val groups = listOf<List<Triple<StringResource, ImageVector, () -> Unit>>>(
+                listOf(
+                    Triple(Res.string.add_text, Icons.Default.Edit, addText),
+                    Triple(Res.string.h2_find_content, Icons.Default.Search, discover),
+                    Triple(Res.string.dataset_menu_title, Icons.Default.CollectionsBookmark, openDatasets),
+                    Triple(Res.string.watch_video, Icons.Default.PlayCircle, watch),
+                ),
+                listOf(
+                    Triple(Res.string.pdf_import, Icons.Default.PictureAsPdf, pdf),
+                    Triple(Res.string.h1_import_text, Icons.Default.Description, text),
+                    Triple(Res.string.h1_import_epub, Icons.Default.MenuBook, epub),
+                    Triple(Res.string.h1_import_image, Icons.Default.Image, image),
+                ),
+                listOf(
+                    Triple(Res.string.h1_import_csv, Icons.Default.TableChart, csv),
+                    Triple(Res.string.h1_import_anki, Icons.Default.Style, json),
+                    Triple(Res.string.h1_sample_csv, Icons.Default.ContentCopy, { sample = true }),
+                ),
             )
-            options.forEach { (label, action) -> DropdownMenuItem(text = { Text(stringResource(label)) }, onClick = { expanded = false; action() }) }
+            groups.forEachIndexed { index, options ->
+                if (index > 0) ActionMenuDivider()
+                options.forEach { (label, icon, action) ->
+                    DropdownMenuItem(
+                        text = { Text(stringResource(label), style = MaterialTheme.typography.bodyMedium) },
+                        leadingIcon = { Icon(icon, null, tint = MaterialTheme.colorScheme.primary) },
+                        onClick = { expanded = false; action() },
+                    )
+                }
+            }
         }
     }
     preview?.let { body ->
