@@ -9,6 +9,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.automirrored.filled.Article
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -80,7 +81,7 @@ fun ProgressCard(state: HomeProgress, onOpen: () -> Unit, onSavedWords: () -> Un
     }
 }
 
-/** One quiet stat: a softly tinted icon badge, a bold value, and a one-line caption. */
+/** A softly tinted icon badge, a bold value, and a caption that can wrap. */
 @Composable
 private fun ProgressStat(icon: ImageVector, accent: Color, value: String, label: String, modifier: Modifier = Modifier) {
     Column(modifier.padding(vertical = 4.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -92,8 +93,7 @@ private fun ProgressStat(icon: ImageVector, accent: Color, value: String, label:
             Text(value, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold,
                 maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
-        Text(label, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
-            maxLines = 1, overflow = TextOverflow.Ellipsis)
+        Text(label, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }
 
@@ -127,63 +127,68 @@ fun DailyReviewCard(dueCount: Int, onStart: () -> Unit, modifier: Modifier = Mod
 }
 
 @Composable
-private fun HomeEntryCard(icon: ImageVector, accent: Color, title: String, subtitle: String, onClick: () -> Unit, modifier: Modifier = Modifier) {
-    EditorialCard(modifier, onClick = onClick) {
-        Row(Modifier.fillMaxWidth().padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
-            Box(Modifier.size(48.dp).clip(CircleShape).background(accent.copy(alpha = 0.16f)), contentAlignment = Alignment.Center) {
-                Icon(icon, contentDescription = null, tint = accent, modifier = Modifier.size(26.dp))
-            }
-            Spacer(Modifier.width(12.dp))
-            Column(Modifier.weight(1f)) {
-                Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold,
-                    maxLines = 1, overflow = TextOverflow.Ellipsis)
-                Text(subtitle, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 2, overflow = TextOverflow.Ellipsis)
-            }
-            Icon(Icons.Default.ChevronRight, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
+private fun HomeEntryRow(icon: ImageVector, accent: Color, title: String, subtitle: String, onClick: () -> Unit, modifier: Modifier = Modifier) {
+    Row(
+        modifier.fillMaxWidth().clickable(onClick = onClick).padding(horizontal = 16.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        Box(Modifier.size(40.dp).clip(CircleShape).background(accent.copy(alpha = 0.14f)), contentAlignment = Alignment.Center) {
+            Icon(icon, contentDescription = null, tint = accent, modifier = Modifier.size(22.dp))
         }
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Text(title, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+            Text(subtitle, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+        Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = null,
+            tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(18.dp))
     }
+}
+
+@Composable
+internal fun HomeEntryDivider() {
+    HorizontalDivider(Modifier.padding(start = 68.dp, end = 16.dp), color = MaterialTheme.colorScheme.outlineVariant)
 }
 
 /** Entry point to the built-in grammar reference; [language] is the learning language's name. */
 @Composable
-fun GrammarCard(language: String, onOpen: () -> Unit, modifier: Modifier = Modifier) {
-    HomeEntryCard(Icons.Default.Spellcheck, LocalGrammarColors.current.accent, stringResource(Res.string.grammar_title),
+internal fun GrammarRow(language: String, onOpen: () -> Unit, modifier: Modifier = Modifier) {
+    HomeEntryRow(Icons.Default.Spellcheck, LocalGrammarColors.current.accent, stringResource(Res.string.grammar_title),
         stringResource(Res.string.grammar_entry_description, language), onOpen, modifier)
 }
 
 @Composable
-fun ExamsCard(onOpen: () -> Unit, modifier: Modifier = Modifier) {
-    HomeEntryCard(Icons.Default.School, MaterialTheme.colorScheme.primary, stringResource(Res.string.exams_title),
+internal fun ExamsRow(onOpen: () -> Unit, modifier: Modifier = Modifier) {
+    HomeEntryRow(Icons.Default.School, MaterialTheme.colorScheme.primary, stringResource(Res.string.exams_title),
         stringResource(Res.string.exams_entry_description), onOpen, modifier)
 }
 
 @Composable
-fun DatasetEntryCard(language: String, onOpen: () -> Unit, modifier: Modifier = Modifier) {
+internal fun DatasetEntryRow(language: String, onOpen: () -> Unit, modifier: Modifier = Modifier) {
     val packCount by produceState(0, language) {
         val spec = com.ziaee.zabankhan.lang.Languages.byCode(language)
         value = if (spec == null) 0 else com.ziaee.zabankhan.content.bundledDatasetPackCount(spec)
     }
-    HomeEntryCard(Icons.Default.CollectionsBookmark, MaterialTheme.colorScheme.primary,
+    HomeEntryRow(Icons.Default.CollectionsBookmark, MaterialTheme.colorScheme.primary,
         stringResource(Res.string.dataset_home_title), stringResource(Res.string.dataset_home_count, packCount), onOpen, modifier)
 }
 
 @Composable
-fun TodayNewsCard(headlineCount: Int, language: String, onOpen: () -> Unit, modifier: Modifier = Modifier) {
-    HomeEntryCard(Icons.Default.Newspaper, MaterialTheme.colorScheme.secondary, stringResource(Res.string.home_section_today_news),
+internal fun TodayNewsRow(headlineCount: Int, language: String, onOpen: () -> Unit, modifier: Modifier = Modifier) {
+    HomeEntryRow(Icons.Default.Newspaper, MaterialTheme.colorScheme.secondary, stringResource(Res.string.home_section_today_news),
         if (headlineCount > 0) pluralStringResource(Res.plurals.home_news_headlines, headlineCount, headlineCount.toString())
         else stringResource(Res.string.home_news_description, language), onOpen, modifier)
 }
 
 @Composable
-fun WatchVideosCard(language: String, onOpen: () -> Unit, modifier: Modifier = Modifier) {
-    HomeEntryCard(Icons.Default.PlayCircle, MaterialTheme.colorScheme.secondary, stringResource(Res.string.home_watch_videos),
+internal fun WatchVideosRow(language: String, onOpen: () -> Unit, modifier: Modifier = Modifier) {
+    HomeEntryRow(Icons.Default.PlayCircle, MaterialTheme.colorScheme.secondary, stringResource(Res.string.home_watch_videos),
         stringResource(Res.string.videos_home_support), onOpen, modifier)
 }
 
 @Composable
-fun ShadowingCard(onOpen: () -> Unit, modifier: Modifier = Modifier) {
-    HomeEntryCard(Icons.Default.Mic, MaterialTheme.colorScheme.tertiary, stringResource(Res.string.shadow_entry_title),
+internal fun ShadowingRow(onOpen: () -> Unit, modifier: Modifier = Modifier) {
+    HomeEntryRow(Icons.Default.Mic, MaterialTheme.colorScheme.tertiary, stringResource(Res.string.shadow_entry_title),
         stringResource(Res.string.shadow_home_support), onOpen, modifier)
 }
 

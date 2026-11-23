@@ -129,12 +129,26 @@ import com.ziaee.zabankhan.watch.WatchHistory
                 }
             }
             if (statsReady) item { DailyReviewCard(due, review) }
-            item { WatchVideosCard(languageLabel, watch) }
-            item { ShadowingCard(shadow) }
-            item { TodayNewsCard(headlineCount, languageLabel, news) }
-            item { GrammarCard(languageLabel, grammar) }
-            item { DatasetEntryCard(lang, datasets) }
-            if (com.ziaee.zabankhan.datapack.LanguageDataPacks.available(lang)) item { ExamsCard(exams) }
+            item {
+                EditorialCard {
+                    WatchVideosRow(languageLabel, watch)
+                    HomeEntryDivider()
+                    ShadowingRow(shadow)
+                }
+            }
+            item {
+                EditorialCard {
+                    TodayNewsRow(headlineCount, languageLabel, news)
+                    HomeEntryDivider()
+                    GrammarRow(languageLabel, grammar)
+                    HomeEntryDivider()
+                    DatasetEntryRow(lang, datasets)
+                    if (com.ziaee.zabankhan.datapack.LanguageDataPacks.available(lang)) {
+                        HomeEntryDivider()
+                        ExamsRow(exams)
+                    }
+                }
+            }
         }
     }
 }
