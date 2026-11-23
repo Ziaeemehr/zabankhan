@@ -2,6 +2,8 @@ package com.ziaee.zabankhan.ui
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.automirrored.filled.ArrowForwardIos
@@ -31,6 +33,7 @@ import org.jetbrains.compose.resources.stringResource
     titleStyle: androidx.compose.ui.text.TextStyle? = null,
     backIcon: ImageVector = Icons.AutoMirrored.Filled.ArrowBack,
     backLabel: String? = null,
+    windowInsets: WindowInsets = WindowInsets(0, 0, 0, 0),
     actions: @Composable RowScope.() -> Unit = {},
 ) {
     Column(modifier) {
@@ -41,7 +44,7 @@ import org.jetbrains.compose.resources.stringResource
                     subtitle?.let { Text(it, style = MaterialTheme.typography.labelMedium.merge(contentStyle(it)), color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis) }
                 }
             },
-            windowInsets = WindowInsets(0, 0, 0, 0),
+            windowInsets = windowInsets,
             navigationIcon = { back?.let { EditorialIconButton(it, backIcon, backLabel ?: stringResource(Res.string.back)) } },
             actions = actions,
             colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.surface),
@@ -81,13 +84,32 @@ internal fun EditorialBottomSheet(
 }
 
 /** A real search input, retaining the screens' inline filtering and keyboard behavior. */
-@Composable fun EditorialSearchEntry(value: String, onValueChange: (String) -> Unit, modifier: Modifier = Modifier) {
-    val label = stringResource(Res.string.search)
+@Composable
+fun EditorialSearchEntry(
+    value: String,
+    onValueChange: (String) -> Unit,
+    modifier: Modifier = Modifier,
+    hint: String = stringResource(Res.string.search),
+    showFloatingLabel: Boolean = true,
+    trailingIcon: (@Composable () -> Unit)? = null,
+    keyboardOptions: KeyboardOptions = KeyboardOptions.Default,
+    keyboardActions: KeyboardActions = KeyboardActions.Default,
+) {
     OutlinedTextField(
-        value, onValueChange, modifier.fillMaxWidth(), singleLine = true,
-        label = { Text(label) }, leadingIcon = { Icon(Icons.Default.Search, label) },
-        shape = MaterialTheme.shapes.medium, textStyle = MaterialTheme.typography.bodyLarge.merge(contentStyle(value)),
+        value = value,
+        onValueChange = onValueChange,
+        modifier = modifier.fillMaxWidth(),
+        singleLine = true,
+        label = if (showFloatingLabel) ({ Text(hint) }) else null,
+        placeholder = if (showFloatingLabel) null else ({ Text(hint) }),
+        leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
+        trailingIcon = trailingIcon,
+        keyboardOptions = keyboardOptions,
+        keyboardActions = keyboardActions,
+        shape = MaterialTheme.shapes.medium,
+        textStyle = MaterialTheme.typography.bodyLarge.merge(contentStyle(value)),
         colors = OutlinedTextFieldDefaults.colors(
+            focusedContainerColor = MaterialTheme.colorScheme.surface,
             unfocusedContainerColor = MaterialTheme.colorScheme.surface,
             unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant,
         ),

@@ -57,9 +57,13 @@ fun DictionarySearchDialog(vm: AppViewModel, settings: AppSettings, onDismiss: (
     AlertDialog(onDismissRequest = onDismiss, title = { Text(stringResource(Res.string.own_search)) },
         text = {
             Column(Modifier.fillMaxWidth().heightIn(max = 620.dp)) {
-                OutlinedTextField(query, { query = it; selected = null }, modifier = Modifier.fillMaxWidth(), singleLine = true,
-                    label = { Text(stringResource(Res.string.own_search_hint)) }, keyboardOptions = KeyboardOptions.Default.copy(imeAction = androidx.compose.ui.text.input.ImeAction.Search),
-                    keyboardActions = KeyboardActions(onSearch = {}), textStyle = contentStyle(query))
+                EditorialSearchEntry(
+                    value = query,
+                    onValueChange = { query = it; selected = null },
+                    hint = stringResource(Res.string.own_search_hint),
+                    keyboardOptions = KeyboardOptions.Default.copy(imeAction = androidx.compose.ui.text.input.ImeAction.Search),
+                    keyboardActions = KeyboardActions(onSearch = {}),
+                )
                 val current = lookup
                 if (current != null) {
                     Column(Modifier.weight(1f).verticalScroll(rememberScrollState())) {

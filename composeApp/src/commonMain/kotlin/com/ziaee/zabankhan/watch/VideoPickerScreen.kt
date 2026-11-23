@@ -177,9 +177,16 @@ fun watchRoute(videoId: String = "", path: String = "", subs: String = "", shado
     Column(Modifier.fillMaxSize()) {
         EditorialTopAppBar(if (showingFavorites) stringResource(Res.string.videos_favorites) else selected?.title ?: stringResource(Res.string.videos_title, languageName(lang)),
             back = { if (selected != null) selectedChannel = null else if (showingFavorites) showingFavorites = false else if (selectedPlaylist != null) selectedPlaylist = null else back() })
-        Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp), verticalAlignment = Alignment.CenterVertically) {
-            OutlinedTextField(query, { query = it }, modifier = Modifier.weight(1f), singleLine = true,
-                label = { Text(stringResource(if (showingFavorites) Res.string.videos_search_favorites else Res.string.videos_search)) }, textStyle = contentStyle(query))
+        Row(
+            Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            EditorialSearchEntry(
+                value = query,
+                onValueChange = { query = it },
+                modifier = Modifier.weight(1f),
+                hint = stringResource(if (showingFavorites) Res.string.videos_search_favorites else Res.string.videos_search),
+            )
             IconButton(onClick = { linkDialog = true }) {
                 Icon(Icons.Default.Link, stringResource(Res.string.videos_paste_link))
             }

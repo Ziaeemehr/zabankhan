@@ -5,7 +5,6 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.animation.animateColorAsState
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.ui.text.style.TextAlign
 import org.jetbrains.compose.resources.StringResource
 import androidx.compose.foundation.background
@@ -218,13 +217,11 @@ fun SettingsScreen(vm: AppViewModel, settings: AppSettings, progress: () -> Unit
     Scaffold(
         snackbarHost = { SnackbarHost(speechSettingsSnackbar) },
         topBar = {
-            TopAppBar(
-                title = { Text(stringResource(if (selectedTab < 0) Res.string.nav_settings else tabTitles[selectedTab])) },
-                navigationIcon = {
-                    if (selectedTab >= 0) IconButton(onClick = { selectedTab = -1 }) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, stringResource(Res.string.accessibility_back))
-                    }
-                }
+            EditorialTopAppBar(
+                title = stringResource(if (selectedTab < 0) Res.string.nav_settings else tabTitles[selectedTab]),
+                back = if (selectedTab >= 0) ({ selectedTab = -1 }) else null,
+                backLabel = stringResource(Res.string.accessibility_back),
+                windowInsets = TopAppBarDefaults.windowInsets,
             )
         }
     ) { padding ->
@@ -379,10 +376,10 @@ fun SettingsScreen(vm: AppViewModel, settings: AppSettings, progress: () -> Unit
 
 @Composable
 private fun SettingsTabRow(tabTitles: List<StringResource>, selectedTab: Int, onSelect: (Int) -> Unit) {
-    Column(Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 10.dp)) {
+    Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(16.dp)) {
         tabTitles.chunked(2).forEachIndexed { rowIndex, row ->
-            if (rowIndex > 0) Spacer(Modifier.height(6.dp))
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+            if (rowIndex > 0) Spacer(Modifier.height(8.dp))
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 row.forEachIndexed { columnIndex, resource ->
                     val index = rowIndex * 2 + columnIndex
                     val selected = selectedTab == index
@@ -397,12 +394,13 @@ private fun SettingsTabRow(tabTitles: List<StringResource>, selectedTab: Int, on
                     Box(
                         Modifier
                             .weight(1f)
-                            .clip(RoundedCornerShape(50))
+                            .heightIn(min = 48.dp)
+                            .clip(MaterialTheme.shapes.medium)
                             .background(background)
                             .border(
                                 width = if (selected) 0.dp else 1.dp,
                                 color = MaterialTheme.colorScheme.outlineVariant,
-                                shape = RoundedCornerShape(50)
+                                shape = MaterialTheme.shapes.medium
                             )
                             .clickable { onSelect(index) }
                             .padding(horizontal = 4.dp, vertical = 8.dp),

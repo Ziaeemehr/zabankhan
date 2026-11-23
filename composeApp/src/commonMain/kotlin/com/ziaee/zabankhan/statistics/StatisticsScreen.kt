@@ -66,7 +66,7 @@ import kotlinx.datetime.atStartOfDayIn
         val priorStreak = activityStreak(rows, today.minus(7, DateTimeUnit.DAY), reviews, attempts, manualSessions = studyState.allSessions, lang = lang)
         val recentKnown = countNewlyKnown(words, today.minus(6, DateTimeUnit.DAY), today)
         val previousKnown = countNewlyKnown(words, today.minus(13, DateTimeUnit.DAY), today.minus(7, DateTimeUnit.DAY))
-        Card(shape = RoundedCornerShape(20.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)) {
+        EditorialCard(containerColor = MaterialTheme.colorScheme.primaryContainer) {
             Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     HeroMetric(stringResource(Res.string.stats_streak), streak, trendDelta(streak.toDouble(), priorStreak.toDouble()), Modifier.weight(1f), MaterialTheme.colorScheme.primary)
@@ -81,7 +81,7 @@ import kotlinx.datetime.atStartOfDayIn
         var chartPeriod by remember { mutableStateOf(ChartPeriod.WEEK) }
         val studyValues = remember(chartPeriod, today, rows, studyState.allSessions) { studyChartValues(rows, studyState.allSessions, today, chartPeriod) }
         val studyLabels = remember(chartPeriod, today, studyValues.size) { chartLabels(chartPeriod, today, studyValues.size) }
-        Card(shape = RoundedCornerShape(20.dp), colors = CardDefaults.cardColors()) {
+        EditorialCard {
             Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Text(stringResource(Res.string.stats_study_chart), style = MaterialTheme.typography.titleMedium)
                 SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
@@ -97,7 +97,7 @@ import kotlinx.datetime.atStartOfDayIn
         val combined = remember(rows, studyState.allSessions, lang, yearStart, yearEnd) {
             combinedStudyDays(lang, rows, studyState.allSessions, yearStart, yearEnd)
         }
-        Card(shape = RoundedCornerShape(20.dp)) {
+        EditorialCard {
             Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                     Text(stringResource(Res.string.study_log_activity), style = MaterialTheme.typography.titleMedium)
@@ -111,7 +111,7 @@ import kotlinx.datetime.atStartOfDayIn
             }
         }
         val skillMinutes = remember(studyState.allSessions, today) { minutesBySkill(studyState.allSessions, today.minus(6, DateTimeUnit.DAY), today) }
-        Card(shape = RoundedCornerShape(20.dp), colors = CardDefaults.cardColors()) {
+        EditorialCard {
             Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Text(stringResource(Res.string.stats_time_by_skill), style = MaterialTheme.typography.titleMedium)
                 if (skillMinutes.isEmpty()) Text(stringResource(Res.string.stats_time_by_skill_empty), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -127,7 +127,7 @@ import kotlinx.datetime.atStartOfDayIn
                 }
             }
         }
-        Card(shape = RoundedCornerShape(20.dp), colors = CardDefaults.cardColors()) {
+        EditorialCard {
             Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Text(stringResource(Res.string.study_log_weekly_reviews, dailyReviews(reviews, today, 7).sumOf { it.count }), style = MaterialTheme.typography.titleMedium)
                 val weekDays = listOf(Res.string.ed_mon, Res.string.ed_tue, Res.string.ed_wed, Res.string.ed_thu, Res.string.ed_fri, Res.string.ed_sat, Res.string.ed_sun).map { stringResource(it) }
@@ -135,7 +135,7 @@ import kotlinx.datetime.atStartOfDayIn
                 TapBarChart(reviewDays.map { it.count.toDouble() }, reviewDays.map { weekDays[it.date.dayOfWeek.ordinal] }, MaterialTheme.colorScheme.secondary)
             }
         }
-        Card(shape = RoundedCornerShape(20.dp), colors = CardDefaults.cardColors()) { WordDonut(wordStatusCounts(words)) }
+        EditorialCard { WordDonut(wordStatusCounts(words)) }
     }
 }
 @Composable

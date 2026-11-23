@@ -276,21 +276,12 @@ fun LibraryContent(
 
     ) { padding ->
         Column(modifier = Modifier.padding(padding).fillMaxSize()) {
-            // A real live-as-you-type text field, restyled with editorial
-            // tokens -- unlike Home's EditorialSearchEntry (a non-editable
-            // trigger that opens a separate search sheet), Library filters
-            // its own list directly as the user types.
-            OutlinedTextField(
+            EditorialSearchEntry(
                 value = state.query,
                 onValueChange = onQueryChange,
-                textStyle = contentStyle(state.query),
-                placeholder = { Text(stringResource(Res.string.library_search_hint)) },
-                leadingIcon = { Icon(Icons.Default.Search, contentDescription = stringResource(Res.string.accessibility_search)) },
-                singleLine = true,
-                shape = MaterialTheme.shapes.medium,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = ZabankhanDesign.spacing.small, vertical = ZabankhanDesign.spacing.xSmall)
+                hint = stringResource(Res.string.library_search_hint),
+                showFloatingLabel = false,
+                modifier = Modifier.padding(horizontal = ZabankhanDesign.spacing.small, vertical = ZabankhanDesign.spacing.xSmall),
             )
 
             Box(
