@@ -14,4 +14,6 @@
     <string name="pdf_eraser_size">Taille de la gomme</string>
     <string name="pdf_smooth_pen">Lissage du stylo</string>
     <string name="pdf_partial_eraser">Gomme partielle</string>
+    <string name="pdf_ink_palette">Couleurs du stylet</string>
+    <string name="pdf_ink_custom_hex">Couleur personnalisée · Hex</string>
 </resources>

@@ -30,6 +30,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
@@ -75,10 +76,10 @@ import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
-import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.contentDescription
 import com.ziaee.zabankhan.ui.reader.*
 import kotlinx.coroutines.*
@@ -1007,29 +1008,7 @@ private fun PdfInkToolbar(
                     shadowElevation = 5.dp) {
                     val expandedItems: @Composable () -> Unit = {
                         recentColors.take(6).forEach { key ->
-                            val swatchScale by animateFloatAsState(if (key == penColor) 1.08f else 1f,
-                                animationSpec = tween(150), label = "ink-swatch-selection")
-                            IconButton(onClick = { onColor(key) }, modifier = Modifier.size(44.dp).semantics { contentDescription = "Ink color" }) {
-                    Box(Modifier.size(28.dp).graphicsLayer { scaleX = swatchScale; scaleY = swatchScale }
-                        .background(inkColor(key, MaterialTheme.colorScheme.primary,
-                                    MaterialTheme.colorScheme.secondary, MaterialTheme.colorScheme.tertiary), CircleShape)
-                                    .then(if (key == penColor) Modifier.border(2.dp, MaterialTheme.colorScheme.onSurface, CircleShape) else Modifier))
-                            }
-                        }
-                        Box {
-                            IconButton(onClick = { palette.value = true }, modifier = Modifier.size(44.dp).semantics { contentDescription = "More colors" }) {
-                                Icon(Icons.Default.Add, "More colors", Modifier.size(20.dp))
-                            }
-                            DropdownMenu(expanded = palette.value, onDismissRequest = { palette.value = false }) {
-                                FlowRow(Modifier.width(192.dp).padding(4.dp), horizontalArrangement = Arrangement.Center) {
-                                    curatedInkColors.forEach { color ->
-                                        IconButton(onClick = { onColor(color); palette.value = false }, modifier = Modifier.size(44.dp).semantics { contentDescription = "Ink color" }) {
-                                            Box(Modifier.size(28.dp).background(inkColor(color, MaterialTheme.colorScheme.primary,
-                                                MaterialTheme.colorScheme.secondary, MaterialTheme.colorScheme.tertiary), CircleShape))
-                                        }
-                                    }
-                                }
-                            }
+                            PdfInkSwatch(key, selected = key == penColor, onClick = { onColor(key) })
                         }
                         PdfInkWidthControl(toolSize, vertical, eraser, onWidth)
                         IconToggleButton(checked = !eraser && !highlighter, onCheckedChange = { onEraser(false); onHighlighter(false) },
@@ -1066,9 +1045,8 @@ private fun PdfInkToolbar(
                         modifier = Modifier.size(40.dp).semantics { contentDescription = "Highlighter" }) { Icon(Icons.Default.Highlight, "Highlighter", Modifier.size(19.dp)) }
                     IconToggleButton(checked = eraser, onCheckedChange = onEraser,
                         modifier = Modifier.size(40.dp).semantics { contentDescription = "Eraser" }) { Icon(Icons.Default.Delete, "Eraser", Modifier.size(19.dp)) }
-                    IconButton(onClick = onExpand, modifier = Modifier.size(40.dp).semantics { contentDescription = "Current ink color" }) {
-                        Box(Modifier.size(20.dp).background(inkColor(penColor, MaterialTheme.colorScheme.primary,
-                            MaterialTheme.colorScheme.secondary, MaterialTheme.colorScheme.tertiary), CircleShape))
+                    PdfInkSwatch(penColor, selected = false, label = stringResource(Res.string.pdf_ink_palette)) {
+                        palette.value = true
                     }
                     IconButton(onClick = onExpand, modifier = Modifier.size(44.dp).semantics { contentDescription = if (expanded) "Hide pen tools" else "More pen tools" }) {
                         Icon(if (expanded) Icons.Default.ExpandMore else Icons.Default.ExpandLess,
@@ -1089,6 +1067,73 @@ private fun PdfInkToolbar(
             }
         }
     }
+    if (palette.value) {
+        PdfInkColorPicker(penColor, onDismiss = { palette.value = false }) { color ->
+            onColor(color)
+            palette.value = false
+        }
+    }
+}
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun PdfInkColorPicker(selected: String, onDismiss: () -> Unit, onColor: (String) -> Unit) {
+    var hex by remember { mutableStateOf("") }
+    val customColor = hex.trim().removePrefix("#").uppercase()
+        .takeIf { it.length == 6 && it.all { digit -> digit in "0123456789ABCDEF" } }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(Res.string.pdf_ink_palette)) },
+        text = {
+            Column(
+                Modifier.fillMaxWidth().verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                FlowRow(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center) {
+                    curatedInkColors.forEach { color ->
+                        PdfInkSwatch(color, selected = color == selected, onClick = { onColor(color) })
+                    }
+                }
+                OutlinedTextField(
+                    value = hex,
+                    onValueChange = { hex = it },
+                    modifier = Modifier.fillMaxWidth(),
+                    label = { Text(stringResource(Res.string.pdf_ink_custom_hex)) },
+                    placeholder = { Text("#175CD3") },
+                    shape = MaterialTheme.shapes.medium,
+                    singleLine = true,
+                    isError = hex.isNotBlank() && customColor == null,
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(enabled = customColor != null, onClick = { customColor?.let { onColor("#FF$it") } }) {
+                Text(stringResource(Res.string.save))
+            }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(Res.string.cancel)) } },
+    )
+}
+
+@Composable
+private fun PdfInkSwatch(key: String, selected: Boolean, label: String? = null, onClick: () -> Unit) {
+    val colors = MaterialTheme.colorScheme
+    val color = inkColor(key, colors.primary, colors.secondary, colors.tertiary)
+    val name = label ?: if (key.startsWith("#")) "#${key.takeLast(6)}" else key
+    IconButton(onClick = onClick, modifier = Modifier.size(48.dp).semantics {
+        contentDescription = name
+        this.selected = selected
+    }) {
+        Box(
+            Modifier.size(30.dp).background(color, CircleShape)
+                .border(1.dp, colors.outlineVariant, CircleShape),
+            contentAlignment = Alignment.Center,
+        ) {
+            if (selected) {
+                Icon(Icons.Default.Check, null, Modifier.size(18.dp), tint = if (color.luminance() > 0.179f) Color.Black else Color.White)
+            }
+        }
+    }
 }
 
 @Composable
@@ -1100,7 +1145,7 @@ internal fun PdfInkWidthControl(value: Float, vertical: Boolean, eraser: Boolean
     val description = stringResource(if (eraser) Res.string.pdf_eraser_size else Res.string.pdf_pen_thickness)
 
     Surface(shape = RoundedCornerShape(18.dp), color = MaterialTheme.colorScheme.surfaceContainerLow) {
-        Column(Modifier.width(148.dp).padding(horizontal = 10.dp, vertical = 8.dp),
+        Column(Modifier.width(if (vertical) 104.dp else 120.dp).padding(horizontal = 8.dp, vertical = 6.dp),
             verticalArrangement = Arrangement.spacedBy(2.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(description, Modifier.weight(1f), style = MaterialTheme.typography.labelSmall)

@@ -1739,7 +1739,7 @@ private fun PlaybackControls(palette: ReadingPalette, speaking: Boolean, synthes
                     if (isSynthesizing) {
                         CircularProgressIndicator(
                             modifier = Modifier.fillMaxSize(),
-                            color = palette.highlightInk,
+                            color = palette.accent,
                             trackColor = palette.accent.copy(alpha = 0.28f),
                             strokeWidth = 2.dp
                         )
