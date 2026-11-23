@@ -3,6 +3,7 @@ package com.ziaee.zabankhan.pdf
 import com.ziaee.zabankhan.ui.TranslationSourceIcon
 import com.ziaee.zabankhan.translate.ExampleTranslation
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.text.selection.SelectionContainer
@@ -562,8 +563,8 @@ private data class PdfTextNoteEditor(
         EditorialBottomSheet(onDismissRequest = ::closePdfNote,
             sheetMaxWidth = androidx.compose.ui.unit.Dp.Unspecified,
             sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)) {
-            Column(Modifier.fillMaxWidth().fillMaxHeight(.98f).imePadding().padding(horizontal = 10.dp, vertical = 4.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Column(Modifier.fillMaxWidth().fillMaxHeight(.98f).imePadding().padding(horizontal = 16.dp, vertical = 8.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                     Text(stringResource(Res.string.pdf_note_title, editor.page + 1),
                         Modifier.weight(1f), style = MaterialTheme.typography.titleMedium)
@@ -576,16 +577,21 @@ private data class PdfTextNoteEditor(
                 Surface(shape = MaterialTheme.shapes.medium, color = MaterialTheme.colorScheme.surfaceContainerLow,
                     modifier = Modifier.fillMaxWidth()) {
                     Text(editor.selectedText, Modifier.padding(horizontal = 12.dp, vertical = 9.dp),
-                        style = MaterialTheme.typography.bodyMedium, maxLines = 1,
+                        style = MaterialTheme.typography.bodyMedium.merge(contentStyle(editor.selectedText)), maxLines = 2,
                         overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
                 }
-                Surface(shape = MaterialTheme.shapes.large, color = MaterialTheme.colorScheme.surfaceContainerLow,
-                    modifier = Modifier.fillMaxWidth().weight(1f)) {
+                Surface(
+                    shape = MaterialTheme.shapes.large,
+                    color = MaterialTheme.colorScheme.surface,
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+                    modifier = Modifier.fillMaxWidth().weight(1f),
+                ) {
                     androidx.compose.foundation.text.BasicTextField(
                         value = editor.body,
                         onValueChange = ::changePdfNoteBody,
                         modifier = Modifier.fillMaxSize().padding(14.dp),
-                        textStyle = MaterialTheme.typography.bodyLarge.copy(color = MaterialTheme.colorScheme.onSurface),
+                        textStyle = MaterialTheme.typography.bodyLarge.merge(contentStyle(editor.body))
+                            .copy(color = MaterialTheme.colorScheme.onSurface),
                         cursorBrush = androidx.compose.ui.graphics.SolidColor(MaterialTheme.colorScheme.primary),
                         decorationBox = { innerTextField ->
                             Box(Modifier.fillMaxSize()) {
