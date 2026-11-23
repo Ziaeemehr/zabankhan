@@ -4,7 +4,6 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Archive
 import androidx.compose.material.icons.filled.Delete
@@ -19,6 +18,8 @@ import com.ziaee.zabankhan.data.StudySkill
 import com.ziaee.zabankhan.data.StudySource
 import com.ziaee.zabankhan.resources.*
 import kotlinx.coroutines.launch
+import com.ziaee.zabankhan.ui.EditorialCard
+import com.ziaee.zabankhan.ui.EditorialTopAppBar
 import org.jetbrains.compose.resources.stringResource
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -30,9 +31,10 @@ fun StudySourcesScreen(lang: String, onBack: () -> Unit) {
     var editing by remember { mutableStateOf<StudySource?>(null) }
     var deleting by remember { mutableStateOf<StudySource?>(null) }
     Scaffold(topBar = {
-        TopAppBar(
-            title = { Text(stringResource(Res.string.study_log_manage_sources)) },
-            navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, null) } },
+        EditorialTopAppBar(
+            title = stringResource(Res.string.study_log_manage_sources),
+            back = onBack,
+            windowInsets = TopAppBarDefaults.windowInsets,
             actions = { IconButton(onClick = { editing = StudySource(lang = lang, name = "", kind = SourceKind.BOOK) }) { Icon(Icons.Default.Add, null) } },
         )
     }) { padding ->
@@ -40,7 +42,7 @@ fun StudySourcesScreen(lang: String, onBack: () -> Unit) {
             Box(Modifier.fillMaxSize().padding(padding).padding(24.dp)) { Text(stringResource(Res.string.study_log_empty_sources)) }
         } else LazyColumn(Modifier.fillMaxSize().padding(padding), contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             items(state.sources, key = { it.id }) { source ->
-                Card(Modifier.fillMaxWidth()) {
+                EditorialCard {
                     Row(Modifier.fillMaxWidth().padding(12.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         Column(Modifier.weight(1f)) {
                             Text(source.name, style = MaterialTheme.typography.titleMedium)

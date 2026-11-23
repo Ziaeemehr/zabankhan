@@ -26,6 +26,7 @@ import com.ziaee.zabankhan.ui.theme.LocalGrammarColors
 import com.ziaee.zabankhan.ui.theme.ZabankhanDesign
 import com.ziaee.zabankhan.watch.RecentVideo
 import com.ziaee.zabankhan.watch.VideoThumbnail
+import com.ziaee.zabankhan.watch.VideoThumbnailLoader
 import org.jetbrains.compose.resources.pluralStringResource
 import org.jetbrains.compose.resources.stringResource
 
@@ -296,10 +297,10 @@ internal fun videoResumeTime(positionMs: Long): String {
 }
 
 @Composable
-fun ContinueWatchingCard(video: RecentVideo, onClick: () -> Unit, modifier: Modifier = Modifier) {
+internal fun ContinueWatchingCard(video: RecentVideo, thumbnails: VideoThumbnailLoader, onClick: () -> Unit, modifier: Modifier = Modifier) {
     EditorialCard(modifier, onClick = onClick) {
         Row(Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
-            VideoThumbnail(Modifier.width(ZabankhanDesign.sizes.thumbnailMedium).clip(RoundedCornerShape(8.dp)))
+            VideoThumbnail(Modifier.width(ZabankhanDesign.sizes.thumbnailMedium), thumbnails, video.videoId)
             Spacer(Modifier.width(12.dp))
             Column(Modifier.weight(1f)) {
                 ContinueKindLabel(Icons.Default.PlayArrow, stringResource(Res.string.home_continue_watching))

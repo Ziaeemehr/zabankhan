@@ -125,7 +125,7 @@ import com.ziaee.zabankhan.watch.WatchHistory
             }
             continueWatching?.let { video ->
                 item {
-                    ContinueWatchingCard(video, onClick = { watchVideo(video.videoId, video.path.orEmpty(), video.subs.orEmpty()) })
+                    ContinueWatchingCard(video, vm.container.videoThumbnails, onClick = { watchVideo(video.videoId, video.path.orEmpty(), video.subs.orEmpty()) })
                 }
             }
             if (statsReady) item { DailyReviewCard(due, review) }

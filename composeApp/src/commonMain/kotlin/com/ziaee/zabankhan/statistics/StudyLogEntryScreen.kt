@@ -5,7 +5,6 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material3.*
@@ -26,6 +25,7 @@ import kotlinx.datetime.LocalDate
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.minus
 import kotlinx.datetime.toLocalDateTime
+import com.ziaee.zabankhan.ui.EditorialTopAppBar
 import org.jetbrains.compose.resources.stringResource
 import kotlin.time.Instant
 
@@ -113,13 +113,10 @@ fun StudyLogEntryScreen(lang: String, entryId: Long?, onBack: () -> Unit) {
 
     Scaffold(
         topBar = {
-            TopAppBar(
-                title = {
-                    Text(stringResource(if (entryId == null) Res.string.study_log_add_time else Res.string.study_log_edit_session))
-                },
-                navigationIcon = {
-                    IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = null) }
-                },
+            EditorialTopAppBar(
+                title = stringResource(if (entryId == null) Res.string.study_log_add_time else Res.string.study_log_edit_session),
+                back = onBack,
+                windowInsets = TopAppBarDefaults.windowInsets,
                 actions = {
                     TextButton(enabled = !saving && !loading, onClick = ::save) {
                         Text(stringResource(Res.string.study_log_save))
