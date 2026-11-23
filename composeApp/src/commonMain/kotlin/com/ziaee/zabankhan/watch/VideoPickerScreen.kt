@@ -72,11 +72,11 @@ fun watchRoute(videoId: String = "", path: String = "", subs: String = "", shado
             }
             recent?.let { video ->
                 Text(stringResource(Res.string.shadow_entry_resume_label), style = MaterialTheme.typography.titleSmall)
-                Card(onClick = {
+                EditorialCard(onClick = {
                     resume(video.copy(
                         path = video.path?.let { com.ziaee.zabankhan.data.rebaseSavedVideoPath(it, com.ziaee.zabankhan.pdf.AppFiles.filesDir) },
                         subs = video.subs?.let { com.ziaee.zabankhan.data.rebaseSavedVideoPath(it, com.ziaee.zabankhan.pdf.AppFiles.filesDir) }))
-                }, modifier = Modifier.fillMaxWidth()) {
+                }) {
                     Row(Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                         Icon(Icons.Default.PlayCircle, null, Modifier.size(40.dp), tint = MaterialTheme.colorScheme.primary)
                         Text(video.title.ifBlank { video.videoId }, Modifier.weight(1f), style = MaterialTheme.typography.titleMedium, maxLines = 2,
@@ -85,7 +85,7 @@ fun watchRoute(videoId: String = "", path: String = "", subs: String = "", shado
                 }
             }
             Text(stringResource(Res.string.shadow_entry_new_label), style = MaterialTheme.typography.titleSmall)
-            Button(onClick = choose, modifier = Modifier.fillMaxWidth().height(52.dp)) {
+            Button(onClick = choose, modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp)) {
                 Icon(Icons.Default.VideoLibrary, null); Spacer(Modifier.width(8.dp)); Text(stringResource(Res.string.shadow_entry_choose))
             }
         }
@@ -229,7 +229,7 @@ fun watchRoute(videoId: String = "", path: String = "", subs: String = "", shado
             TextButton(onClick = pickVideo) { Text(stringResource(Res.string.watch_open_local)) }
             }
         }
-        LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             if (importFailed) item { Text(stringResource(Res.string.watch_import_error), color = MaterialTheme.colorScheme.error) }
             if (localPath.isNotBlank()) item {
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.Center) {
