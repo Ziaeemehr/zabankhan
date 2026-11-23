@@ -309,7 +309,7 @@ fun SettingsScreen(vm: AppViewModel, settings: AppSettings, progress: () -> Unit
                             2 -> {
 
                                 SettingsChoice(stringResource(Res.string.edge_engine), settings.voiceEngine,
-                                    listOf("online" to stringResource(Res.string.edge_online), "device" to stringResource(Res.string.edge_device)) + listOfNotNull(("local" to stringResource(Res.string.local_tts_engine)).takeIf { localTtsSupported })) {
+                                    voiceEngineOptions()) {
                                     vm.action { repository.setVoiceEngine(it) }
                                 }
                                 if (settings.voiceEngine == "local") LocalTtsSettings(learningLanguage)

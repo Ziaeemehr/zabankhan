@@ -27,7 +27,7 @@ class SelectedTts(private val online: EdgeTts, private val device: Tts, private 
     override val synthesisProgress get() = selected.synthesisProgress
     override fun seekBy(deltaMs: Long): Boolean = settings.voiceEngine == "online" && online.seekBy(deltaMs)
     override fun setAudioDocument(owner: String?) { if (settings.voiceEngine == "online") online.setAudioDocument(owner) }
-    override fun releaseAudioDocument(owner: String) { if (settings.voiceEngine == "online") online.releaseAudioDocument(owner) }
+    override fun releaseAudioDocument(owner: String) = online.releaseAudioDocument(owner)
     override fun setAudioPinned(pinned: Boolean) { if (settings.voiceEngine == "online") online.setAudioPinned(pinned) }
     override suspend fun prepare(text: String, langCode: String, rate: Float): Result<Unit> {
         if (settings.voiceEngine == "device" || settings.voiceEngine == "local") return Result.failure(IllegalStateException("This voice engine has no downloadable audio"))

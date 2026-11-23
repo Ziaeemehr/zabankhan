@@ -27,7 +27,11 @@ class ReaderPlayback(private val tts: Tts, private val parts: List<SpokenParagra
     private val documentProgress = MutableStateFlow<Float?>(null)
     val synthesisProgress: StateFlow<Float?> = documentProgress.asStateFlow()
     fun seekBy(deltaMs: Long): Boolean = tts.seekBy(deltaMs)
-    fun setAudioPinned(pinned: Boolean) = tts.setAudioPinned(pinned)
+    fun setAudioPinned(pinned: Boolean) {
+        // Rebind after Compose disposes the previous playback for this document.
+        documentOwner?.let { tts.setAudioDocument(it) }
+        tts.setAudioPinned(pinned)
+    }
     private val sectionStatus = MutableStateFlow<Map<Int, SpeechAudioStatus>>(emptyMap())
     val paragraphAudioStatuses: StateFlow<Map<Int, SpeechAudioStatus>> = sectionStatus.asStateFlow()
     private var preparedRate: Float? = null
@@ -199,6 +203,10 @@ class ReaderPlayback(private val tts: Tts, private val parts: List<SpokenParagra
         if (offset == null) start(paragraph, rate, voiceId, repeats) else startAt(offset, rate, voiceId, repeats, resumeFromCurrent = true)
     }
     /** End reader ownership without deleting its persisted offline audio pins. */
-    fun close() { stop(); documentOwner?.let { tts.releaseAudioDocument(it) } }
+    fun close() {
+        preparationGeneration++
+        stop()
+        documentOwner?.let { tts.releaseAudioDocument(it) }
+    }
     fun stop() { generation++; index = -1; paragraph.value = null; spoken = ""; pausedOffset = null; latestSpokenOffset = null; current.value = null; completion.value = false; tts.stop() }
 }

@@ -156,7 +156,7 @@ fun ReadingScreen(vm: AppViewModel, settings: AppSettings, textId: Long, onBack:
         HighlightColor.entries.firstOrNull { it.name == settings.readingHighlightColor } ?: HighlightColor.YELLOW)
     val fontScale = FontScale.entries.firstOrNull { it.name == settings.readerFontScale } ?: FontScale.MEDIUM
     val tts = remember { createTts() }
-    val playback = remember(textId, parts, lang) { ReaderPlayback(tts, parts.map {
+    val playback = remember(textId, parts, lang, settings.voiceEngine) { ReaderPlayback(tts, parts.map {
         SpokenParagraph(it.block.plainText, it.offset, it.sourceOffsets)
     }, lang, textId) }
     val speaking by playback.isSpeaking.collectAsState()
@@ -201,6 +201,7 @@ fun ReadingScreen(vm: AppViewModel, settings: AppSettings, textId: Long, onBack:
     val selectionToolbarController = remember { SelectionToolbarController() }
     var moreMenuExpanded by remember { mutableStateOf(false) }
     var voiceMenuExpanded by remember { mutableStateOf(false) }
+    var voiceEngineMenuExpanded by remember { mutableStateOf(false) }
     var showSourceInfoSheet by remember { mutableStateOf(false) }
     var showContentsSheet by remember { mutableStateOf(false) }
     var showGestureGuide by remember { mutableStateOf(false) }
@@ -218,8 +219,8 @@ fun ReadingScreen(vm: AppViewModel, settings: AppSettings, textId: Long, onBack:
                 (part.sourceOffsets.getOrElse(range.first) { part.offset }..part.sourceOffsets.getOrElse(range.last) { part.offset })
         }
     } }
-    var voices by remember(tts, lang) { mutableStateOf(emptyList<TtsVoice>()) }
-    LaunchedEffect(voiceMenuExpanded, tts, lang) {
+    var voices by remember(tts, lang, settings.voiceEngine) { mutableStateOf(emptyList<TtsVoice>()) }
+    LaunchedEffect(voiceMenuExpanded, tts, lang, settings.voiceEngine) {
         if (!voiceMenuExpanded) return@LaunchedEffect
         repeat(10) {
             voices = tts.voices(lang.code)
@@ -503,6 +504,10 @@ fun ReadingScreen(vm: AppViewModel, settings: AppSettings, textId: Long, onBack:
                                 onClick = { moreMenuExpanded = false; onOpenVocab() })
                             DropdownMenuItem(text = { Text(stringResource(Res.string.accessibility_select_voice)) }, leadingIcon = { Icon(Icons.Default.RecordVoiceOver, null) },
                                 onClick = { moreMenuExpanded = false; voiceMenuExpanded = true })
+                            DropdownMenuItem(
+                                text = { Text(stringResource(Res.string.edge_engine)) },
+                                onClick = { moreMenuExpanded = false; voiceEngineMenuExpanded = true }
+                            )
                             DropdownMenuItem(text = { Text(stringResource(Res.string.accessibility_autoplay)) }, leadingIcon = {
                                 Icon(if (settings.readerAutoFollow) Icons.Default.Check else Icons.Default.SwapVert, null,
                                     tint = if (settings.readerAutoFollow) palette.accent else LocalContentColor.current)
@@ -568,6 +573,18 @@ fun ReadingScreen(vm: AppViewModel, settings: AppSettings, textId: Long, onBack:
                                 onClick = { moreMenuExpanded = false; scope.launch { playback.prepareAll(rate, settings.ttsVoices[lang.code]) } })
                             DropdownMenuItem(text = { Text(stringResource(Res.string.accessibility_source_info)) }, leadingIcon = { Icon(Icons.Default.Info, null) },
                                 onClick = { moreMenuExpanded = false; showSourceInfoSheet = true })
+                        }
+                        DropdownMenu(voiceEngineMenuExpanded, onDismissRequest = { voiceEngineMenuExpanded = false }) {
+                            voiceEngineOptions().forEach { (engine, label) ->
+                                DropdownMenuItem(
+                                    text = { Text(label) },
+                                    leadingIcon = { if (settings.voiceEngine == engine) Icon(Icons.Default.Check, null) },
+                                    onClick = {
+                                        voiceEngineMenuExpanded = false
+                                        if (settings.voiceEngine != engine) vm.action { vm.container.settings.setVoiceEngine(engine) }
+                                    }
+                                )
+                            }
                         }
                         DropdownMenu(voiceMenuExpanded, onDismissRequest = { voiceMenuExpanded = false }) {
                             voices.forEach { voice -> DropdownMenuItem(text = { Text(voice.name) },

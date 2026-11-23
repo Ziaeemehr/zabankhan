@@ -30,6 +30,13 @@ import kotlin.time.TimeSource
 import kotlin.coroutines.resume
 
 @Composable
+internal fun voiceEngineOptions(): List<Pair<String, String>> = buildList {
+    add("online" to stringResource(Res.string.edge_online))
+    add("device" to stringResource(Res.string.edge_device))
+    if (localTtsSupported) add("local" to stringResource(Res.string.local_tts_engine))
+}
+
+@Composable
 internal fun Modifier.holdToRecord(
     onStart: () -> Boolean,
     onRelease: () -> Unit,
