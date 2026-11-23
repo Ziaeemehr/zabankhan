@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
@@ -303,13 +304,19 @@ fun LibraryContent(
                     },
                     modifier = Modifier.fillMaxWidth().testTag("folderFilters")
                 ) {
-                    Text(folderSelectionLabel, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+                    Text(
+                        folderSelectionLabel,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f),
+                        style = MaterialTheme.typography.labelLarge.merge(contentStyle(folderSelectionLabel)),
+                    )
                     Icon(Icons.Default.KeyboardArrowDown, contentDescription = null)
                 }
                 DropdownMenu(
                     expanded = folderMenuExpanded,
                     onDismissRequest = { folderMenuExpanded = false },
-                    modifier = Modifier.fillMaxWidth().heightIn(max = 360.dp)
+                    modifier = Modifier.heightIn(max = 360.dp).widthIn(max = 360.dp)
                 ) {
                     DropdownMenuItem(
                         text = { Text(stringResource(Res.string.library_filter_all)) },
@@ -333,7 +340,7 @@ fun LibraryContent(
                         DropdownMenuItem(
                             text = {
                                 Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Spacer(Modifier.width((row.depth * 16).dp))
+                                    Spacer(Modifier.width((row.depth.coerceAtMost(4) * 12).dp))
                                     if (row.hasChildren) {
                                         IconButton(
                                             onClick = {
@@ -368,6 +375,8 @@ fun LibraryContent(
                                         folder.name,
                                         maxLines = 1,
                                         overflow = TextOverflow.Ellipsis,
+                                        modifier = Modifier.weight(1f, fill = false),
+                                        style = MaterialTheme.typography.bodyLarge.merge(contentStyle(folder.name)),
                                         fontWeight = if (isSelected) FontWeight.Bold else null,
                                         color = if (isSelected) MaterialTheme.colorScheme.primary else Color.Unspecified
                                     )
@@ -414,14 +423,20 @@ fun LibraryContent(
             }
 
             if (state.tags.isNotEmpty()) {
-                FlowRow(modifier = Modifier.fillMaxWidth().testTag("tagFilters")) {
+                FlowRow(
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = ZabankhanDesign.spacing.small).testTag("tagFilters"),
+                    horizontalArrangement = Arrangement.spacedBy(ZabankhanDesign.spacing.xSmall),
+                ) {
                     state.tags.forEach { tag ->
                         FilterChip(
                             selected = tag.id in state.selectedTagIds,
                             onClick = { onTagFilterToggle(tag.id) },
-                            label = { Text(tag.name) },
+                            label = {
+                                Text(tag.name, style = MaterialTheme.typography.labelLarge.merge(contentStyle(tag.name)),
+                                    maxLines = 2, overflow = TextOverflow.Ellipsis)
+                            },
                             leadingIcon = { Icon(Icons.Default.Label, contentDescription = null) },
-                            modifier = Modifier.padding(horizontal = 4.dp).testTag("tagFilter_${tag.id}")
+                            modifier = Modifier.testTag("tagFilter_${tag.id}")
                         )
                     }
                 }
