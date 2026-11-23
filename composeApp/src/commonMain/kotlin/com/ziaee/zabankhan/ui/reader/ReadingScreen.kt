@@ -14,6 +14,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.border
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.background
@@ -90,6 +91,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.isActive
 
 import com.ziaee.zabankhan.resources.*
+import com.ziaee.zabankhan.ui.EditorialBottomSheet
 import com.ziaee.zabankhan.ui.theme.*
 import com.ziaee.zabankhan.lang.*
 import com.ziaee.zabankhan.srs.*
@@ -1737,7 +1739,7 @@ private fun PlaybackControls(palette: ReadingPalette, speaking: Boolean, synthes
                     if (isSynthesizing) {
                         CircularProgressIndicator(
                             modifier = Modifier.fillMaxSize(),
-                            color = palette.highlightInk,
+                            color = palette.accent,
                             trackColor = palette.accent.copy(alpha = 0.28f),
                             strokeWidth = 2.dp
                         )
@@ -1922,7 +1924,7 @@ private fun ContentsSheet(
     onDismiss: () -> Unit
 ) {
     val currentHeadingIndex = headings.indexOfLast { it.first <= currentChunkIndex }
-    ModalBottomSheet(onDismissRequest = onDismiss, containerColor = palette.background, contentColor = palette.ink) {
+    EditorialBottomSheet(onDismissRequest = onDismiss, containerColor = palette.background, contentColor = palette.ink) {
         Text(
             stringResource(Res.string.reading_contents),
             style = TextStyle(fontFamily = readerHeadlineFamily(stringResource(Res.string.reading_contents)), fontSize = 28.sp, lineHeight = 34.sp, fontWeight = FontWeight.SemiBold),
@@ -1935,7 +1937,7 @@ private fun ContentsSheet(
                     modifier = Modifier
                         .fillMaxWidth()
                         .background(if (isCurrent) palette.accent.copy(alpha = 0.14f) else Color.Transparent)
-                        .clickable { onSelect(index) }
+                        .selectable(selected = isCurrent, onClick = { onSelect(index) })
                         .padding(
                             start = if (chunk.block.headerLevel == 2) 24.dp else 16.dp,
                             end = 16.dp,
@@ -1981,14 +1983,23 @@ private fun SourceInfoSheet(
 
     @Composable
     fun InfoRow(label: String, value: String) {
-        Row(Modifier.fillMaxWidth().padding(vertical = 5.dp), verticalAlignment = Alignment.CenterVertically) {
+        Row(
+            Modifier.fillMaxWidth().padding(vertical = 5.dp),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
             Text(label, style = MaterialTheme.typography.bodyMedium, color = palette.inkFaded, modifier = Modifier.weight(1f))
             Text(value, style = MaterialTheme.typography.bodyLarge)
         }
     }
 
-    ModalBottomSheet(onDismissRequest = onDismiss, containerColor = palette.background, contentColor = palette.ink) {
-        Column(modifier = Modifier.fillMaxWidth().padding(horizontal = ZabankhanDesign.spacing.medium).padding(bottom = ZabankhanDesign.spacing.large)) {
+    EditorialBottomSheet(onDismissRequest = onDismiss, containerColor = palette.background, contentColor = palette.ink) {
+        Column(
+            modifier = Modifier.fillMaxWidth()
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = ZabankhanDesign.spacing.medium)
+                .padding(bottom = ZabankhanDesign.spacing.large),
+        ) {
             Text(doc.title, style = TextStyle(fontFamily = readerHeadlineFamily(doc.title), fontSize = 28.sp, lineHeight = 34.sp, fontWeight = FontWeight.SemiBold))
             HorizontalDivider(Modifier.padding(vertical = ZabankhanDesign.spacing.small), color = palette.divider)
             InfoRow(stringResource(Res.string.text_info_words), formatReaderNumber(words))

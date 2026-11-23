@@ -8,6 +8,8 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.*
 import androidx.compose.foundation.interaction.DragInteraction
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
@@ -524,11 +526,20 @@ import kotlin.time.TimeSource
     }
     editingTranslation?.let { text ->
         var draft by remember(text) { mutableStateOf(translations.states[text]?.text.orEmpty()) }
-        ModalBottomSheet(onDismissRequest = { editingTranslation = null }) {
-            Column(Modifier.fillMaxWidth().padding(20.dp).imePadding(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                Text(text, style = contentStyle(text), maxLines = 3, overflow = TextOverflow.Ellipsis)
+        EditorialBottomSheet(onDismissRequest = { editingTranslation = null }) {
+            Column(
+                Modifier.fillMaxWidth().imePadding().verticalScroll(rememberScrollState()).padding(20.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                Surface(shape = MaterialTheme.shapes.medium, color = MaterialTheme.colorScheme.surfaceContainerHigh) {
+                    Text(
+                        text,
+                        Modifier.fillMaxWidth().padding(12.dp),
+                        style = MaterialTheme.typography.bodyMedium.merge(contentStyle(text)),
+                    )
+                }
                 OutlinedTextField(draft, { draft = it }, Modifier.fillMaxWidth(), textStyle = MaterialTheme.typography.bodyLarge.merge(contentStyle(draft)), minLines = 2, maxLines = 6)
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                FlowRow(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End)) {
                     TextButton(onClick = { scope.launch { translations.save(text, null) }; editingTranslation = null }) { Text(stringResource(Res.string.watch_translation_automatic)) }
                     Button(onClick = { scope.launch { translations.save(text, draft.trim()) }; editingTranslation = null }, enabled = draft.isNotBlank()) { Text(stringResource(Res.string.save)) }
                 }

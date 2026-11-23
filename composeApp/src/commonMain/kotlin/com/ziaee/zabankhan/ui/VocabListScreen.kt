@@ -408,12 +408,9 @@ fun VocabListScreen(
 
             LazyColumn(modifier = Modifier.fillMaxSize()) {
                 item {
-                    Card(
-                        modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp),
-                        colors = CardDefaults.cardColors(
-                            containerColor = if (dueCount > 0) MaterialTheme.colorScheme.primaryContainer
-                            else MaterialTheme.colorScheme.surfaceVariant
-                        )
+                    EditorialCard(
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp),
+                        containerColor = if (dueCount > 0) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surface,
                     ) {
                         Row(
                             modifier = Modifier.fillMaxWidth().padding(14.dp),

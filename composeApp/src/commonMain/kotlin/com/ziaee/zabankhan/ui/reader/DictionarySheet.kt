@@ -38,6 +38,7 @@ import com.ziaee.zabankhan.dictionary.*
 import com.ziaee.zabankhan.datapack.LanguageDataPacks
 import com.ziaee.zabankhan.lang.*
 import com.ziaee.zabankhan.resources.*
+import com.ziaee.zabankhan.ui.EditorialBottomSheet
 import com.ziaee.zabankhan.translate.MeaningOption
 import com.ziaee.zabankhan.ui.contentStyle
 import com.ziaee.zabankhan.ui.dictionarySuggestions
@@ -79,18 +80,10 @@ private fun ReferenceDictionarySheet(
     listen: (() -> Unit)? = null, listenFromHere: (() -> Unit)? = null, shadow: (() -> Unit)? = null
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-    ModalBottomSheet(
+    EditorialBottomSheet(
         onDismissRequest = dismiss,
         sheetState = sheetState,
         contentWindowInsets = { WindowInsets(0) },
-        // A slim handle: the default one pads 22dp above and below.
-        dragHandle = {
-            Surface(
-                shape = RoundedCornerShape(50),
-                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f),
-                modifier = Modifier.padding(top = 8.dp, bottom = 2.dp).size(width = 32.dp, height = 4.dp)
-            ) {}
-        }
     ) {
         ReferenceDictionaryPane(vm, settings, text, selection, words, highlights, dismiss, listen, listenFromHere, shadow, Modifier.fillMaxHeight().navigationBarsPadding())
     }

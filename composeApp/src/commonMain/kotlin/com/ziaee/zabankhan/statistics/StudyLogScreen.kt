@@ -5,7 +5,6 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
@@ -22,6 +21,8 @@ import com.ziaee.zabankhan.data.StudySkill
 import com.ziaee.zabankhan.resources.*
 import kotlinx.coroutines.launch
 import kotlinx.datetime.LocalDate
+import com.ziaee.zabankhan.ui.EditorialCard
+import com.ziaee.zabankhan.ui.EditorialTopAppBar
 import org.jetbrains.compose.resources.stringResource
 
 @Composable
@@ -49,13 +50,10 @@ fun StudyLogScreen(
 
     Scaffold(
         topBar = {
-            TopAppBar(
-                title = { Text(stringResource(Res.string.study_log_title)) },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = null)
-                    }
-                },
+            EditorialTopAppBar(
+                title = stringResource(Res.string.study_log_title),
+                back = onBack,
+                windowInsets = TopAppBarDefaults.windowInsets,
                 actions = {
                     IconButton(onClick = onSources) {
                         Icon(Icons.Default.LibraryBooks, contentDescription = stringResource(Res.string.study_log_manage_sources))
@@ -69,7 +67,7 @@ fun StudyLogScreen(
         snackbarHost = { SnackbarHost(snackbar) },
     ) { padding ->
         Column(Modifier.fillMaxSize().padding(padding)) {
-            Row(
+            FlowRow(
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
@@ -143,7 +141,7 @@ private fun StudySessionRow(
     val date = LocalDate.fromEpochDays(session.date.toInt()).toString()
     val sourceName = source?.name ?: stringResource(Res.string.study_log_no_source)
     val details = stringResource(studySkillLabelResource(session.skill)) + " · " + sourceName
-    Card(Modifier.fillMaxWidth()) {
+    EditorialCard {
         Row(
             modifier = Modifier.fillMaxWidth().clickable(onClick = onEdit).padding(start = 16.dp, top = 12.dp, bottom = 12.dp),
             verticalAlignment = Alignment.CenterVertically,

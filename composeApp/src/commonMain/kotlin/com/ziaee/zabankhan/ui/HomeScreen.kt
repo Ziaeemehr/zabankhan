@@ -72,7 +72,7 @@ import com.ziaee.zabankhan.watch.WatchHistory
     val remaining = remainingNewCards(reviews, settings.dailyNewCards, VocabSrs.startOfDayMs(now))
     val due = reviewableCount(allWords.map { it.reviewCard() }, now, remaining)
     val languageLabel = languageName(spec)
-    val itemModifier = Modifier.fillMaxWidth().padding(horizontal = ZabankhanDesign.spacing.small, vertical = ZabankhanDesign.spacing.half)
+    val spacing = ZabankhanDesign.spacing
     Column(Modifier.fillMaxSize()) {
         val title = stringResource(Res.string.app_name)
         EditorialTopAppBar(title, titleStyle = editorialStyle(title, EditorialRole.SectionTitle).copy(fontSize = 20.sp, lineHeight = 24.sp), actions = {
@@ -81,7 +81,11 @@ import com.ziaee.zabankhan.watch.WatchHistory
             Box {
                 TextButton(onClick = { languageMenu = true }) {
                     Text(languageLabel, maxLines = 1)
-                    Icon(Icons.Default.KeyboardArrowDown, stringResource(Res.string.learning_languages))
+                    Icon(
+                        Icons.Default.KeyboardArrowDown,
+                        stringResource(Res.string.learning_languages),
+                        Modifier.size(18.dp),
+                    )
                 }
                 DropdownMenu(languageMenu, { languageMenu = false }) {
                     settings.learningLangs.mapNotNull { Languages.byCode(it) }.forEach { option ->
@@ -99,36 +103,52 @@ import com.ziaee.zabankhan.watch.WatchHistory
             // French Reader adds texts from its bottom bar; zabankhan's bottom bar has no add slot.
             ImportAddMenu(vm, settings, add, open, watch, discover, openDatasets = datasets, trigger = { onImport, busy ->
                 FilledIconButton(onClick = onImport, enabled = !busy, modifier = Modifier.size(48.dp)) {
-                    Icon(Icons.Default.Add, stringResource(Res.string.add_text), modifier = Modifier.size(26.dp))
+                    Icon(Icons.Default.Add, stringResource(Res.string.add_text), modifier = Modifier.size(24.dp))
                 }
             })
             IconButton(onClick = openSettings) { Icon(Icons.Default.Settings, stringResource(Res.string.nav_settings)) }
         })
-        LazyColumn(Modifier.fillMaxSize()) {
+        LazyColumn(
+            modifier = Modifier.fillMaxSize(),
+            contentPadding = PaddingValues(horizontal = spacing.small, vertical = spacing.small),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
             if (statsReady) item {
                 ProgressCard(
                     HomeProgress(activityStreak(activity, today, reviews, attemptsState.orEmpty()), allWords.count { it.createdAtMs >= com.ziaee.zabankhan.data.nowMs() - 7 * 86_400_000L },
                         allWords.count { it.srsState().status() == VocabStatus.LEARNED }, activityMinutes(activity, today, 1).total.roundToInt(), settings.dailyGoalMinutes),
                     onOpen = progress, onSavedWords = words, motivation = motivation, onAchievements = achievements,
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
                 )
             }
             recentState?.firstOrNull()?.let { doc ->
-                item { ContinueReadingCard(doc, onClick = { open(doc.id) }, modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)) }
+                item { ContinueReadingCard(doc, onClick = { open(doc.id) }) }
             }
             continueWatching?.let { video ->
                 item {
-                    ContinueWatchingCard(video, onClick = { watchVideo(video.videoId, video.path.orEmpty(), video.subs.orEmpty()) },
-                        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp))
+                    ContinueWatchingCard(video, vm.container.videoThumbnails, onClick = { watchVideo(video.videoId, video.path.orEmpty(), video.subs.orEmpty()) })
                 }
             }
-            if (statsReady) item { DailyReviewCard(due, review, itemModifier) }
-            item { WatchVideosCard(languageLabel, watch, itemModifier) }
-            item { ShadowingCard(shadow, itemModifier) }
-            item { TodayNewsCard(headlineCount, languageLabel, news, Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) }
-            item { GrammarCard(languageLabel, grammar, itemModifier) }
-            item { DatasetEntryCard(lang, datasets, itemModifier) }
-            if (com.ziaee.zabankhan.datapack.LanguageDataPacks.available(lang)) item { ExamsCard(exams, itemModifier) }
+            if (statsReady) item { DailyReviewCard(due, review) }
+            item {
+                EditorialCard {
+                    WatchVideosRow(languageLabel, watch)
+                    HomeEntryDivider()
+                    ShadowingRow(shadow)
+                }
+            }
+            item {
+                EditorialCard {
+                    TodayNewsRow(headlineCount, languageLabel, news)
+                    HomeEntryDivider()
+                    GrammarRow(languageLabel, grammar)
+                    HomeEntryDivider()
+                    DatasetEntryRow(lang, datasets)
+                    if (com.ziaee.zabankhan.datapack.LanguageDataPacks.available(lang)) {
+                        HomeEntryDivider()
+                        ExamsRow(exams)
+                    }
+                }
+            }
         }
     }
 }

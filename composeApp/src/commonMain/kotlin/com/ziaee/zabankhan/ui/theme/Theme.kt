@@ -11,6 +11,7 @@ import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.luminance
+import androidx.compose.ui.graphics.compositeOver
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.text.font.FontFamily
@@ -182,13 +183,15 @@ fun readingPaletteFor(
         highlightColor == HighlightColor.YELLOW && background == ReadingBackground.WHITE -> Color(0xFFFFE7A3)
         else -> highlightSwatch(highlightColor, dark)
     }
+    val highlightBackground = highlight.copy(alpha = 0.72f)
+    // At 0.179 relative luminance, black and white offer equal contrast.
+    val highlightLuminance = highlightBackground.compositeOver(bg).luminance()
     return ReadingPalette(
         background = bg,
         ink = ink,
         inkFaded = faded,
-        highlightBg = highlight.copy(alpha = 0.72f),
-        highlightInk = if (highlightColor == HighlightColor.YELLOW && background == ReadingBackground.DARK) Color(0xFFFFE4A3)
-            else if (highlight.luminance() > 0.48f) ink else Color(0xFFFFF8EE),
+        highlightBg = highlightBackground,
+        highlightInk = if (highlightLuminance > 0.179f) Color.Black else Color.White,
         divider = when (background) {
             ReadingBackground.SEPIA -> Color(0xFFE6DDC8)
             ReadingBackground.WHITE -> Color(0xFFE0E0E0)

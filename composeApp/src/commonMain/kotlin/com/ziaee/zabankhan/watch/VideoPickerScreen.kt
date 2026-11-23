@@ -72,11 +72,11 @@ fun watchRoute(videoId: String = "", path: String = "", subs: String = "", shado
             }
             recent?.let { video ->
                 Text(stringResource(Res.string.shadow_entry_resume_label), style = MaterialTheme.typography.titleSmall)
-                Card(onClick = {
+                EditorialCard(onClick = {
                     resume(video.copy(
                         path = video.path?.let { com.ziaee.zabankhan.data.rebaseSavedVideoPath(it, com.ziaee.zabankhan.pdf.AppFiles.filesDir) },
                         subs = video.subs?.let { com.ziaee.zabankhan.data.rebaseSavedVideoPath(it, com.ziaee.zabankhan.pdf.AppFiles.filesDir) }))
-                }, modifier = Modifier.fillMaxWidth()) {
+                }) {
                     Row(Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                         Icon(Icons.Default.PlayCircle, null, Modifier.size(40.dp), tint = MaterialTheme.colorScheme.primary)
                         Text(video.title.ifBlank { video.videoId }, Modifier.weight(1f), style = MaterialTheme.typography.titleMedium, maxLines = 2,
@@ -85,7 +85,7 @@ fun watchRoute(videoId: String = "", path: String = "", subs: String = "", shado
                 }
             }
             Text(stringResource(Res.string.shadow_entry_new_label), style = MaterialTheme.typography.titleSmall)
-            Button(onClick = choose, modifier = Modifier.fillMaxWidth().height(52.dp)) {
+            Button(onClick = choose, modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp)) {
                 Icon(Icons.Default.VideoLibrary, null); Spacer(Modifier.width(8.dp)); Text(stringResource(Res.string.shadow_entry_choose))
             }
         }
@@ -177,9 +177,16 @@ fun watchRoute(videoId: String = "", path: String = "", subs: String = "", shado
     Column(Modifier.fillMaxSize()) {
         EditorialTopAppBar(if (showingFavorites) stringResource(Res.string.videos_favorites) else selected?.title ?: stringResource(Res.string.videos_title, languageName(lang)),
             back = { if (selected != null) selectedChannel = null else if (showingFavorites) showingFavorites = false else if (selectedPlaylist != null) selectedPlaylist = null else back() })
-        Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp), verticalAlignment = Alignment.CenterVertically) {
-            OutlinedTextField(query, { query = it }, modifier = Modifier.weight(1f), singleLine = true,
-                label = { Text(stringResource(if (showingFavorites) Res.string.videos_search_favorites else Res.string.videos_search)) }, textStyle = contentStyle(query))
+        Row(
+            Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            EditorialSearchEntry(
+                value = query,
+                onValueChange = { query = it },
+                modifier = Modifier.weight(1f),
+                hint = stringResource(if (showingFavorites) Res.string.videos_search_favorites else Res.string.videos_search),
+            )
             IconButton(onClick = { linkDialog = true }) {
                 Icon(Icons.Default.Link, stringResource(Res.string.videos_paste_link))
             }
@@ -222,7 +229,7 @@ fun watchRoute(videoId: String = "", path: String = "", subs: String = "", shado
             TextButton(onClick = pickVideo) { Text(stringResource(Res.string.watch_open_local)) }
             }
         }
-        LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             if (importFailed) item { Text(stringResource(Res.string.watch_import_error), color = MaterialTheme.colorScheme.error) }
             if (localPath.isNotBlank()) item {
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.Center) {
@@ -235,7 +242,7 @@ fun watchRoute(videoId: String = "", path: String = "", subs: String = "", shado
             if (showingFavorites) {
                 val matches = savedVideos.filter { it.title.contains(query.trim(), ignoreCase = true) }
                 items(matches, key = { it.stableKey }) { video ->
-                    VideoRow(video.title.ifBlank { video.path.substringAfterLast('/').ifBlank { video.videoId } }, video.channel,
+                    VideoRow(video.title.ifBlank { video.path.substringAfterLast('/').ifBlank { video.videoId } }, video.channel, vm.container.videoThumbnails, video.videoId,
                         isFavorite = true, favoriteLabel = stringResource(Res.string.videos_favorite_remove, video.title),
                         onToggleFavorite = { toggleFavorite(video.videoId, video.path, video.subtitlePath, video.title, video.channel) },
                         onPlaylist = { playlistMembershipVideo = video.stableKey },
@@ -250,7 +257,7 @@ fun watchRoute(videoId: String = "", path: String = "", subs: String = "", shado
                     val playlistVideos = allSavedVideos.filter { video -> membershipRows.any { it.videoKey == video.stableKey } && video.title.contains(query.trim(), ignoreCase = true) }
                     item { Text(playlists.firstOrNull { it.syncId == playlistId }?.name.orEmpty(), style = MaterialTheme.typography.titleMedium) }
                     items(playlistVideos, key = { "playlist:${it.stableKey}" }) { video ->
-                        VideoRow(video.title.ifBlank { video.videoId.ifBlank { video.path } }, video.channel,
+                        VideoRow(video.title.ifBlank { video.videoId.ifBlank { video.path } }, video.channel, vm.container.videoThumbnails, video.videoId,
                             isFavorite = video.isFavorite, favoriteLabel = stringResource(if (video.isFavorite) Res.string.videos_favorite_remove else Res.string.videos_favorite_add, video.title),
                             onToggleFavorite = { toggleFavorite(video.videoId, video.path, video.subtitlePath, video.title, video.channel) },
                             onPlaylist = { playlistMembershipVideo = video.stableKey }, onClick = { open(video.videoId,
@@ -268,7 +275,7 @@ fun watchRoute(videoId: String = "", path: String = "", subs: String = "", shado
                     items(recents, key = { "recent:${it.path ?: it.videoId}" }) { item ->
                         val key = if (item.videoId.isNotBlank() || !item.path.isNullOrBlank())
                             com.ziaee.zabankhan.data.savedVideoStableKey(lang.code, item.videoId, item.path.orEmpty()) else ""
-                        RecentVideoRow(item, onWatch = { open(item.videoId, item.path.orEmpty(), item.subs.orEmpty()) },
+                        RecentVideoRow(item, vm.container.videoThumbnails, onWatch = { open(item.videoId, item.path.orEmpty(), item.subs.orEmpty()) },
                             favorite = key in favoriteKeys,
                             favoriteLabel = stringResource(if (key in favoriteKeys) Res.string.videos_favorite_remove else Res.string.videos_favorite_add, item.title),
                             favoriteEnabled = key.isNotBlank(),
@@ -343,7 +350,7 @@ fun watchRoute(videoId: String = "", path: String = "", subs: String = "", shado
                     searchChannelVideos(feeds[selected.channelId].orEmpty(), query, lang) else emptyList()
                 items(videos, key = { it.videoId }) { video ->
                     val key = com.ziaee.zabankhan.data.savedVideoStableKey(lang.code, video.videoId, "")
-                    VideoRow(video.title, video.published.take(10), isFavorite = key in favoriteKeys,
+                    VideoRow(video.title, video.published.take(10), vm.container.videoThumbnails, video.videoId, isFavorite = key in favoriteKeys,
                         favoriteLabel = stringResource(if (key in favoriteKeys) Res.string.videos_favorite_remove else Res.string.videos_favorite_add, video.title),
                         onToggleFavorite = { toggleFavorite(video.videoId, "", "", video.title, selected.title) },
                         onPlaylist = { scope.launch { savedVideoRepository.setFavorite(lang.code, video.videoId, "", "", video.title, selected.title, key in favoriteKeys); playlistMembershipVideo = key } }, onClick = { open(video.videoId, "", "") })
@@ -355,13 +362,13 @@ fun watchRoute(videoId: String = "", path: String = "", subs: String = "", shado
 }
 
 @Composable
-private fun RecentVideoRow(video: RecentVideo, favorite: Boolean, favoriteLabel: String, favoriteEnabled: Boolean, onToggleFavorite: () -> Unit, onWatch: () -> Unit, onRemove: () -> Unit, onPlaylist: () -> Unit) {
+private fun RecentVideoRow(video: RecentVideo, thumbnails: VideoThumbnailLoader, favorite: Boolean, favoriteLabel: String, favoriteEnabled: Boolean, onToggleFavorite: () -> Unit, onWatch: () -> Unit, onRemove: () -> Unit, onPlaylist: () -> Unit) {
     var menu by remember { mutableStateOf(false) }
-    Row(Modifier.fillMaxWidth().clickable(onClick = onWatch), verticalAlignment = Alignment.CenterVertically) {
+    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
         VideoRow(video.title.ifBlank { video.videoId },
             stringResource(Res.string.videos_progress, videoResumeTime(video.positionMs)) +
                 video.channel.takeIf { it.isNotBlank() }?.let { " · $it" }.orEmpty(),
-            modifier = Modifier.weight(1f), onClick = onWatch)
+            thumbnails = thumbnails, videoId = video.videoId, modifier = Modifier.weight(1f), onClick = onWatch)
         IconButton(enabled = favoriteEnabled, onClick = onToggleFavorite) {
             Icon(if (favorite) Icons.Default.Favorite else Icons.Default.FavoriteBorder, favoriteLabel)
         }
@@ -376,12 +383,12 @@ private fun RecentVideoRow(video: RecentVideo, favorite: Boolean, favoriteLabel:
 }
 
 @Composable
-private fun VideoRow(title: String, support: String, modifier: Modifier = Modifier, isFavorite: Boolean? = null,
+private fun VideoRow(title: String, support: String, thumbnails: VideoThumbnailLoader, videoId: String, modifier: Modifier = Modifier, isFavorite: Boolean? = null,
     favoriteLabel: String = "", onToggleFavorite: (() -> Unit)? = null, onPlaylist: (() -> Unit)? = null, onClick: () -> Unit) {
     Row(modifier.fillMaxWidth().padding(vertical = 6.dp),
         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
         Row(Modifier.weight(1f).clickable(onClick = onClick), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-        VideoThumbnail(Modifier.width(112.dp))
+        VideoThumbnail(Modifier.width(88.dp), thumbnails = thumbnails, videoId = videoId)
         Column(Modifier.weight(1f)) {
             Text(title, Modifier.fillMaxWidth(), maxLines = 2, overflow = TextOverflow.Ellipsis,
                 style = MaterialTheme.typography.bodyMedium.merge(contentStyle(title)))
@@ -392,14 +399,6 @@ private fun VideoRow(title: String, support: String, modifier: Modifier = Modifi
             Icon(if (isFavorite) Icons.Default.Favorite else Icons.Default.FavoriteBorder, favoriteLabel)
         }
         if (onPlaylist != null) IconButton(onClick = onPlaylist) { Icon(Icons.Default.PlaylistAdd, stringResource(Res.string.video_playlist_choose)) }
-    }
-}
-
-/** shortcut: the project has no network image loader, so a 16:9 tinted frame stands in for the YouTube thumbnail; add one to show real thumbnails. */
-@Composable
-internal fun VideoThumbnail(modifier: Modifier = Modifier) {
-    Box(modifier.aspectRatio(16f / 9f).background(MaterialTheme.colorScheme.surfaceVariant), contentAlignment = Alignment.Center) {
-        Icon(Icons.Default.PlayCircle, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }
 

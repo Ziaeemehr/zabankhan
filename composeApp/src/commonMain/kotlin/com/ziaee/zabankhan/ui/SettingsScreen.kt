@@ -4,13 +4,14 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.animation.animateColorAsState
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.ui.text.style.TextAlign
 import org.jetbrains.compose.resources.StringResource
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.selection.selectableGroup
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.ui.draw.clip
@@ -218,83 +219,90 @@ fun SettingsScreen(vm: AppViewModel, settings: AppSettings, progress: () -> Unit
     Scaffold(
         snackbarHost = { SnackbarHost(speechSettingsSnackbar) },
         topBar = {
-            TopAppBar(
-                title = { Text(stringResource(if (selectedTab < 0) Res.string.nav_settings else tabTitles[selectedTab])) },
-                navigationIcon = {
-                    if (selectedTab >= 0) IconButton(onClick = { selectedTab = -1 }) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, stringResource(Res.string.accessibility_back))
-                    }
-                }
+            EditorialTopAppBar(
+                title = stringResource(if (selectedTab < 0) Res.string.nav_settings else tabTitles[selectedTab]),
+                back = if (selectedTab >= 0) ({ selectedTab = -1 }) else null,
+                backLabel = stringResource(Res.string.accessibility_back),
+                windowInsets = TopAppBarDefaults.windowInsets,
             )
         }
     ) { padding ->
         Column(Modifier.fillMaxWidth().padding(padding)) {
             if (selectedTab < 0) {
-                SettingsTabRow(tabTitles = tabTitles, selectedTab = selectedTab, onSelect = { if (it == 7) guideScreen = "help" else selectedTab = it })
+                SettingsMenu(tabTitles = tabTitles, onSelect = { if (it == 7) guideScreen = "help" else selectedTab = it })
             } else {
                 key(selectedTab) {
                     Column(
                         Modifier.fillMaxWidth().weight(1f).verticalScroll(rememberScrollState())
-                            .padding(horizontal = 16.dp, vertical = 8.dp)
+                            .padding(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(12.dp),
                     ) {
                         when (selectedTab) {
                             0 -> {
 
-                                Text(stringResource(Res.string.learning_languages), style = MaterialTheme.typography.titleMedium)
-                                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                    Languages.learnable.forEach { lang ->
-                                        val selected = lang.code in settings.learningLangs
-                                        FilterChip(selected, enabled = lang in Languages.enabledLearning, onClick = { if (!selected || settings.learningLangs.size > 1) vm.action {
-                                            if (selected && settings.learningLangs.size > 1) repository.removeLearningLang(lang.code)
-                                            else if (!selected) repository.addLearningLang(lang.code)
-                                            val active = repository.current().learningLang
-                                            if (active == settings.meaningLang) repository.setMeaningLang(if (active == Languages.PERSIAN.code) Languages.ENGLISH.code else Languages.PERSIAN.code)
-                                        } }, label = { Text(if (lang in Languages.enabledLearning) languageName(lang) else "${languageName(lang)} · ${stringResource(Res.string.language_temporarily_unavailable)}") },
-                                            leadingIcon = if (selected) ({ Icon(Icons.Default.Check, stringResource(Res.string.learning_languages), Modifier.size(18.dp)) }) else null,
-                                            colors = FilterChipDefaults.filterChipColors(selectedContainerColor = MaterialTheme.colorScheme.primaryContainer, selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer, selectedLeadingIconColor = MaterialTheme.colorScheme.onPrimaryContainer))
+                                SettingsGroup {
+                                    Text(stringResource(Res.string.learning_languages), style = MaterialTheme.typography.titleMedium)
+                                    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                        Languages.learnable.forEach { lang ->
+                                            val selected = lang.code in settings.learningLangs
+                                            FilterChip(selected, enabled = lang in Languages.enabledLearning, onClick = { if (!selected || settings.learningLangs.size > 1) vm.action {
+                                                if (selected && settings.learningLangs.size > 1) repository.removeLearningLang(lang.code)
+                                                else if (!selected) repository.addLearningLang(lang.code)
+                                                val active = repository.current().learningLang
+                                                if (active == settings.meaningLang) repository.setMeaningLang(if (active == Languages.PERSIAN.code) Languages.ENGLISH.code else Languages.PERSIAN.code)
+                                            } }, label = { Text(if (lang in Languages.enabledLearning) languageName(lang) else "${languageName(lang)} · ${stringResource(Res.string.language_temporarily_unavailable)}") },
+                                                leadingIcon = if (selected) ({ Icon(Icons.Default.Check, stringResource(Res.string.learning_languages), Modifier.size(18.dp)) }) else null,
+                                                colors = FilterChipDefaults.filterChipColors(selectedContainerColor = MaterialTheme.colorScheme.primaryContainer, selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer, selectedLeadingIconColor = MaterialTheme.colorScheme.onPrimaryContainer))
+                                        }
+                                    }
+                                    SettingsChoice(stringResource(Res.string.meaning_language), settings.meaningLang,
+                                        listOf(Languages.PERSIAN, Languages.ENGLISH).filter { it.code != settings.learningLang }.map { it.code to languageName(it) }) {
+                                        vm.action { repository.setMeaningLang(it) }
                                     }
                                 }
-                                SettingsChoice(stringResource(Res.string.meaning_language), settings.meaningLang,
-                                    listOf(Languages.PERSIAN, Languages.ENGLISH).filter { it.code != settings.learningLang }.map { it.code to languageName(it) }) {
-                                    vm.action { repository.setMeaningLang(it) }
-                                }
-                                StepperSetting(stringResource(Res.string.h2_daily_goal), settings.dailyGoalMinutes, 1, 120) {
-                                    vm.action { repository.setDailyGoalMinutes(it) }
-                                }
-                                StepperSetting(stringResource(Res.string.progress_weekly_goal), settings.weeklyPointsGoal,
-                                    com.ziaee.zabankhan.progress.MIN_WEEKLY_GOAL, com.ziaee.zabankhan.progress.MAX_WEEKLY_GOAL) {
-                                    vm.action { repository.setWeeklyPointsGoal(it) }
+                                SettingsGroup {
+                                    StepperSetting(stringResource(Res.string.h2_daily_goal), settings.dailyGoalMinutes, 1, 120) {
+                                        vm.action { repository.setDailyGoalMinutes(it) }
+                                    }
+                                    StepperSetting(stringResource(Res.string.progress_weekly_goal), settings.weeklyPointsGoal,
+                                        com.ziaee.zabankhan.progress.MIN_WEEKLY_GOAL, com.ziaee.zabankhan.progress.MAX_WEEKLY_GOAL) {
+                                        vm.action { repository.setWeeklyPointsGoal(it) }
+                                    }
                                 }
                                 com.ziaee.zabankhan.reminder.ReviewReminderSettings(vm, settings)
                             }
                             1 -> {
 
-                                SettingsChoice(stringResource(Res.string.theme), settings.themeMode,
-                                    listOf("SYSTEM" to stringResource(Res.string.system), "LIGHT" to stringResource(Res.string.light), "DARK" to stringResource(Res.string.dark))) {
-                                    vm.action { repository.setThemeMode(it) }
+                                SettingsGroup {
+                                    SettingsChoice(stringResource(Res.string.theme), settings.themeMode,
+                                        listOf("SYSTEM" to stringResource(Res.string.system), "LIGHT" to stringResource(Res.string.light), "DARK" to stringResource(Res.string.dark))) {
+                                        vm.action { repository.setThemeMode(it) }
+                                    }
                                 }
-
                                 OutlinedButton(onClick = grammar, modifier = Modifier.fillMaxWidth()) { Text(stringResource(Res.string.pack_grammar)) }
                                 if (com.ziaee.zabankhan.datapack.LanguageDataPacks.available(settings.learningLang.orEmpty())) {
                                     OutlinedButton(onClick = exams, modifier = Modifier.fillMaxWidth()) { Text(stringResource(Res.string.pack_tcf)) }
                                 }
 
-                                Text(stringResource(Res.string.reading_background_title), style = MaterialTheme.typography.labelMedium)
-                                ReadingColorGrid(ReadingBackground.entries, settings.readingBackground, ::backgroundSwatch,
-                                    { stringResource(it.labelResource()) }) { vm.action { repository.setReadingBackground(it.name) } }
-                                Text(stringResource(Res.string.sync_highlight_color), style = MaterialTheme.typography.labelMedium)
-                                ReadingColorGrid(HighlightColor.entries, settings.readingHighlightColor,
-                                    { highlightSwatch(it, settings.readingBackground in listOf("DARK", "BLACK")) },
-                                    { stringResource(it.labelResource()) }) { vm.action { repository.setReadingHighlightColor(it.name) } }
-                                SettingsChoice(stringResource(Res.string.reading_font_scale_title), settings.readerFontScale,
-                                    FontScale.entries.map { it.name to stringResource(it.labelResource()) }) { vm.action { repository.setReaderFontScale(it) } }
-
-                                Text(stringResource(Res.string.page_navigation_title), style = MaterialTheme.typography.bodySmall,
-                                    modifier = Modifier.padding(top = 6.dp, bottom = 3.dp))
-                                CompactChoiceColumn(PageNavigation.entries,
-                                    PageNavigation.entries.firstOrNull { it.name == settings.pageNavigation } ?: PageNavigation.SCROLL,
-                                    { stringResource(it.labelResource()) }) { navigation ->
-                                    vm.action { repository.setPageNavigation(navigation.name) }
+                                SettingsGroup {
+                                    Text(stringResource(Res.string.reading_background_title), style = MaterialTheme.typography.labelMedium)
+                                    ReadingColorGrid(ReadingBackground.entries, settings.readingBackground, ::backgroundSwatch,
+                                        { stringResource(it.labelResource()) }) { vm.action { repository.setReadingBackground(it.name) } }
+                                    Text(stringResource(Res.string.sync_highlight_color), style = MaterialTheme.typography.labelMedium)
+                                    ReadingColorGrid(HighlightColor.entries, settings.readingHighlightColor,
+                                        { highlightSwatch(it, settings.readingBackground in listOf("DARK", "BLACK")) },
+                                        { stringResource(it.labelResource()) }) { vm.action { repository.setReadingHighlightColor(it.name) } }
+                                    SettingsChoice(stringResource(Res.string.reading_font_scale_title), settings.readerFontScale,
+                                        FontScale.entries.map { it.name to stringResource(it.labelResource()) }) { vm.action { repository.setReaderFontScale(it) } }
+                                }
+                                SettingsGroup {
+                                    Text(stringResource(Res.string.page_navigation_title), style = MaterialTheme.typography.bodySmall,
+                                        modifier = Modifier.padding(top = 6.dp, bottom = 3.dp))
+                                    CompactChoiceColumn(PageNavigation.entries,
+                                        PageNavigation.entries.firstOrNull { it.name == settings.pageNavigation } ?: PageNavigation.SCROLL,
+                                        { stringResource(it.labelResource()) }) { navigation ->
+                                        vm.action { repository.setPageNavigation(navigation.name) }
+                                    }
                                 }
 
                             }
@@ -305,8 +313,10 @@ fun SettingsScreen(vm: AppViewModel, settings: AppSettings, progress: () -> Unit
                                     vm.action { repository.setVoiceEngine(it) }
                                 }
                                 if (settings.voiceEngine == "local") LocalTtsSettings(learningLanguage)
-                                SettingsChoice(stringResource(Res.string.speech_rate), settings.speechRate, listOf(.75f, 1f, 1.25f).map { it to "${it}×" }) { vm.action { repository.setSpeechRate(it) } }
-                                SettingsChoice(stringResource(Res.string.speech_repeat), settings.speechRepeat, (1..3).map { it to "${it}×" }) { vm.action { repository.setSpeechRepeat(it) } }
+                                SettingsGroup {
+                                    SettingsChoice(stringResource(Res.string.speech_rate), settings.speechRate, listOf(.75f, 1f, 1.25f).map { it to "${it}×" }) { vm.action { repository.setSpeechRate(it) } }
+                                    SettingsChoice(stringResource(Res.string.speech_repeat), settings.speechRepeat, (1..3).map { it to "${it}×" }) { vm.action { repository.setSpeechRepeat(it) } }
+                                }
                                 Languages.learnable.filter { it.code in settings.learningLangs }.forEach { lang ->
                                     Choice("${languageName(lang)} — ${stringResource(Res.string.speech_voice)}", settings.ttsVoices[lang.code].orEmpty(),
                                         listOf("" to stringResource(Res.string.speech_default)) + voices[lang.code].orEmpty().map { it.id to it.name }) { id -> vm.action { repository.setTtsVoice(lang.code, id.ifBlank { null }) } }
@@ -335,29 +345,33 @@ fun SettingsScreen(vm: AppViewModel, settings: AppSettings, progress: () -> Unit
                             4 -> {
 
                                 TextButton(onClick = progress) { Text(stringResource(Res.string.h2_progress)) }
-                                StepperSetting(stringResource(Res.string.daily_new), settings.dailyNewCards, 0, 100) {
-                                    vm.action { repository.setDailyNewCards(it) }
-                                }
-                                Text(stringResource(Res.string.review_audio_autoplay), style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(top = 6.dp, bottom = 3.dp))
-                                CompactChoiceRow(com.ziaee.zabankhan.data.AudioAutoplay.entries, settings.reviewAudioAutoplay, {
-                                    stringResource(when (it) {
-                                        com.ziaee.zabankhan.data.AudioAutoplay.OFF -> Res.string.review_autoplay_off
-                                        com.ziaee.zabankhan.data.AudioAutoplay.FRONT -> Res.string.review_autoplay_front
-                                        com.ziaee.zabankhan.data.AudioAutoplay.BACK -> Res.string.review_autoplay_back
-                                        com.ziaee.zabankhan.data.AudioAutoplay.BOTH -> Res.string.review_autoplay_both
-                                    })
-                                }) { vm.action { repository.setReviewAudioAutoplay(it) } }
-                                // Copied from French Reader SettingsScreen review settings.
-                                Text(stringResource(Res.string.review_intervals), style = MaterialTheme.typography.bodySmall,
-                                    modifier = Modifier.padding(top = 6.dp, bottom = 3.dp))
-                                settings.reviewIntervalDays.forEachIndexed { index, days ->
-                                    StepperSetting(stringResource(Res.string.review_box_interval, index + 1), days.toInt(), 1, 365) { value ->
-                                        val intervals = settings.reviewIntervalDays.toMutableList().also { it[index] = value.toLong() }
-                                        vm.action { repository.setReviewIntervals(intervals) }
+                                SettingsGroup {
+                                    StepperSetting(stringResource(Res.string.daily_new), settings.dailyNewCards, 0, 100) {
+                                        vm.action { repository.setDailyNewCards(it) }
                                     }
+                                    Text(stringResource(Res.string.review_audio_autoplay), style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(top = 6.dp, bottom = 3.dp))
+                                    CompactChoiceRow(com.ziaee.zabankhan.data.AudioAutoplay.entries, settings.reviewAudioAutoplay, {
+                                        stringResource(when (it) {
+                                            com.ziaee.zabankhan.data.AudioAutoplay.OFF -> Res.string.review_autoplay_off
+                                            com.ziaee.zabankhan.data.AudioAutoplay.FRONT -> Res.string.review_autoplay_front
+                                            com.ziaee.zabankhan.data.AudioAutoplay.BACK -> Res.string.review_autoplay_back
+                                            com.ziaee.zabankhan.data.AudioAutoplay.BOTH -> Res.string.review_autoplay_both
+                                        })
+                                    }) { vm.action { repository.setReviewAudioAutoplay(it) } }
                                 }
-                                TextButton(onClick = { vm.action { repository.resetReviewIntervals() } }) {
-                                    Text(stringResource(Res.string.review_intervals_reset))
+                                SettingsGroup {
+                                    // Copied from French Reader SettingsScreen review settings.
+                                    Text(stringResource(Res.string.review_intervals), style = MaterialTheme.typography.bodySmall,
+                                        modifier = Modifier.padding(top = 6.dp, bottom = 3.dp))
+                                    settings.reviewIntervalDays.forEachIndexed { index, days ->
+                                        StepperSetting(stringResource(Res.string.review_box_interval, index + 1), days.toInt(), 1, 365) { value ->
+                                            val intervals = settings.reviewIntervalDays.toMutableList().also { it[index] = value.toLong() }
+                                            vm.action { repository.setReviewIntervals(intervals) }
+                                        }
+                                    }
+                                    TextButton(onClick = { vm.action { repository.resetReviewIntervals() } }) {
+                                        Text(stringResource(Res.string.review_intervals_reset))
+                                    }
                                 }
 
                             }
@@ -378,49 +392,45 @@ fun SettingsScreen(vm: AppViewModel, settings: AppSettings, progress: () -> Unit
 }
 
 @Composable
-private fun SettingsTabRow(tabTitles: List<StringResource>, selectedTab: Int, onSelect: (Int) -> Unit) {
-    Column(Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 10.dp)) {
-        tabTitles.chunked(2).forEachIndexed { rowIndex, row ->
-            if (rowIndex > 0) Spacer(Modifier.height(6.dp))
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                row.forEachIndexed { columnIndex, resource ->
-                    val index = rowIndex * 2 + columnIndex
-                    val selected = selectedTab == index
-                    val background by animateColorAsState(
-                        if (selected) MaterialTheme.colorScheme.tertiaryContainer else Color.Transparent,
-                        label = "settingsTabBackground"
-                    )
-                    val contentColor by animateColorAsState(
-                        if (selected) MaterialTheme.colorScheme.onTertiaryContainer else MaterialTheme.colorScheme.onSurfaceVariant,
-                        label = "settingsTabContent"
-                    )
+private fun SettingsMenu(tabTitles: List<StringResource>, onSelect: (Int) -> Unit) {
+    val icons = listOf(
+        Icons.Default.Settings, Icons.Default.MenuBook, Icons.Default.RecordVoiceOver, Icons.Default.Translate,
+        Icons.Default.Style, Icons.Default.Backup, Icons.Default.Info, Icons.Default.HelpOutline,
+    )
+    Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(16.dp)) {
+        EditorialCard {
+            tabTitles.forEachIndexed { index, title ->
+                if (index > 0) HomeEntryDivider()
+                Row(
+                    Modifier.fillMaxWidth().clickable(role = Role.Button) { onSelect(index) }
+                        .heightIn(min = 56.dp).padding(horizontal = 16.dp, vertical = 10.dp),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
                     Box(
-                        Modifier
-                            .weight(1f)
-                            .clip(RoundedCornerShape(50))
-                            .background(background)
-                            .border(
-                                width = if (selected) 0.dp else 1.dp,
-                                color = MaterialTheme.colorScheme.outlineVariant,
-                                shape = RoundedCornerShape(50)
-                            )
-                            .clickable { onSelect(index) }
-                            .padding(horizontal = 4.dp, vertical = 8.dp),
-                        contentAlignment = Alignment.Center
+                        Modifier.size(40.dp).background(MaterialTheme.colorScheme.secondaryContainer, CircleShape),
+                        contentAlignment = Alignment.Center,
                     ) {
-                        Text(
-                            stringResource(resource),
-                            style = MaterialTheme.typography.labelSmall,
-                            color = contentColor,
-                            maxLines = 2,
-                            textAlign = TextAlign.Center
-                        )
+                        Icon(icons[index], null, tint = MaterialTheme.colorScheme.onSecondaryContainer)
                     }
+                    Text(stringResource(title), Modifier.weight(1f), style = MaterialTheme.typography.titleSmall)
+                    Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, null, Modifier.size(18.dp),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
         }
     }
-    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+}
+
+@Composable
+private fun SettingsGroup(content: @Composable ColumnScope.() -> Unit) {
+    EditorialCard {
+        Column(
+            Modifier.fillMaxWidth().padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+            content = content,
+        )
+    }
 }
 
 @Composable
@@ -506,21 +516,33 @@ private fun HighlightColor.labelResource(): org.jetbrains.compose.resources.Stri
     HighlightColor.RED -> Res.string.highlight_red
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun <T : Enum<T>> ReadingColorGrid(
     entries: List<T>, selected: String, color: (T) -> Color,
     label: @Composable (T) -> String, onSelect: (T) -> Unit
 ) {
-    entries.chunked(6).forEach { rowEntries ->
-        Row(Modifier.fillMaxWidth().padding(vertical = 3.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            rowEntries.forEach { entry ->
-                val description = label(entry)
+    FlowRow(Modifier.fillMaxWidth().selectableGroup(), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+        entries.forEach { entry ->
+            val description = label(entry)
+            val swatch = color(entry)
+            val isSelected = entry.name == selected
+            Box(
+                Modifier.size(48.dp).clip(CircleShape)
+                    .selectable(selected = isSelected, role = Role.RadioButton, onClick = { onSelect(entry) })
+                    .semantics { contentDescription = description },
+                contentAlignment = Alignment.Center,
+            ) {
                 Box(
-                    Modifier.size(34.dp).clip(CircleShape).background(color(entry))
-                        .then(if (entry.name == selected) Modifier.border(3.dp, MaterialTheme.colorScheme.primary, CircleShape) else Modifier.border(1.dp, MaterialTheme.colorScheme.outline, CircleShape))
-                        .clickable { onSelect(entry) }
-                        .semantics { contentDescription = description; role = Role.RadioButton }
-                )
+                    Modifier.size(34.dp).background(swatch, CircleShape)
+                        .border(1.dp, MaterialTheme.colorScheme.outline, CircleShape),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    if (isSelected) {
+                        Icon(Icons.Default.Check, null, Modifier.size(18.dp),
+                            tint = if (swatch.luminance() > 0.179f) Color.Black else Color.White)
+                    }
+                }
             }
         }
     }

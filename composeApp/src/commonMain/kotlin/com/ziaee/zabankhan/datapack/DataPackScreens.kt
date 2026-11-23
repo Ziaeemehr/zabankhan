@@ -33,6 +33,7 @@ import org.jetbrains.compose.resources.stringResource
     Text(annotated, modifier = Modifier.fillMaxWidth(), style = contentStyle(text))
 }
 /** Self-rating is local to this practice session; no AI evaluation. */
+@OptIn(ExperimentalLayoutApi::class)
 @Composable fun TcfPracticeScreen(lang: String, back: () -> Unit) {
     var pack by remember(lang) { mutableStateOf<LanguageDataPack?>(null) }
     var failed by remember(lang) { mutableStateOf(false) }
@@ -46,7 +47,7 @@ import org.jetbrains.compose.resources.stringResource
     val question = task?.items?.getOrNull(index)
     Page {
         EditorialTopAppBar(stringResource(Res.string.pack_tcf), back)
-        if (failed) Text(stringResource(Res.string.error_save))
+        if (failed) Text(stringResource(Res.string.error_save), color = MaterialTheme.colorScheme.error)
         else if (pack == null && LanguageDataPacks.available(lang)) CircularProgressIndicator()
         Text(stringResource(Res.string.pack_self_score_hint))
         if (task != null) Choice(stringResource(Res.string.pack_task), task.id, tasks.map { it.id to "${it.skill} ${it.task} — ${it.titleFr}" }) { taskId = it }
@@ -58,10 +59,20 @@ import org.jetbrains.compose.resources.stringResource
                     question.texts.forEach { Markdown(it.fr); if (it.fa.isNotBlank()) Markdown(it.fa) }
                 }
             }
-            OutlinedTextField(answers[question.id].orEmpty(), { answers[question.id] = it }, modifier = Modifier.fillMaxWidth().heightIn(min = 140.dp), label = { Text(stringResource(Res.string.pack_response)) })
+            val answer = answers[question.id].orEmpty()
+            OutlinedTextField(
+                value = answer,
+                onValueChange = { answers[question.id] = it },
+                modifier = Modifier.fillMaxWidth(),
+                label = { Text(stringResource(Res.string.pack_response)) },
+                shape = MaterialTheme.shapes.medium,
+                minLines = 4,
+                maxLines = 8,
+                textStyle = MaterialTheme.typography.bodyLarge.merge(contentStyle(answer)),
+            )
             Text(stringResource(Res.string.pack_self_score, scores[question.id] ?: 0))
             Slider((scores[question.id] ?: 0).toFloat(), { scores[question.id] = it.toInt() }, valueRange = 0f..5f, steps = 4)
-            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 OutlinedButton(enabled = index > 0, onClick = { index-- }) { Text(stringResource(Res.string.pack_previous)) }
                 Button(enabled = index < task.items.lastIndex, onClick = { index++ }) { Text(stringResource(Res.string.pack_next)) }
             }

@@ -13,6 +13,8 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import com.ziaee.zabankhan.ui.EditorialCard
+import com.ziaee.zabankhan.ui.contentStyle
 import com.ziaee.zabankhan.app.AppContainer
 import com.ziaee.zabankhan.sync.ConflictChoice
 import com.ziaee.zabankhan.sync.DriveSyncCoordinator
@@ -175,8 +177,11 @@ private fun canKeepBoth(conflict: SyncConflict) =
 private fun SyncConflictCard(conflict: SyncConflict, checked: Boolean, onCheckedChange: (Boolean) -> Unit) {
     val local = conflictDisplay(conflict.localPayload).ifBlank { stringResource(Res.string.batch_a_drive_sync_deleted) }
     val remote = conflictDisplay(conflict.remotePayload).ifBlank { stringResource(Res.string.batch_a_drive_sync_deleted) }
-    Card(Modifier.fillMaxWidth()) {
-        Row(Modifier.padding(8.dp), verticalAlignment = Alignment.CenterVertically) {
+    EditorialCard(containerColor = if (checked) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surface) {
+        Row(
+            Modifier.padding(start = 8.dp, end = 16.dp, top = 8.dp, bottom = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
             Checkbox(checked = checked, onCheckedChange = onCheckedChange)
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Text(stringResource(Res.string.batch_a_drive_sync_conflict_title), style = MaterialTheme.typography.titleSmall)
@@ -192,12 +197,7 @@ private fun conflictDisplay(payload: String): String = runCatching {
     value["word"]?.jsonPrimitive?.contentOrNull ?: value["name"]?.jsonPrimitive?.contentOrNull.orEmpty()
 }.getOrDefault("")
 @Composable private fun BackupMethodCard(content: @Composable ColumnScope.() -> Unit) {
-    Card(
-        Modifier.fillMaxWidth(),
-        shape = MaterialTheme.shapes.extraLarge,
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
-    ) {
+    EditorialCard {
         Column(Modifier.fillMaxWidth().padding(18.dp), verticalArrangement = Arrangement.spacedBy(10.dp), content = content)
     }
 }
@@ -483,10 +483,17 @@ private fun BackupPickerDialog(labels: List<String>, onDismiss: () -> Unit, onSe
         onDismissRequest = onDismiss,
         title = { Text(stringResource(Res.string.batch_a_backup_choose)) },
         text = {
-            Column(Modifier.heightIn(max = 400.dp).verticalScroll(rememberScrollState())) {
+            Column(
+                Modifier.fillMaxWidth().heightIn(max = 400.dp).verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(4.dp),
+            ) {
                 labels.forEachIndexed { index, label ->
-                    TextButton(onClick = { onSelect(index) }, modifier = Modifier.fillMaxWidth()) {
-                        Text(label, modifier = Modifier.fillMaxWidth())
+                    OutlinedButton(
+                        onClick = { onSelect(index) },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = MaterialTheme.shapes.medium,
+                    ) {
+                        Text(label, Modifier.fillMaxWidth(), style = MaterialTheme.typography.bodyMedium.merge(contentStyle(label)))
                     }
                 }
             }

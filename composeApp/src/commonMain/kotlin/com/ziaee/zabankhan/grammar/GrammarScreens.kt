@@ -6,6 +6,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
+import com.ziaee.zabankhan.ui.EditorialSearchEntry
 import com.ziaee.zabankhan.ui.contentStyle
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.ui.draw.clip
@@ -52,7 +53,6 @@ import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -164,14 +164,11 @@ fun GrammarListScreen(
                 verticalArrangement = Arrangement.spacedBy(ZabankhanDesign.spacing.xSmall)
             ) {
                 item(key = "search") {
-                    OutlinedTextField(
+                    EditorialSearchEntry(
                         value = query,
                         onValueChange = { query = it },
-                        modifier = Modifier.fillMaxWidth(),
-                        singleLine = true,
-                        textStyle = MaterialTheme.typography.bodyLarge.copy(textDirection = TextDirection.Content),
-                        placeholder = { Text(stringResource(Res.string.grammar_search_placeholder, com.ziaee.zabankhan.ui.languageName(language))) },
-                        leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
+                        hint = stringResource(Res.string.grammar_search_placeholder, com.ziaee.zabankhan.ui.languageName(language)),
+                        showFloatingLabel = false,
                         trailingIcon = if (query.isNotEmpty()) {
                             {
                                 IconButton(onClick = { query = "" }) {

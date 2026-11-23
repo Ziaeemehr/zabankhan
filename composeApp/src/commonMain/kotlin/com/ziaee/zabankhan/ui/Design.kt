@@ -2,7 +2,10 @@ package com.ziaee.zabankhan.ui
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.automirrored.filled.ArrowForwardIos
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
@@ -16,6 +19,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ziaee.zabankhan.resources.*
@@ -29,30 +33,83 @@ import org.jetbrains.compose.resources.stringResource
     titleStyle: androidx.compose.ui.text.TextStyle? = null,
     backIcon: ImageVector = Icons.AutoMirrored.Filled.ArrowBack,
     backLabel: String? = null,
+    windowInsets: WindowInsets = WindowInsets(0, 0, 0, 0),
     actions: @Composable RowScope.() -> Unit = {},
 ) {
-    TopAppBar(
-        title = {
-            Column {
-                Text(title, style = titleStyle ?: editorialStyle(title).copy(fontSize = 18.sp, lineHeight = 24.sp), maxLines = 1, overflow = TextOverflow.Ellipsis)
-                subtitle?.let { Text(it, style = MaterialTheme.typography.labelMedium.merge(contentStyle(it)), color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis) }
-            }
+    Column(modifier) {
+        TopAppBar(
+            title = {
+                Column {
+                    Text(title, style = titleStyle ?: editorialStyle(title).copy(fontSize = 18.sp, lineHeight = 24.sp), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    subtitle?.let { Text(it, style = MaterialTheme.typography.labelMedium.merge(contentStyle(it)), color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis) }
+                }
+            },
+            windowInsets = windowInsets,
+            navigationIcon = { back?.let { EditorialIconButton(it, backIcon, backLabel ?: stringResource(Res.string.back)) } },
+            actions = actions,
+            colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.surface),
+        )
+        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+internal fun EditorialBottomSheet(
+    onDismissRequest: () -> Unit,
+    sheetState: SheetState = rememberModalBottomSheetState(),
+    sheetMaxWidth: Dp = BottomSheetDefaults.SheetMaxWidth,
+    containerColor: Color = MaterialTheme.colorScheme.surface,
+    contentColor: Color = contentColorFor(containerColor),
+    contentWindowInsets: @Composable () -> WindowInsets = { BottomSheetDefaults.windowInsets },
+    content: @Composable ColumnScope.() -> Unit,
+) {
+    ModalBottomSheet(
+        onDismissRequest = onDismissRequest,
+        sheetState = sheetState,
+        sheetMaxWidth = sheetMaxWidth,
+        shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp),
+        containerColor = containerColor,
+        contentColor = contentColor,
+        contentWindowInsets = contentWindowInsets,
+        dragHandle = {
+            Surface(
+                modifier = Modifier.padding(top = 10.dp, bottom = 6.dp).size(width = 32.dp, height = 4.dp),
+                shape = CircleShape,
+                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = .45f),
+            ) {}
         },
-        modifier = modifier, windowInsets = WindowInsets(0, 0, 0, 0),
-        navigationIcon = { back?.let { EditorialIconButton(it, backIcon, backLabel ?: stringResource(Res.string.back)) } },
-        actions = actions,
-        colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.background),
+        content = content,
     )
 }
 
 /** A real search input, retaining the screens' inline filtering and keyboard behavior. */
-@Composable fun EditorialSearchEntry(value: String, onValueChange: (String) -> Unit, modifier: Modifier = Modifier) {
-    val label = stringResource(Res.string.search)
+@Composable
+fun EditorialSearchEntry(
+    value: String,
+    onValueChange: (String) -> Unit,
+    modifier: Modifier = Modifier,
+    hint: String = stringResource(Res.string.search),
+    showFloatingLabel: Boolean = true,
+    trailingIcon: (@Composable () -> Unit)? = null,
+    keyboardOptions: KeyboardOptions = KeyboardOptions.Default,
+    keyboardActions: KeyboardActions = KeyboardActions.Default,
+) {
     OutlinedTextField(
-        value, onValueChange, modifier.fillMaxWidth(), singleLine = true,
-        label = { Text(label) }, leadingIcon = { Icon(Icons.Default.Search, label) },
-        shape = MaterialTheme.shapes.medium, textStyle = MaterialTheme.typography.bodyLarge.merge(contentStyle(value)),
+        value = value,
+        onValueChange = onValueChange,
+        modifier = modifier.fillMaxWidth(),
+        singleLine = true,
+        label = if (showFloatingLabel) ({ Text(hint) }) else null,
+        placeholder = if (showFloatingLabel) null else ({ Text(hint) }),
+        leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
+        trailingIcon = trailingIcon,
+        keyboardOptions = keyboardOptions,
+        keyboardActions = keyboardActions,
+        shape = MaterialTheme.shapes.medium,
+        textStyle = MaterialTheme.typography.bodyLarge.merge(contentStyle(value)),
         colors = OutlinedTextFieldDefaults.colors(
+            focusedContainerColor = MaterialTheme.colorScheme.surface,
             unfocusedContainerColor = MaterialTheme.colorScheme.surface,
             unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant,
         ),
@@ -116,12 +173,13 @@ import org.jetbrains.compose.resources.stringResource
 @Composable fun EditorialCard(
     modifier: Modifier = Modifier, onClick: (() -> Unit)? = null,
     containerColor: Color = MaterialTheme.colorScheme.surface,
+    enabled: Boolean = true,
     content: @Composable ColumnScope.() -> Unit,
 ) {
     val colors = CardDefaults.cardColors(containerColor = containerColor)
     val border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = .6f))
     if (onClick == null) Card(modifier.fillMaxWidth(), shape = MaterialTheme.shapes.large, colors = colors, border = border, content = content)
-    else Card(onClick, modifier.fillMaxWidth(), shape = MaterialTheme.shapes.large, colors = colors, border = border, content = content)
+    else Card(onClick, modifier.fillMaxWidth(), enabled = enabled, shape = MaterialTheme.shapes.large, colors = colors, border = border, content = content)
 }
 
 /** One line at any navigation width; reduce only when the translated label overflows. */

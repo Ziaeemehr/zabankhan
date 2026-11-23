@@ -92,7 +92,7 @@ private data class Preview(val title: String, val snippet: String, val url: Stri
         }
     }
     preview?.let { item ->
-        ModalBottomSheet(onDismissRequest = { if (!busy) preview = null }) {
+        EditorialBottomSheet(onDismissRequest = { if (!busy) preview = null }) {
             Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 MetadataBadge(item.source.name)
                 Text(item.title, modifier = Modifier.fillMaxWidth(), style = editorialStyle(item.title, EditorialRole.SectionTitle))

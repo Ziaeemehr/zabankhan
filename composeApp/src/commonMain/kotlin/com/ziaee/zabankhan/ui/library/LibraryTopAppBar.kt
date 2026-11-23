@@ -17,27 +17,26 @@ internal fun LibraryTopAppBar(
     navigationIcon: @Composable () -> Unit = {},
     actions: @Composable RowScope.() -> Unit = {}
 ) {
-    TopAppBar(
-        title = {
-            Text(
-                text = title,
-                style = titleStyle,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                modifier = titleModifier
-            )
-        },
-        modifier = modifier,
-        navigationIcon = navigationIcon,
-        actions = actions,
-        colors = TopAppBarDefaults.topAppBarColors(
-            // Opaque and matched to the page background rather than truly
-            // transparent -- pull-to-refresh's idle indicator sits just
-            // above its own bounds by design and needs an opaque bar over
-            // it, or it bleeds through (see PullToRefreshContainer).
-            containerColor = MaterialTheme.colorScheme.background,
-            scrolledContainerColor = MaterialTheme.colorScheme.surface
-        ),
-        windowInsets = TopAppBarDefaults.windowInsets
-    )
+    Column(modifier) {
+        TopAppBar(
+            title = {
+                Text(
+                    text = title,
+                    style = titleStyle,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = titleModifier
+                )
+            },
+            navigationIcon = navigationIcon,
+            actions = actions,
+            colors = TopAppBarDefaults.topAppBarColors(
+                // An opaque bar covers the pull-to-refresh indicator above its resting position.
+                containerColor = MaterialTheme.colorScheme.surface,
+                scrolledContainerColor = MaterialTheme.colorScheme.surface
+            ),
+            windowInsets = TopAppBarDefaults.windowInsets
+        )
+        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+    }
 }

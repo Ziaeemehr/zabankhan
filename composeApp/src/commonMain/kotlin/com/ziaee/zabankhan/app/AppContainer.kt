@@ -19,6 +19,7 @@ import kotlin.uuid.Uuid
 class AppContainer(val database: AppDatabase, val settings: SettingsRepository, http: HttpClient) {
     private val sourceHttp = http
     val http = http.config { install(WebSockets) }
+    internal val videoThumbnails = com.ziaee.zabankhan.watch.VideoThumbnailLoader(this.http)
     private val speechScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     val syncDeviceId: String = loadOrCreateSyncDeviceId()
     val ttsCache = TtsCache("${AppFiles.cacheDir}/tts")

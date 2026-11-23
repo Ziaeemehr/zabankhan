@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.shape.CircleShape
@@ -96,7 +97,8 @@ internal fun LibraryOrganizerDialog(
 
     Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
         Surface(
-            modifier = Modifier.fillMaxWidth().imePadding().padding(horizontal = 16.dp).testTag("libraryOrganizerDialog"),
+            modifier = Modifier.imePadding().padding(horizontal = 16.dp).widthIn(max = 560.dp)
+                .fillMaxWidth().testTag("libraryOrganizerDialog"),
             shape = RoundedCornerShape(28.dp),
             color = MaterialTheme.colorScheme.surface
         ) {
@@ -107,7 +109,7 @@ internal fun LibraryOrganizerDialog(
                         Icon(Icons.Default.Close, contentDescription = stringResource(Res.string.action_close))
                     }
                 }
-                HorizontalDivider()
+                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
                 Column(Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(horizontal = 16.dp)) {
                 FolderOrganizerSection(
                     folders = folders,
@@ -131,7 +133,7 @@ internal fun LibraryOrganizerDialog(
                     testTag = "tag"
                 )
                 }
-                HorizontalDivider()
+                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
                 Row(Modifier.fillMaxWidth().padding(16.dp), horizontalArrangement = Arrangement.End) {
                     OutlinedButton(
                         onClick = onDismiss, modifier = Modifier.testTag("libraryOrganizerDone")
@@ -305,7 +307,8 @@ private fun OrganizerInput(
             singleLine = true,
             keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
             keyboardActions = KeyboardActions(onDone = { if (input.isNotBlank()) onAdd() }),
-            shape = RoundedCornerShape(16.dp),
+            shape = MaterialTheme.shapes.medium,
+            textStyle = MaterialTheme.typography.bodyLarge.merge(contentStyle(input)),
             modifier = Modifier.weight(1f).testTag(inputTestTag)
         )
         IconButton(onClick = onAdd, enabled = input.isNotBlank(), modifier = Modifier.testTag("${testTag}Add")) {

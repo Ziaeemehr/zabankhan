@@ -30,7 +30,6 @@ import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.TrendingUp
 import androidx.compose.material.icons.automirrored.filled.Undo
 import androidx.compose.material.icons.automirrored.filled.VolumeUp
@@ -381,13 +380,11 @@ fun ReviewScreen(container: AppContainer, settings: AppSettings, onBack: () -> U
     Scaffold(
         snackbarHost = { SnackbarHost(snackbar) },
         topBar = {
-            TopAppBar(
-                title = { Text(stringResource(Res.string.vocab_review_title)) },
-                navigationIcon = {
-                    IconButton(onClick = { if (vm.stage == ReviewStage.OVERVIEW) onBack() else vm.backToOverview() }) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, stringResource(Res.string.accessibility_back))
-                    }
-                },
+            EditorialTopAppBar(
+                title = stringResource(Res.string.vocab_review_title),
+                back = { if (vm.stage == ReviewStage.OVERVIEW) onBack() else vm.backToOverview() },
+                backLabel = stringResource(Res.string.accessibility_back),
+                windowInsets = TopAppBarDefaults.windowInsets,
                 actions = {
                     if (vm.stage == ReviewStage.REVIEW) IconToggleButton(checked = vm.pronunciationEnabled, onCheckedChange = { if (it) enablePractice() else vm.setPronunciation(false) }) {
                         Icon(Icons.Default.Mic, stringResource(Res.string.review_pronunciation_practice))
@@ -486,7 +483,7 @@ private fun ReviewOverviewPane(vm: ReviewViewModel, o: ReviewOverview, onOpenDat
 
 @Composable
 private fun LearnedWordsCard(vm: ReviewViewModel, learnedCount: Int) {
-    Card(Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
+    EditorialCard(Modifier.padding(vertical = 4.dp)) {
         Column(Modifier.padding(12.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(Icons.Default.EmojiEvents, null, tint = boxColor(5))
@@ -530,7 +527,7 @@ private fun BoxLadder(boxes: List<ReviewBoxSummary>, onBoxClick: (Int) -> Unit) 
     boxes.forEachIndexed { i, box ->
         val enabled = box.dueCount > 0
         val color = boxColor(box.box)
-        Card(onClick = { onBoxClick(box.box) }, enabled = enabled, modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
+        EditorialCard(Modifier.padding(vertical = 4.dp), onClick = { onBoxClick(box.box) }, enabled = enabled) {
             Column(Modifier.padding(12.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Icon(icons[(box.box - 1).coerceIn(0, icons.lastIndex)], null, tint = color); Spacer(Modifier.width(10.dp))
