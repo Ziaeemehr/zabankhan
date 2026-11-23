@@ -19,6 +19,7 @@ import com.ziaee.zabankhan.lang.LanguageSpec
 import com.ziaee.zabankhan.resources.*
 import com.ziaee.zabankhan.speech.*
 import com.ziaee.zabankhan.ui.reader.ShadowingAlignment
+import com.ziaee.zabankhan.ui.EditorialActionMenu
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
@@ -136,15 +137,27 @@ import org.jetbrains.compose.resources.stringResource
                     Box(Modifier.weight(1f)) {
                         OutlinedButton(onClick = { speedMenu = true }, enabled = !busy, modifier = Modifier.fillMaxWidth(), contentPadding = PaddingValues(horizontal = 8.dp)) {
                             Icon(Icons.Default.Speed, null, Modifier.size(18.dp)); Spacer(Modifier.width(4.dp)); Text("${rate}×", maxLines = 1) }
-                        DropdownMenu(speedMenu, onDismissRequest = { speedMenu = false }) {
-                            listOf(.5f, .75f, 1f).forEach { s -> DropdownMenuItem(text = { Text("$s×") }, onClick = { onRateChange(s); speedMenu = false }) }
+                        EditorialActionMenu(speedMenu, onDismissRequest = { speedMenu = false }) {
+                            listOf(.5f, .75f, 1f).forEach { s ->
+                                DropdownMenuItem(
+                                    text = { Text("$s×") },
+                                    leadingIcon = { if (rate == s) Icon(Icons.Default.Check, null, tint = MaterialTheme.colorScheme.primary) },
+                                    onClick = { onRateChange(s); speedMenu = false },
+                                )
+                            }
                         }
                     }
                     Box(Modifier.weight(1f)) {
                         OutlinedButton(onClick = { repeatMenu = true }, enabled = !busy, modifier = Modifier.fillMaxWidth(), contentPadding = PaddingValues(horizontal = 8.dp)) {
                             Icon(Icons.Default.Repeat, null, Modifier.size(18.dp)); Spacer(Modifier.width(4.dp)); Text("${repeats}×", maxLines = 1) }
-                        DropdownMenu(repeatMenu, onDismissRequest = { repeatMenu = false }) {
-                            listOf(1, 2, 3, 5).forEach { n -> DropdownMenuItem(text = { Text("$n×") }, onClick = { repeats = n; repeatMenu = false }) }
+                        EditorialActionMenu(repeatMenu, onDismissRequest = { repeatMenu = false }) {
+                            listOf(1, 2, 3, 5).forEach { n ->
+                                DropdownMenuItem(
+                                    text = { Text("$n×") },
+                                    leadingIcon = { if (repeats == n) Icon(Icons.Default.Check, null, tint = MaterialTheme.colorScheme.primary) },
+                                    onClick = { repeats = n; repeatMenu = false },
+                                )
+                            }
                         }
                     }
                     val toggleColors = if (autoPause) ButtonDefaults.outlinedButtonColors(containerColor = MaterialTheme.colorScheme.secondaryContainer) else ButtonDefaults.outlinedButtonColors()

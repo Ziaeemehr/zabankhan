@@ -330,14 +330,16 @@ import kotlin.time.TimeSource
                         IconButton(onClick = { optionsOpen = true }, modifier = Modifier.size(48.dp)) {
                             Icon(Icons.Default.MoreVert, stringResource(Res.string.more_actions), Modifier.size(24.dp))
                         }
-                        DropdownMenu(optionsOpen, onDismissRequest = { optionsOpen = false }) {
+                        EditorialActionMenu(optionsOpen, onDismissRequest = { optionsOpen = false }) {
                             DropdownMenuItem(text = { Text(stringResource(Res.string.watch_subtitle_size_percent, percent).replace("%%", "%")) }, enabled = false, onClick = {})
                             fun setSize(size: Int) { scope.launch { vm.container.settings.setWatchSubtitleSizePercent(size) }; following = true; optionsOpen = false }
                             DropdownMenuItem(text = { Text("A−   ${stringResource(Res.string.watch_subtitle_smaller)}") }, enabled = percent > sizes.first(), onClick = { setSize(sizes.lastOrNull { it < percent } ?: sizes.first()) })
                             DropdownMenuItem(text = { Text("A+   ${stringResource(Res.string.watch_subtitle_larger)}") }, enabled = percent < sizes.last(), onClick = { setSize(sizes.firstOrNull { it > percent } ?: sizes.last()) })
-                            HorizontalDivider()
+                            ActionMenuDivider()
                             listOf(.75f, 1f, 1.25f).forEach { speed ->
-                                DropdownMenuItem(text = { Text("${stringResource(Res.string.watch_rate)}: $speed×") }, onClick = { rate = speed; optionsOpen = false })
+                                DropdownMenuItem(text = { Text("${stringResource(Res.string.watch_rate)}: $speed×") },
+                                    leadingIcon = { if (rate == speed) Icon(Icons.Default.Check, null, tint = MaterialTheme.colorScheme.primary) },
+                                    onClick = { rate = speed; optionsOpen = false })
                             }
                         }
                     }
