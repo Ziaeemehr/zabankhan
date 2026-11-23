@@ -1,11 +1,12 @@
 package com.ziaee.zabankhan.ui
 
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -30,10 +31,13 @@ internal fun VocabEditDialog(entry: VocabEntry, onDismiss: () -> Unit, onSave: (
         onDismissRequest = onDismiss,
         title = { Text(stringResource(Res.string.b_words_vocab_edit_title)) },
         text = {
-            Column(Modifier.verticalScroll(rememberScrollState())) {
-                OutlinedTextField(word, { word = it }, Modifier.fillMaxWidth(), label = { Text(stringResource(Res.string.b_words_vocab_edit_word)) }, singleLine = true, textStyle = androidx.compose.ui.text.TextStyle(textDirection = androidx.compose.ui.text.style.TextDirection.Content))
-                OutlinedTextField(meaning, { meaning = it }, Modifier.fillMaxWidth().padding(top = 8.dp), label = { Text(stringResource(Res.string.b_words_vocab_edit_meaning)) }, textStyle = androidx.compose.ui.text.TextStyle(textDirection = androidx.compose.ui.text.style.TextDirection.Content))
-                OutlinedTextField(sentence, { sentence = it }, Modifier.fillMaxWidth().padding(top = 8.dp), label = { Text(stringResource(Res.string.b_words_vocab_edit_sentence)) }, textStyle = androidx.compose.ui.text.TextStyle(textDirection = androidx.compose.ui.text.style.TextDirection.Content))
+            Column(
+                Modifier.verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                VocabEditorField(word, { word = it }, stringResource(Res.string.b_words_vocab_edit_word), singleLine = true)
+                VocabEditorField(meaning, { meaning = it }, stringResource(Res.string.b_words_vocab_edit_meaning))
+                VocabEditorField(sentence, { sentence = it }, stringResource(Res.string.b_words_vocab_edit_sentence))
             }
         },
         confirmButton = {
@@ -43,5 +47,19 @@ internal fun VocabEditDialog(entry: VocabEntry, onDismiss: () -> Unit, onSave: (
             ) { Text(stringResource(Res.string.b_words_action_save)) }
         },
         dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(Res.string.b_words_action_cancel)) } }
+    )
+}
+
+
+@Composable
+private fun VocabEditorField(value: String, onChange: (String) -> Unit, label: String, singleLine: Boolean = false) {
+    OutlinedTextField(
+        value = value,
+        onValueChange = onChange,
+        modifier = Modifier.fillMaxWidth(),
+        label = { Text(label) },
+        singleLine = singleLine,
+        shape = MaterialTheme.shapes.medium,
+        textStyle = MaterialTheme.typography.bodyLarge.merge(contentStyle(value)),
     )
 }

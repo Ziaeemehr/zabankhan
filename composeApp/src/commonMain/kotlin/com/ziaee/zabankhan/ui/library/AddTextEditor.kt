@@ -5,6 +5,8 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -85,7 +87,7 @@ import kotlinx.coroutines.delay
 import com.ziaee.zabankhan.resources.*
 import com.ziaee.zabankhan.ui.theme.*
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun AddTextEditor(
     learningLanguageName: String,
@@ -274,17 +276,17 @@ fun AddTextEditor(
                 levelOptions?.invoke()
                 if (bodyEditable && findVisible) {
                     Column(Modifier.fillMaxWidth()) {
+                        EditorialSearchEntry(
+                            value = findQuery,
+                            onValueChange = { findQuery = it; currentMatch = 0 },
+                            hint = stringResource(Res.string.editor_find_hint),
+                            showFloatingLabel = false,
+                            modifier = Modifier.focusRequester(findFocusRequester),
+                        )
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
                             modifier = Modifier.fillMaxWidth()
                         ) {
-                            OutlinedTextField(
-                                value = findQuery,
-                                onValueChange = { findQuery = it; currentMatch = 0 },
-                                placeholder = { Text(stringResource(Res.string.editor_find_hint)) },
-                                singleLine = true,
-                                modifier = Modifier.weight(1f).focusRequester(findFocusRequester)
-                            )
                             Text(
                                 stringResource(
                                     Res.string.editor_match_count,
@@ -303,23 +305,21 @@ fun AddTextEditor(
                                 Icon(Icons.Default.Close, stringResource(Res.string.editor_close_find))
                             }
                         }
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            OutlinedTextField(
-                                value = replacement,
-                                onValueChange = { replacement = it },
-                                placeholder = { Text(stringResource(Res.string.editor_replace_hint)) },
-                                singleLine = true,
-                                modifier = Modifier.weight(1f)
-                            )
+                        OutlinedTextField(
+                            value = replacement,
+                            onValueChange = { replacement = it },
+                            placeholder = { Text(stringResource(Res.string.editor_replace_hint)) },
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = MaterialTheme.shapes.medium,
+                            textStyle = MaterialTheme.typography.bodyLarge.merge(contentStyle(replacement)),
+                        )
+                        FlowRow(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                             FilterChip(
                                 selected = matchCase,
                                 onClick = { matchCase = !matchCase; currentMatch = 0 },
                                 label = { Text(stringResource(Res.string.editor_match_case_short)) }
                             )
-                            Spacer(Modifier.size(4.dp))
                             FilterChip(
                                 selected = wholeWord,
                                 onClick = { wholeWord = !wholeWord; currentMatch = 0 },
