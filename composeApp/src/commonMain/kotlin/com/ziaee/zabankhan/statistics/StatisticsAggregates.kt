@@ -1,6 +1,9 @@
 package com.ziaee.zabankhan.statistics
 
 import com.ziaee.zabankhan.data.*
+import com.ziaee.zabankhan.srs.VocabStatus
+import com.ziaee.zabankhan.srs.status
+import com.ziaee.zabankhan.ui.srsState
 import kotlinx.datetime.*
 import kotlin.math.roundToInt
 import kotlin.time.Clock
@@ -53,11 +56,11 @@ fun trendDelta(current: Double, previous: Double): TrendDelta {
 }
 
 data class WordStatusCounts(val new: Int, val learning: Int, val known: Int) { val total get() = new + learning + known }
-fun wordStatusCounts(words: List<VocabEntry>): WordStatusCounts = WordStatusCounts(
-    new = words.count { !it.learned && it.leitnerBox <= 1 },
-    learning = words.count { !it.learned && it.leitnerBox in 2..3 },
-    known = words.count { it.learned || it.leitnerBox >= 4 },
-)
+fun wordStatusCounts(words: List<VocabEntry>): WordStatusCounts {
+    val new = words.count { !it.learned && it.leitnerBox <= 1 }
+    val known = words.count { it.srsState().status() == VocabStatus.LEARNED }
+    return WordStatusCounts(new = new, learning = words.size - new - known, known = known)
+}
 
 /** Daily activity keeps the automatic and manually entered portions available for detail views. */
 data class StudyDayActivity(

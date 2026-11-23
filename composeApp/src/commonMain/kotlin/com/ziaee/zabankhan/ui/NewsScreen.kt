@@ -1,9 +1,10 @@
 package com.ziaee.zabankhan.ui
 
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.Icons
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Newspaper
 import androidx.compose.material3.*
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
@@ -110,15 +111,17 @@ fun NewsScreen(vm: AppViewModel, settings: AppSettings, onBack: () -> Unit, onOp
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Box {
                             TextButton(onClick = { categoryMenu = true }) { Text(category) }
-                            DropdownMenu(expanded = categoryMenu, onDismissRequest = { categoryMenu = false }) {
-                                categories.forEach { value -> DropdownMenuItem(text = { Text(value) }, onClick = {
+                            EditorialActionMenu(expanded = categoryMenu, onDismissRequest = { categoryMenu = false }) {
+                                categories.forEach { value -> DropdownMenuItem(text = { Text(value) },
+                                    leadingIcon = { if (category == value) Icon(Icons.Default.Check, null) }, onClick = {
                                     category = value; categoryMenu = false; scope.launch { vm.container.settings.setNewsCategory(lang, value) }
                                 }) }
                             }
                         }
                     }
                     OutlinedTextField(keywords, { value -> keywords = value; scope.launch { vm.container.settings.setNewsKeywords(lang, value) } },
-                        modifier = Modifier.fillMaxWidth(), label = { Text(stringResource(Res.string.batch_e_news_keywords)) })
+                        modifier = Modifier.fillMaxWidth(), shape = MaterialTheme.shapes.medium,
+                        label = { Text(stringResource(Res.string.batch_e_news_keywords)) })
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Checkbox(settings.newsOnlyMatching, { value -> scope.launch { vm.container.settings.setNewsOnlyMatching(value) } })
                         Text(stringResource(Res.string.batch_e_news_only_matching))

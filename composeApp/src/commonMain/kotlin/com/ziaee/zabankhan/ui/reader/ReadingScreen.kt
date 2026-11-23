@@ -91,6 +91,8 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.isActive
 
 import com.ziaee.zabankhan.resources.*
+import com.ziaee.zabankhan.ui.ActionMenuDivider
+import com.ziaee.zabankhan.ui.EditorialActionMenu
 import com.ziaee.zabankhan.ui.EditorialBottomSheet
 import com.ziaee.zabankhan.ui.theme.*
 import com.ziaee.zabankhan.lang.*
@@ -163,7 +165,7 @@ fun ReadingScreen(vm: AppViewModel, settings: AppSettings, textId: Long, onBack:
     val spokenSentence by playback.sentence.collectAsState()
     val currentParagraph by playback.currentParagraph.collectAsState()
     val speechComplete by playback.isComplete.collectAsState()
-    val audioStatus by playback.audioStatus.collectAsState()
+    var audioStatus by remember(playback) { mutableStateOf(SpeechAudioStatus.IDLE) }
     val paragraphAudioStatuses by playback.paragraphAudioStatuses.collectAsState()
     val synthesisProgress by playback.synthesisProgress.collectAsState()
     val activity = com.ziaee.zabankhan.statistics.TrackActivity(vm.container, textId, lang.code,
@@ -253,7 +255,12 @@ fun ReadingScreen(vm: AppViewModel, settings: AppSettings, textId: Long, onBack:
     LaunchedEffect(currentParagraph) { currentParagraph?.let { readingSection = it } }
     val spokenProgress = if (parts.isEmpty()) 0 to 0 else (if (speechComplete) parts.size else readingSection + 1).coerceIn(1, parts.size) to parts.size
     LaunchedEffect(playback) { tts.speakingRange.collect { playback.rangeChanged(it) } }
-    LaunchedEffect(playback) { playback.audioStatus.collect { playback.audioStatusChanged(it) } }
+    LaunchedEffect(playback) {
+        playback.audioStatus.collect { status ->
+            audioStatus = status
+            playback.audioStatusChanged(status)
+        }
+    }
     LaunchedEffect(playback, rate, settings.ttsVoices[lang.code]) { playback.configureAudio(rate, settings.ttsVoices[lang.code]) }
     LaunchedEffect(textId, parts, pageNavigation, speechComplete) {
         if (speechComplete) return@LaunchedEffect
@@ -485,8 +492,11 @@ fun ReadingScreen(vm: AppViewModel, settings: AppSettings, textId: Long, onBack:
                             tint = if (showTranslations) palette.accent else palette.inkFaded)
                     }
                     Box {
-                        IconButton(onClick = { moreMenuExpanded = true }) { Icon(Icons.Default.MoreVert, stringResource(Res.string.reading_more_actions)) }
-                        DropdownMenu(moreMenuExpanded, onDismissRequest = { moreMenuExpanded = false; pageNavigationMenuOpen = false }) {
+                        IconButton(onClick = {
+                            pageNavigationMenuOpen = false
+                            moreMenuExpanded = true
+                        }) { Icon(Icons.Default.MoreVert, stringResource(Res.string.reading_more_actions)) }
+                        EditorialActionMenu(moreMenuExpanded, onDismissRequest = { moreMenuExpanded = false; pageNavigationMenuOpen = false }) {
                             DropdownMenuItem(text = { Text(stringResource(Res.string.reading_find)) }, leadingIcon = { Icon(Icons.Default.Search, null) },
                                 onClick = { moreMenuExpanded = false; findOpen = true; findFocusRequest = true })
                             Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -502,60 +512,63 @@ fun ReadingScreen(vm: AppViewModel, settings: AppSettings, textId: Long, onBack:
                             }
                             DropdownMenuItem(text = { Text(stringResource(Res.string.accessibility_vocabulary)) }, leadingIcon = { Icon(Icons.Default.MenuBook, null) },
                                 onClick = { moreMenuExpanded = false; onOpenVocab() })
+                            ActionMenuDivider()
                             DropdownMenuItem(text = { Text(stringResource(Res.string.accessibility_select_voice)) }, leadingIcon = { Icon(Icons.Default.RecordVoiceOver, null) },
                                 onClick = { moreMenuExpanded = false; voiceMenuExpanded = true })
                             DropdownMenuItem(
                                 text = { Text(stringResource(Res.string.edge_engine)) },
+                                leadingIcon = { Icon(Icons.Default.SettingsVoice, null) },
                                 onClick = { moreMenuExpanded = false; voiceEngineMenuExpanded = true }
                             )
                             DropdownMenuItem(text = { Text(stringResource(Res.string.accessibility_autoplay)) }, leadingIcon = {
                                 Icon(if (settings.readerAutoFollow) Icons.Default.Check else Icons.Default.SwapVert, null,
                                     tint = if (settings.readerAutoFollow) palette.accent else LocalContentColor.current)
                             }, onClick = { moreMenuExpanded = false; vm.action { vm.container.settings.setReaderAutoFollow(!settings.readerAutoFollow) } })
-                                    fun pageNavigationLabel(navigation: PageNavigation) = when (navigation) {
-                                        PageNavigation.SCROLL -> Res.string.page_navigation_scroll
-                                        PageNavigation.HORIZONTAL -> Res.string.page_navigation_horizontal
-                                        PageNavigation.VERTICAL -> Res.string.page_navigation_vertical
-                                    }
-                                    DropdownMenuItem(
-                                        text = {
-                                            Column {
-                                                Text(stringResource(Res.string.page_navigation_title))
-                                                Text(
-                                                    stringResource(pageNavigationLabel(pageNavigation)),
-                                                    style = MaterialTheme.typography.bodySmall,
-                                                    color = palette.inkFaded
-                                                )
-                                            }
-                                        },
-                                        leadingIcon = { Icon(Icons.Default.SwapVert, contentDescription = null) },
-                                        trailingIcon = {
-                                            Icon(
-                                                if (pageNavigationMenuOpen) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
-                                                contentDescription = null
-                                            )
-                                        },
-                                        onClick = { pageNavigationMenuOpen = !pageNavigationMenuOpen }
-                                    )
-                                    if (pageNavigationMenuOpen) PageNavigation.entries.forEach { navigation ->
-                                        DropdownMenuItem(
-                                            text = { Text(stringResource(pageNavigationLabel(navigation))) },
-                                            modifier = Modifier.padding(start = 24.dp),
-                                            leadingIcon = {
-                                                if (pageNavigation == navigation) {
-                                                    Icon(Icons.Default.Check, contentDescription = null)
-                                                }
-                                            },
-                                            onClick = {
-                                                moreMenuExpanded = false
-                                                pageNavigationMenuOpen = false
-                                                requestedPageAnchor = if (pageNavigation == PageNavigation.SCROLL) {
-                                                    ReadingAnchor(listState.firstVisibleItemIndex, 0)
-                                                } else visiblePageAnchor
-                                                vm.action { vm.container.settings.setPageNavigation(navigation.name) }
-                                            }
+                            fun pageNavigationLabel(navigation: PageNavigation) = when (navigation) {
+                                PageNavigation.SCROLL -> Res.string.page_navigation_scroll
+                                PageNavigation.HORIZONTAL -> Res.string.page_navigation_horizontal
+                                PageNavigation.VERTICAL -> Res.string.page_navigation_vertical
+                            }
+                            DropdownMenuItem(
+                                text = {
+                                    Column {
+                                        Text(stringResource(Res.string.page_navigation_title))
+                                        Text(
+                                            stringResource(pageNavigationLabel(pageNavigation)),
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = palette.inkFaded
                                         )
                                     }
+                                },
+                                leadingIcon = { Icon(Icons.Default.SwapVert, contentDescription = null) },
+                                trailingIcon = {
+                                    Icon(
+                                        if (pageNavigationMenuOpen) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
+                                        contentDescription = null
+                                    )
+                                },
+                                onClick = { pageNavigationMenuOpen = !pageNavigationMenuOpen }
+                            )
+                            if (pageNavigationMenuOpen) PageNavigation.entries.forEach { navigation ->
+                                DropdownMenuItem(
+                                    text = { Text(stringResource(pageNavigationLabel(navigation))) },
+                                    modifier = Modifier.padding(start = 24.dp),
+                                    leadingIcon = {
+                                        if (pageNavigation == navigation) {
+                                            Icon(Icons.Default.Check, contentDescription = null)
+                                        }
+                                    },
+                                    onClick = {
+                                        moreMenuExpanded = false
+                                        pageNavigationMenuOpen = false
+                                        requestedPageAnchor = if (pageNavigation == PageNavigation.SCROLL) {
+                                            ReadingAnchor(listState.firstVisibleItemIndex, 0)
+                                        } else visiblePageAnchor
+                                        vm.action { vm.container.settings.setPageNavigation(navigation.name) }
+                                    }
+                                )
+                            }
+                            ActionMenuDivider()
                             DropdownMenuItem(
                                 text = { Text(stringResource(Res.string.action_edit)) },
                                 leadingIcon = { Icon(Icons.Default.Edit, contentDescription = null) },
@@ -574,7 +587,7 @@ fun ReadingScreen(vm: AppViewModel, settings: AppSettings, textId: Long, onBack:
                             DropdownMenuItem(text = { Text(stringResource(Res.string.accessibility_source_info)) }, leadingIcon = { Icon(Icons.Default.Info, null) },
                                 onClick = { moreMenuExpanded = false; showSourceInfoSheet = true })
                         }
-                        DropdownMenu(voiceEngineMenuExpanded, onDismissRequest = { voiceEngineMenuExpanded = false }) {
+                        EditorialActionMenu(voiceEngineMenuExpanded, onDismissRequest = { voiceEngineMenuExpanded = false }) {
                             voiceEngineOptions().forEach { (engine, label) ->
                                 DropdownMenuItem(
                                     text = { Text(label) },
@@ -586,7 +599,7 @@ fun ReadingScreen(vm: AppViewModel, settings: AppSettings, textId: Long, onBack:
                                 )
                             }
                         }
-                        DropdownMenu(voiceMenuExpanded, onDismissRequest = { voiceMenuExpanded = false }) {
+                        EditorialActionMenu(voiceMenuExpanded, onDismissRequest = { voiceMenuExpanded = false }) {
                             voices.forEach { voice -> DropdownMenuItem(text = { Text(voice.name) },
                                 leadingIcon = { if (settings.ttsVoices[lang.code] == voice.id) Icon(Icons.Default.Check, null) },
                                 onClick = {

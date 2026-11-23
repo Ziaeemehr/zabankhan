@@ -1,10 +1,22 @@
 package com.ziaee.zabankhan.statistics
 
+import com.ziaee.zabankhan.data.VocabEntry
+import com.ziaee.zabankhan.lang.Languages
 import kotlinx.datetime.LocalDate
 import kotlin.test.Test
 import kotlin.test.assertEquals
 
 class StatisticsAggregatesTest {
+    @Test
+    fun learnedCountKeepsBoxFourInLearningAndIncludesManualMarks() {
+        val boxFour = VocabEntry(lang = Languages.FRENCH.code, word = "bonjour", leitnerBox = 4, lastReviewedAtMs = 1)
+        val boxFive = boxFour.copy(word = "merci", leitnerBox = 5)
+        val manuallyLearned = boxFour.copy(word = "salut", leitnerBox = 1, learned = true)
+
+        assertEquals(WordStatusCounts(new = 0, learning = 1, known = 2),
+            wordStatusCounts(listOf(boxFour, boxFive, manuallyLearned)))
+    }
+
     @Test
     fun zeroTrendFromZeroIsNeutral() {
         assertEquals(TrendDelta(0, false), trendDelta(0.0, 0.0))

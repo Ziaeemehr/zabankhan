@@ -31,6 +31,8 @@ import androidx.compose.foundation.layout.FlowRow
 import com.ziaee.zabankhan.app.AppViewModel
 import com.ziaee.zabankhan.data.*
 import com.ziaee.zabankhan.resources.*
+import com.ziaee.zabankhan.srs.VocabStatus
+import com.ziaee.zabankhan.srs.status
 import com.ziaee.zabankhan.ui.*
 import kotlinx.coroutines.delay
 import org.jetbrains.compose.resources.stringResource
@@ -293,7 +295,10 @@ private fun countNewlyKnown(words: List<VocabEntry>, start: LocalDate, end: Loca
     val zone = kotlinx.datetime.TimeZone.currentSystemDefault()
     val from = start.atStartOfDayIn(zone).toEpochMilliseconds()
     val endExclusive = end.plus(1, DateTimeUnit.DAY).atStartOfDayIn(zone).toEpochMilliseconds()
-    return words.count { (it.learned || it.leitnerBox >= 4) && (it.lastReviewedAtMs ?: it.createdAtMs) in from until endExclusive }
+    return words.count {
+        it.srsState().status() == VocabStatus.LEARNED &&
+            (it.lastReviewedAtMs ?: it.createdAtMs) in from until endExclusive
+    }
 }
 
 private fun studyChartValues(rows: List<ActivityLogEntry>, sessions: List<StudySession>, today: LocalDate, period: ChartPeriod): List<Double> = when (period) {
@@ -326,7 +331,11 @@ private fun chartLabels(period: ChartPeriod, today: LocalDate, count: Int): List
     Column(modifier.background(MaterialTheme.colorScheme.surface, RoundedCornerShape(14.dp)).padding(10.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
         Text(value.toString(), style = MaterialTheme.typography.titleLarge, color = accent)
         Text(label, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onPrimaryContainer, maxLines = 2)
-        if (trend.percent != 0) Text(stringResource(if (trend.rising) Res.string.stats_trend_up else Res.string.stats_trend_down, trend.percent), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurface)
+        if (trend.percent != 0) {
+            val trendLabel = if (trend.rising) Res.string.stats_trend_up else Res.string.stats_trend_down
+            Text(stringResource(trendLabel, trend.percent).replace("%%", "%"),
+                style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurface)
+        }
     }
 }
 

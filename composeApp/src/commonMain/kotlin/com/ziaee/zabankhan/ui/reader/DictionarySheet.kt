@@ -2,6 +2,8 @@ package com.ziaee.zabankhan.ui.reader
 
 import androidx.compose.runtime.saveable.rememberSaveable
 import com.ziaee.zabankhan.ui.TranslationSourceIcon
+import com.ziaee.zabankhan.ui.EditorialActionMenu
+import com.ziaee.zabankhan.ui.ActionMenuDivider
 import com.ziaee.zabankhan.translate.ExampleTranslation
 
 import androidx.compose.foundation.Image
@@ -358,10 +360,11 @@ private fun ReferenceDictionaryPane(
                                     modifier = Modifier.align(Alignment.BottomEnd).size(16.dp))
                             }
                         }
-                        DropdownMenu(expanded = sourceMenuExpanded, onDismissRequest = { sourceMenuExpanded = false }) {
+                        EditorialActionMenu(expanded = sourceMenuExpanded, onDismissRequest = { sourceMenuExpanded = false }) {
                             DropdownMenuItem(
                                 text = { Text(stringResource(Res.string.dictionary_source_own)) },
                                 leadingIcon = { Image(painterResource(Res.drawable.about_launcher_logo), null, Modifier.size(24.dp)) },
+                                trailingIcon = { if (selectedDictionarySource == "own") Icon(Icons.Default.Check, null, tint = MaterialTheme.colorScheme.primary) },
                                 onClick = { selectSource("own") }
                             )
                             providers.forEach { item ->
@@ -372,6 +375,7 @@ private fun ReferenceDictionaryPane(
                                         if (icon != null) Image(painterResource(icon), null, Modifier.size(24.dp))
                                         else Icon(Icons.Default.MenuBook, contentDescription = null)
                                     },
+                                    trailingIcon = { if (selectedDictionarySource == item.name) Icon(Icons.Default.Check, null, tint = MaterialTheme.colorScheme.primary) },
                                     onClick = { selectSource(item.name) }
                                 )
                             }
@@ -481,20 +485,23 @@ private fun ReferenceDictionaryPane(
                         )
                         Icon(Icons.Default.ArrowDropDown, contentDescription = null, modifier = Modifier.size(18.dp))
                     }
-                    DropdownMenu(expanded = listMenuExpanded, onDismissRequest = { listMenuExpanded = false }) {
+                    EditorialActionMenu(expanded = listMenuExpanded, onDismissRequest = { listMenuExpanded = false }) {
                         DropdownMenuItem(
                             text = { Text(stringResource(Res.string.vocab_list_uncategorized)) },
+                            trailingIcon = { if (selectedListId == null) Icon(Icons.Default.Check, null, tint = MaterialTheme.colorScheme.primary) },
                             onClick = { selectedListId = null; saved = false; listMenuExpanded = false }
                         )
                         lists.forEach { l ->
                             DropdownMenuItem(
                                 text = { Text(l.name) },
+                                trailingIcon = { if (selectedListId == l.id) Icon(Icons.Default.Check, null, tint = MaterialTheme.colorScheme.primary) },
                                 onClick = { selectedListId = l.id; saved = false; listMenuExpanded = false }
                             )
                         }
-                        HorizontalDivider()
+                        ActionMenuDivider()
                         DropdownMenuItem(
-                            text = { Text("+ " + stringResource(Res.string.vocab_list_new)) },
+                            text = { Text(stringResource(Res.string.vocab_list_new)) },
+                            leadingIcon = { Icon(Icons.Default.Add, null) },
                             onClick = { listMenuExpanded = false; showNewListDialog = true }
                         )
                     }

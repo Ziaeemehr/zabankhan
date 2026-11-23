@@ -202,7 +202,11 @@ internal fun WordFamilySection(
                                 style = MaterialTheme.typography.labelSmall.merge(contentStyle(label)),
                             )
                         }
-                        group.filter { it !in paired }.forEach { relative ->
+                        group.filter { it !in paired }.forEachIndexed { index, relative ->
+                            if (index > 0) HorizontalDivider(
+                                Modifier.padding(horizontal = 12.dp),
+                                color = MaterialTheme.colorScheme.outlineVariant,
+                            )
                             val negative = partners[relative]
                             if (negative != null) FamilyPairRow(relative, negative, null, lang, target, onLookup)
                             else FamilyWord(relative, lang, target, onLookup, Modifier.fillMaxWidth())
@@ -283,8 +287,7 @@ private fun FamilyWord(
             color = if (isCurrent) MaterialTheme.colorScheme.primary else Color.Unspecified,
         )
         if (meaning.isNotBlank()) Text(
-            meaning, Modifier.fillMaxWidth(), maxLines = 2,
-            overflow = TextOverflow.Ellipsis,
+            meaning, Modifier.fillMaxWidth(),
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             style = MaterialTheme.typography.bodySmall.merge(contentStyle(meaning)),
         )

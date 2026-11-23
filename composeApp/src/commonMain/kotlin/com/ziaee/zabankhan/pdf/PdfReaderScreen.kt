@@ -338,13 +338,15 @@ private data class PdfTextNoteEditor(
                 }
                 Box {
                     IconButton(onClick = { overflow = true }, modifier = Modifier.size(40.dp)) { Icon(Icons.Default.MoreVert, stringResource(Res.string.selection_action_more), Modifier.size(20.dp)) }
-                    DropdownMenu(expanded = overflow, onDismissRequest = { overflow = false }) {
-                        DropdownMenuItem(text = { Text(stringResource(Res.string.pdf_share)) }, onClick = {
+                    EditorialActionMenu(expanded = overflow, onDismissRequest = { overflow = false }) {
+                        DropdownMenuItem(text = { Text(stringResource(Res.string.pdf_share)) },
+                            leadingIcon = { Icon(Icons.Default.Share, null) }, onClick = {
                             overflow = false
                             try { share(path) } catch (cancelled: CancellationException) { throw cancelled } catch (_: Exception) { failed = true }
                         })
                         DropdownMenuItem(enabled = lastSentence != null,
                             text = { Text(stringResource(Res.string.pdf_translate_sentence)) },
+                            leadingIcon = { Icon(Icons.Default.Translate, null) },
                             onClick = { overflow = false; lastSentence?.let { translate(it, it) } })
                     }
                 }
@@ -544,15 +546,21 @@ private data class PdfTextNoteEditor(
                     onMore = { highlightColors = true },
                     onTranslate = { translate(selected.text, sentence) },
                     showReadingActions = true, showListen = true)
-                DropdownMenu(highlightColors, { highlightColors = false }) {
+                EditorialActionMenu(highlightColors, { highlightColors = false }) {
+                    val colors = MaterialTheme.colorScheme
                     listOf("primary" to Res.string.highlight_primary, "secondary" to Res.string.highlight_secondary,
                         "tertiary" to Res.string.highlight_tertiary).forEach { (key, label) ->
-                        DropdownMenuItem(text = { Text(stringResource(label)) }, onClick = { vm.action {
+                        DropdownMenuItem(text = { Text(stringResource(label)) }, leadingIcon = {
+                            Box(Modifier.size(20.dp)
+                                .background(inkColor(key, colors.primary, colors.secondary, colors.tertiary), CircleShape)
+                                .border(1.dp, colors.outlineVariant, CircleShape))
+                        }, onClick = { vm.action {
                             vm.container.database.pdfHighlights().insert(PdfHighlight(textId = text.id, page = selected.page,
                                 startWord = minOf(selected.first, selected.last), endWord = maxOf(selected.first, selected.last), colorKey = key))
                             range = null; highlightColors = false
                         } })
                     }
+                    ActionMenuDivider()
                     DropdownMenuItem(text = { Text(stringResource(Res.string.cancel)) }, onClick = {
                         range = null; highlightColors = false
                     })
