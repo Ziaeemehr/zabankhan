@@ -21,7 +21,9 @@ import kotlinx.coroutines.withContext
 /** AppViewModel and Room host for LibraryContent. */
 @Composable
 fun LibraryScreen(vm: AppViewModel, settings: AppSettings, open: (Long) -> Unit, add: () -> Unit,
-    watch: () -> Unit, discover: () -> Unit = {}, openAt: (Long, String) -> Unit = { id, _ -> open(id) }) {
+    watch: () -> Unit, discover: () -> Unit = {}, openAt: (Long, String) -> Unit = { id, _ -> open(id) },
+    openDatasets: () -> Unit = {},
+) {
     val lang = requireNotNull(settings.learningLang)
     val spec = requireNotNull(Languages.byCode(lang))
     val dao = vm.container.texts
@@ -137,7 +139,7 @@ fun LibraryScreen(vm: AppViewModel, settings: AppSettings, open: (Long) -> Unit,
         onAddTagsToSelected = { ids -> vm.action { organizer.addTagsToTexts(selection.toList(), ids.toList()); selected = emptySet() } },
         onCreateFolderAndMoveSelected = { name -> vm.action { createFolder(name)?.let { parent -> selection.forEach { dao.setFolder(it, parent) } }; selected = emptySet() } },
         onCreateTagAndAddToSelected = { name, ids -> vm.action { createTag(name)?.let { organizer.addTagsToTexts(selection.toList(), (ids + it).toList()) }; selected = emptySet() } },
-        importAction = { ImportAddMenu(vm, settings, add, open, watch, discover, trigger = { onImport, busy ->
+        importAction = { ImportAddMenu(vm, settings, add, open, watch, discover, openDatasets = openDatasets, trigger = { onImport, busy ->
             FilledIconButton(onClick = onImport, enabled = !busy, modifier = Modifier.size(40.dp)) { Icon(Icons.Default.Add, stringResource(Res.string.add_text), modifier = Modifier.size(24.dp)) }
         }) }
     )
