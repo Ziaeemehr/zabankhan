@@ -248,8 +248,8 @@
     <string name="accessibility_previous_sentence">Phrase précédente</string>
     <string name="accessibility_save_vocabulary">Enregistrer dans le vocabulaire</string>
     <string name="accessibility_select_voice">Choisir une voix</string>
-    <string name="accessibility_skip_back">Reculer de 10 secondes</string>
-    <string name="accessibility_skip_forward">Avancer de 10 secondes</string>
+    <string name="accessibility_skip_back">Reculer de 5 secondes</string>
+    <string name="accessibility_skip_forward">Avancer de 5 secondes</string>
     <string name="accessibility_source_info">À propos de ce texte</string>
     <string name="accessibility_toggle_translation">Afficher ou masquer la traduction</string>
     <string name="accessibility_vocabulary">Vocabulaire enregistré</string>

@@ -252,8 +252,8 @@
     <string name="accessibility_previous_sentence">Previous sentence</string>
     <string name="accessibility_save_vocabulary">Save to vocabulary</string>
     <string name="accessibility_select_voice">Choose voice</string>
-    <string name="accessibility_skip_back">Skip back 10 seconds</string>
-    <string name="accessibility_skip_forward">Skip forward 10 seconds</string>
+    <string name="accessibility_skip_back">Skip back 5 seconds</string>
+    <string name="accessibility_skip_forward">Skip forward 5 seconds</string>
     <string name="accessibility_source_info">About this text</string>
     <string name="accessibility_toggle_translation">Show or hide translation</string>
     <string name="accessibility_vocabulary">Saved vocabulary</string>

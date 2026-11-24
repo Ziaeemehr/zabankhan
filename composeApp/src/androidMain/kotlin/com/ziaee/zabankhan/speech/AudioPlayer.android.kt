@@ -5,6 +5,8 @@ import androidx.media3.common.MediaItem
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
 import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
+import androidx.media3.extractor.DefaultExtractorsFactory
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -18,7 +20,11 @@ private class AndroidAudioPlayer : AudioPlayer {
     override suspend fun play(path: String) = playFrom(path, 0)
     override suspend fun playFrom(path: String, startMs: Long) = withContext(Dispatchers.Main.immediate) {
         stop()
-        val engine = ExoPlayer.Builder(speechContext).build().also { player = it }
+        // Edge produces constant-bitrate MP3s that may have no embedded seek table.
+        val extractors = DefaultExtractorsFactory().setConstantBitrateSeekingEnabled(true)
+        val engine = ExoPlayer.Builder(speechContext)
+            .setMediaSourceFactory(DefaultMediaSourceFactory(speechContext, extractors))
+            .build().also { player = it }
         val polling = launch { while (isActive) { current.value = engine.currentPosition.coerceAtLeast(0); delay(30) } }
         try {
             suspendCancellableCoroutine<Unit> { continuation ->
@@ -30,8 +36,9 @@ private class AndroidAudioPlayer : AudioPlayer {
                         if (continuation.isActive) continuation.resumeWithException(error)
                     }
                 })
-                engine.setMediaItem(MediaItem.fromUri(Uri.fromFile(java.io.File(path))))
-                engine.seekTo(startMs.coerceAtLeast(0)); engine.prepare(); engine.play()
+                engine.setMediaItem(MediaItem.fromUri(Uri.fromFile(java.io.File(path))), startMs.coerceAtLeast(0))
+                engine.prepare()
+                engine.play()
             }
         } finally {
             polling.cancel()

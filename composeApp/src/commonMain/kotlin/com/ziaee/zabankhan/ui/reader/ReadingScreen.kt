@@ -633,7 +633,7 @@ fun ReadingScreen(vm: AppViewModel, settings: AppSettings, textId: Long, onBack:
                     PlaybackControls(palette, speaking, audioStatus == SpeechAudioStatus.PREPARING || synthesisProgress != null, rate,
                         previous = { playback.previousSentence(if (pageNavigation == PageNavigation.SCROLL) listState.firstVisibleItemIndex else visiblePageAnchor.chunkIndex, rate, settings.ttsVoices[lang.code], settings.speechRepeat) },
                         next = { playback.nextSentence(if (pageNavigation == PageNavigation.SCROLL) listState.firstVisibleItemIndex else visiblePageAnchor.chunkIndex, rate, settings.ttsVoices[lang.code], settings.speechRepeat) },
-                        seek = { playback.seekBy(it) }, canSeek = settings.voiceEngine == "online",
+                        seek = { playback.seekBy(it) }, canSeek = speaking && audioStatus == SpeechAudioStatus.READY && settings.voiceEngine == "online",
                         toggle = { if (speaking) playback.pause() else { lastFollowedChunk = -1; playback.resume(if (pageNavigation == PageNavigation.SCROLL) listState.firstVisibleItemIndex else visiblePageAnchor.chunkIndex, rate, settings.ttsVoices[lang.code], settings.speechRepeat) } },
                         changeRate = { rate = it; vm.action { vm.container.settings.setSpeechRate(it) }
                             if (speaking) playback.startAt(spokenSentence?.first ?: parts.getOrNull(listState.firstVisibleItemIndex)?.offset ?: 0,
@@ -1725,6 +1725,7 @@ private fun PlaybackControls(palette: ReadingPalette, speaking: Boolean, synthes
     toggle: () -> Unit, changeRate: (Float) -> Unit, shadowingEnabled: Boolean, onToggleShadowing: () -> Unit) {
     var speedMenuExpanded by remember { mutableStateOf(false) }
     val isSynthesizing = synthesizing
+    val seekTint = palette.ink.copy(alpha = if (canSeek) 0.75f else 0.32f)
 
     Surface(
         color = palette.background,
@@ -1745,8 +1746,8 @@ private fun PlaybackControls(palette: ReadingPalette, speaking: Boolean, synthes
                 IconButton(onClick = { previous() }, modifier = Modifier.size(40.dp)) {
                     Icon(Icons.Default.SkipPrevious, contentDescription = stringResource(Res.string.accessibility_previous_sentence), modifier = Modifier.size(22.dp), tint = palette.ink.copy(alpha = 0.75f))
                 }
-                IconButton(onClick = { seek(-10_000) }, enabled = canSeek, modifier = Modifier.size(40.dp)) {
-                    Icon(Icons.Default.Replay10, contentDescription = stringResource(Res.string.accessibility_skip_back), modifier = Modifier.size(22.dp), tint = palette.ink.copy(alpha = 0.75f))
+                IconButton(onClick = { seek(-5_000) }, enabled = canSeek, modifier = Modifier.size(40.dp)) {
+                    Icon(Icons.Default.Replay5, contentDescription = stringResource(Res.string.accessibility_skip_back), modifier = Modifier.size(22.dp), tint = seekTint)
                 }
                 Box(contentAlignment = Alignment.Center, modifier = Modifier.size(48.dp + 4.dp)) {
                     FilledIconButton(
@@ -1775,8 +1776,8 @@ private fun PlaybackControls(palette: ReadingPalette, speaking: Boolean, synthes
                         )
                     }
                 }
-                IconButton(onClick = { seek(10_000) }, enabled = canSeek, modifier = Modifier.size(40.dp)) {
-                    Icon(Icons.Default.Forward10, contentDescription = stringResource(Res.string.accessibility_skip_forward), modifier = Modifier.size(22.dp), tint = palette.ink.copy(alpha = 0.75f))
+                IconButton(onClick = { seek(5_000) }, enabled = canSeek, modifier = Modifier.size(40.dp)) {
+                    Icon(Icons.Default.Forward5, contentDescription = stringResource(Res.string.accessibility_skip_forward), modifier = Modifier.size(22.dp), tint = seekTint)
                 }
                 IconButton(onClick = { next() }, modifier = Modifier.size(40.dp)) {
                     Icon(Icons.Default.SkipNext, contentDescription = stringResource(Res.string.accessibility_next_sentence), modifier = Modifier.size(22.dp), tint = palette.ink.copy(alpha = 0.75f))

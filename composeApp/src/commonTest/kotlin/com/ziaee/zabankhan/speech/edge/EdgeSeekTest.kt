@@ -24,7 +24,7 @@ class EdgeSeekTest {
         }
         override fun stop() { position.value = 0 }
     }
-    @Test fun tenSecondSeekCrossesSynthesizedClipsAndRewindsToPreviousClip() = runTest {
+    @Test fun fiveSecondSeekCrossesSynthesizedClipsAndRewindsToPreviousClip() = runTest {
         val dir = FileSystem.SYSTEM_TEMPORARY_DIRECTORY / "edge-seek-${Random.nextLong()}"
         val http = HttpClient(MockEngine { error("Not used") })
         try {
@@ -36,17 +36,17 @@ class EdgeSeekTest {
             val edge = EdgeTts(client, TtsCache(dir.toString()), player, this)
             val playback = launch { edge.playText("a".repeat(999) + ". Second clip.", Languages.ENGLISH.code, 1f) }
             val first = player.starts.receive()
-            player.position.value = 8000
-            assertTrue(edge.seekBy(10000))
+            player.position.value = 13000
+            assertTrue(edge.seekBy(5000))
             val next = player.starts.receive()
             assertNotEquals(first.first, next.first)
             assertEquals(3000L, next.second)
-            assertTrue(edge.seekBy(-10000))
+            assertTrue(edge.seekBy(-5000))
             val previous = player.starts.receive()
             assertEquals(first.first, previous.first)
-            assertEquals(8000L, previous.second)
+            assertEquals(13000L, previous.second)
             playback.cancelAndJoin()
-            assertFalse(edge.seekBy(10000))
+            assertFalse(edge.seekBy(5000))
         } finally { http.close(); FileSystem.SYSTEM.deleteRecursively(dir, mustExist = false) }
     }
     @Test fun sharedAudioRemainsPinnedUntilEveryDocumentReleasesItsOwnPin() = runTest {

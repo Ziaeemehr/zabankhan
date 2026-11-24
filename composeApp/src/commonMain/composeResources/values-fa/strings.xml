@@ -252,8 +252,8 @@
     <string name="accessibility_previous_sentence">جملهٔ قبل</string>
     <string name="accessibility_save_vocabulary">ذخیره در لغات</string>
     <string name="accessibility_select_voice">انتخاب صدا</string>
-    <string name="accessibility_skip_back">۱۰ ثانیه عقب</string>
-    <string name="accessibility_skip_forward">۱۰ ثانیه جلو</string>
+    <string name="accessibility_skip_back">۵ ثانیه عقب</string>
+    <string name="accessibility_skip_forward">۵ ثانیه جلو</string>
     <string name="accessibility_source_info">دربارهٔ این متن</string>
     <string name="accessibility_toggle_translation">نمایش یا پنهان‌کردن ترجمه</string>
     <string name="accessibility_vocabulary">لغات ذخیره‌شده</string>
