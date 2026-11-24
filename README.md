@@ -28,7 +28,13 @@
 
 ### مهاجرت از فرانسه‌خوان به زبان‌خوان
 
-اگر قبلاً از **فرانسه‌خوان (French Reader)** استفاده می‌کردید، می‌توانید از داده‌های خود در برنامهٔ قبلی نسخهٔ پشتیبان بگیرید، آن را در **زبان‌خوان** وارد کنید و یادگیری را با امکانات بیشتر ادامه دهید. پیشنهاد می‌کنیم تا پیش از بررسی موفقیت انتقال، نسخهٔ پشتیبان را نگه دارید.
+اگر قبلاً از **فرانسه‌خوان (French Reader)** استفاده می‌کردید، می‌توانید اطلاعاتتان را به زبان‌خوان منتقل کنید:
+
+۱. در فرانسه‌خوان، از **تنظیمات ← پشتیبان‌گیری** یک فایل `.zip` خروجی بگیرید (برای انتقال PDFها، آن‌ها را هم در پشتیبان بگنجانید).
+۲. در تنظیمات زبان‌خوان، گزینهٔ اختصاصی **Import from French Reader** را انتخاب کنید، نه Restore معمولی.
+۳. فایل ZIP را وارد کنید و پس از نمایش خلاصهٔ انتقال، متن‌ها، واژه‌ها و پیشرفت مرور را بررسی کنید.
+
+**فایل اصلی را تا تأیید انتقال نگه دارید.** برخی تنظیمات شخصی ممکن است منتقل نشوند.
 
 **نصب آی‌اواس:** فایل `ipa` امضا ندارد؛ [راهنمای نصب](docs/INSTALL-iOS.md).
 
@@ -50,7 +56,13 @@ Zabankhan helps you learn French and English through reading. Bring your own tex
 
 ### Moving from French Reader to Zabankhan
 
-Already using **French Reader**? Back up your data in the older app, import the backup into **Zabankhan**, and continue learning with more features. Keep your original backup until you've confirmed the transfer worked.
+Already using **French Reader**? Transfer your learning data to Zabankhan:
+
+1. In French Reader, open **Settings → Backup** and export a `.zip` backup (include PDFs if needed).
+2. In Zabankhan's **Settings**, choose the dedicated **Import from French Reader** action, **not** the regular Restore option.
+3. Select the ZIP and review the import summary, then verify your texts, vocabulary and review progress.
+
+**Keep your original ZIP until the transfer is verified.** Some preferences may need to be set up again.
 
 **iOS install:** the `ipa` is unsigned; see the [install guide](docs/INSTALL-iOS.md).
 
