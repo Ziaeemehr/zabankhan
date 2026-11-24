@@ -254,18 +254,23 @@ private fun FamilyPairRow(
     }
 }
 
-private const val ELIDING_INITIALS = "aàâæeéèêëiîïoôœuùûüyh"
+internal fun Entry.wordFamilyArticle(lang: LanguageSpec): String? {
+    if (pos != "noun") return null
+    val article = lang.dictionaryNounArticles[gender] ?: return null
+    val elided = lang.elisionPrefixes.firstOrNull { it.length == 2 && it.first() == article.first() }
+    if (article.length != 2 || elided == null || word.lowercase() in lang.dictionaryUnelidedHeadwords) return "$article "
+    val initial = word.firstOrNull()?.lowercaseChar() ?: return null
+    // Spelling alone does not tell us whether French h or y blocks elision.
+    if (initial in lang.dictionaryAmbiguousArticleInitials) return null
+    return if (initial in lang.dictionaryElidingInitials) elided else "$article "
+}
 
 @Composable
 private fun FamilyWord(
     relative: Entry, lang: LanguageSpec, target: String, onLookup: (DictionaryHeadword) -> Unit,
     modifier: Modifier, tintedPrefix: String = "", isCurrent: Boolean = false,
 ) {
-    val article = lang.dictionaryNounArticles[relative.gender].takeIf { relative.pos == "noun" }?.let { article ->
-        // le/la + incompréhension -> l'incompréhension, using the language's own elision prefixes.
-        val elided = lang.elisionPrefixes.firstOrNull { it.length == 2 && it.first() == article.first() }
-        if (elided != null && article.length == 2 && relative.word.firstOrNull()?.lowercaseChar()?.let { it in ELIDING_INITIALS } == true) elided else "$article "
-    }
+    val article = relative.wordFamilyArticle(lang)
     val meaning = relative.wordFamilyMeaning(target, lang)
     val accent = MaterialTheme.colorScheme.tertiary
     val word = buildAnnotatedString {

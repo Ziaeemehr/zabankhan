@@ -1,0 +1,5 @@
+# Corrects non-derivational links in the upstream French dictionary, in both directions.
+# Headword, POS, unrelated headword, POS
+rapide	adjective	décélérer	verb
+rapide	adjective	décélération	noun
+rapidité	noun	décélérer	verb

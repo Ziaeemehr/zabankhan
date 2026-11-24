@@ -132,7 +132,7 @@ private fun ReferenceDictionaryPane(
     var currentWord by remember(selection) { mutableStateOf(originalWord) }
     var familyHeadword by remember(selection) { mutableStateOf<DictionaryHeadword?>(null) }
     val word = currentWord
-    val isOriginal = word == originalWord
+    val isOriginal = word == originalWord && familyHeadword == null
     var lemmas by remember(selection) { mutableStateOf(emptyList<String>()) }
     LaunchedEffect(originalWord, lang) {
         lemmas = lemmaSuggestions(originalWord, LanguageDataPacks.load(lang.code)?.lemmas, lang)

@@ -37,6 +37,9 @@ data class LanguageSpec(
     val monolingualSourceUrlTemplate: String? = null,
     val dictionaryNounArticles: Map<String, String> = emptyMap(),
     val hasBundledDictionaryLinks: Boolean = false,
+    val dictionaryElidingInitials: String = "",
+    val dictionaryAmbiguousArticleInitials: String = "",
+    val dictionaryUnelidedHeadwords: Set<String> = emptySet(),
 )
 
 object Languages {
@@ -63,6 +66,9 @@ object Languages {
         ownDictionaryAvailable = true,
         dictionaryLeadingArticles = setOf("le", "la", "les", "un", "une", "du", "des", "l'"),
         dictionaryNounArticles = mapOf("m" to "le", "f" to "la", "p" to "les"),
+        dictionaryElidingInitials = "aàâæeéèêëiîïoôœuùûü",
+        dictionaryAmbiguousArticleInitials = "hy",
+        dictionaryUnelidedHeadwords = setOf("onze", "oui", "un"),
         hasBundledDictionaryLinks = true,
         monolingualPackId = "fr/monolingual",
         learnerPackId = "fr/learner",

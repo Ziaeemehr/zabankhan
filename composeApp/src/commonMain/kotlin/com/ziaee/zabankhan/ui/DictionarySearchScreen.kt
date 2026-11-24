@@ -25,12 +25,12 @@ import org.jetbrains.compose.resources.stringResource
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DictionarySearchDialog(vm: AppViewModel, settings: AppSettings, onDismiss: () -> Unit) {
-    val lang = Languages.byCode(settings.learningLang ?: "fr") ?: Languages.FRENCH
+    val lang = settings.learningLang?.let(Languages::byCode) ?: return
     val tts = remember { createTts() }
     var query by remember { mutableStateOf("") }
     var results by remember { mutableStateOf(emptyList<Entry>()) }
     var selected by remember { mutableStateOf<DictionaryHeadword?>(null) }
-    var lookup by remember { mutableStateOf<DictionaryLookup?>(null) }
+    var lookup by remember(selected, lang, settings.meaningLang) { mutableStateOf<DictionaryLookup?>(null) }
     var searching by remember { mutableStateOf(false) }
     var searchFailed by remember { mutableStateOf(false) }
     val target = settings.meaningLang
@@ -66,12 +66,19 @@ fun DictionarySearchDialog(vm: AppViewModel, settings: AppSettings, onDismiss: (
                 )
                 val current = lookup
                 if (current != null) {
-                    Column(Modifier.weight(1f).verticalScroll(rememberScrollState())) {
-                        OwnDictionaryBlock(current, lang, target, vm, 0L, "", { tts.togglePronounce(it, lang.code, settings) }, onLookup = { word -> query = word; selected = null; lookup = null }, onFamilyLookup = { selected = it })
+                    val scroll = rememberScrollState()
+                    LaunchedEffect(current) { scroll.scrollTo(0) }
+                    Column(Modifier.weight(1f).verticalScroll(scroll)) {
+                        OwnDictionaryBlock(
+                            current, lang, target, vm, 0L, "",
+                            speak = { tts.togglePronounce(it, lang.code, settings) },
+                            onLookup = { word -> query = word; selected = null },
+                            onFamilyLookup = { selected = it; query = it.word },
+                        )
                     }
                 } else Column(Modifier.weight(1f).verticalScroll(rememberScrollState())) {
                     when {
-                        searching -> Text(stringResource(Res.string.own_searching), Modifier.padding(16.dp), color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        searching || selected != null -> Text(stringResource(Res.string.own_searching), Modifier.padding(16.dp), color = MaterialTheme.colorScheme.onSurfaceVariant)
                         searchFailed -> Text(stringResource(Res.string.own_search_error), Modifier.padding(16.dp), color = MaterialTheme.colorScheme.error)
                         query.isNotBlank() && results.isEmpty() -> Text(stringResource(Res.string.own_no_entry), Modifier.padding(16.dp), color = MaterialTheme.colorScheme.onSurfaceVariant)
                         else -> results.forEach { entry -> TextButton(onClick = { selected = DictionaryHeadword(entry.word, entry.pos) }) { Text(entry.word, Modifier.weight(1f), style = contentStyle(entry.word)); if (entry.ipa.isNotBlank()) Text(entry.ipa) } }

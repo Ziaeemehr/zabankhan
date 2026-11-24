@@ -106,7 +106,8 @@ data class Entry(
     val example: String? get() = senses.flatMap { it.examples }.firstOrNull()?.let { listOf(it.text, it.en, it.fa).filter(String::isNotBlank).joinToString("\t") }
 }
 internal fun Entry.wordFamilyMeaning(target: String, lang: LanguageSpec): String = when (target) {
-    lang.code -> learner?.senses?.firstOrNull()?.definition ?: monolingualDefinitions.firstOrNull()?.definition.orEmpty()
+    lang.code -> learner?.senses?.firstOrNull { it.definition.isNotBlank() }?.definition
+        ?: monolingualDefinitions.firstOrNull { it.definition.isNotBlank() }?.definition.orEmpty()
     Languages.PERSIAN.code -> senses.firstOrNull { it.fa.isNotBlank() }?.fa.orEmpty()
     Languages.ENGLISH.code -> senses.firstOrNull { it.en.isNotBlank() }?.en.orEmpty()
     else -> ""
@@ -249,6 +250,9 @@ class OwnDictionary(private val http: HttpClient, @Suppress("UNUSED_PARAMETER") 
     private val readNegationLinks: suspend (LanguageSpec) -> String = {
         Res.readBytes("files/${it.code}/lexicon/dictionary_negation_links.tsv").decodeToString()
     },
+    private val readFamilyExclusions: suspend (LanguageSpec) -> String = {
+        Res.readBytes("files/${it.code}/lexicon/dictionary_family_exclusions.tsv").decodeToString()
+    },
     private val readAdverbLinks: suspend (LanguageSpec) -> String = {
         Res.readBytes("files/${it.code}/lexicon/dictionary_adverb_links.tsv").decodeToString()
     },
@@ -258,6 +262,32 @@ class OwnDictionary(private val http: HttpClient, @Suppress("UNUSED_PARAMETER") 
     private val checkedPacks = mutableSetOf<String>()
     private val adverbLinks = mutableMapOf<String, Map<DictionaryHeadword, List<DictionaryHeadword>>>()
     private val negationLinks = mutableMapOf<String, Map<DictionaryHeadword, Pair<DictionaryHeadword, Boolean>>>()
+    private val familyExclusions = mutableMapOf<String, Map<DictionaryHeadword, Set<DictionaryHeadword>>>()
+
+    private suspend fun bundledFamilyExclusions(lang: LanguageSpec): Map<DictionaryHeadword, Set<DictionaryHeadword>> {
+        if (!lang.hasBundledDictionaryLinks) return emptyMap()
+        familyExclusions[lang.code]?.let { return it }
+        val raw = try {
+            readFamilyExclusions(lang)
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (_: Exception) {
+            return emptyMap()
+        }
+        val exclusions = mutableMapOf<DictionaryHeadword, MutableSet<DictionaryHeadword>>()
+        raw.lineSequence().filterNot { it.startsWith('#') }.forEach { line ->
+            val parts = line.split('\t')
+            if (parts.size == 4 && parts.none(String::isBlank)) {
+                val (word, pos, relative, relativePos) = parts
+                val a = DictionaryHeadword(word, pos)
+                val b = DictionaryHeadword(relative, relativePos)
+                exclusions.getOrPut(a) { mutableSetOf() }.add(b)
+                exclusions.getOrPut(b) { mutableSetOf() }.add(a)
+            }
+        }
+        familyExclusions[lang.code] = exclusions
+        return exclusions
+    }
 
     private suspend fun bundledAdverbLinks(lang: LanguageSpec): Map<DictionaryHeadword, List<DictionaryHeadword>> {
         if (!lang.hasBundledDictionaryLinks) return emptyMap()
@@ -322,10 +352,10 @@ class OwnDictionary(private val http: HttpClient, @Suppress("UNUSED_PARAMETER") 
         check(response.status.value in 200..299) { "Dictionary HTTP ${response.status.value}" }
         return response.bodyAsText()
     }
-    private suspend fun index(lang: LanguageSpec): DictionaryIndex {
+    private suspend fun index(lang: LanguageSpec, refresh: Boolean = true): DictionaryIndex {
         val file = directory(lang) / "index.json"
         val oldRaw = read(file)
-        val freshRaw = try { fetch(lang, "index") } catch (cancelled: CancellationException) { throw cancelled } catch (_: Exception) { null }
+        val freshRaw = if (!refresh && oldRaw != null) null else try { fetch(lang, "index") } catch (cancelled: CancellationException) { throw cancelled } catch (_: Exception) { null }
         if (freshRaw == null) return oldRaw?.let { raw ->
             val obj = json.parseToJsonElement(raw).jsonObject
             DictionaryIndex(obj["lang"].stringOrEmpty(), obj["format"].intOrZero(), obj["version"] ?: JsonNull,
@@ -406,14 +436,22 @@ class OwnDictionary(private val http: HttpClient, @Suppress("UNUSED_PARAMETER") 
         val available = packIndex(lang, pack)?.toSet() ?: return emptyList()
         val normalized = normalizeForMatch(word, lang)
         val candidates = (lexicon?.lemmas(normalized).orEmpty().map { normalizeForMatch(it, lang) } + normalized).toSet()
-        val entries = candidates.flatMap { candidate ->
-            val key = dictionaryShardKey(candidate)
-            if (key !in available) return@flatMap emptyList()
+        val keys = candidates.map(::dictionaryShardKey).distinct().filter { it in available }
+        val entries = keys.flatMap { key ->
             val raw = try { packShard(lang, pack, key) } catch (cancelled: CancellationException) { throw cancelled } catch (_: Exception) { null } ?: return@flatMap emptyList()
             runCatching { decodeMonolingualShard(json.parseToJsonElement(raw)) }.getOrDefault(emptyList())
         }
         return entries.filter { normalizeForMatch(it.word, lang) in candidates }
     }
+
+    private suspend fun monolingualEntries(lang: LanguageSpec, word: String): List<MonolingualEntry> =
+        try {
+            packEntries(lang, lang.monolingualPackId, word)
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (_: Exception) {
+            emptyList()
+        }
 
     // Looks up by the resolved headwords, not the tapped form: "abandonne" must find "abandonner".
     private suspend fun learnerEntries(lang: LanguageSpec, headwords: List<String>): List<LearnerEntry> {
@@ -456,21 +494,25 @@ class OwnDictionary(private val http: HttpClient, @Suppress("UNUSED_PARAMETER") 
                 val key = dictionaryShardKey(expression, splitParents)
                 if (key !in index.shards) null else safeShard(lang, index, key)?.entries?.firstOrNull { normalizeDictionaryQuery(it.word) == normalizeDictionaryQuery(expression) }
             }.distinctBy { it.id }.filter { entry -> idiomWords.isNotEmpty() && dictionaryIdiomMatches(entry.word, sentence.orEmpty()) }
-            val definitions = try { packEntries(lang, lang.monolingualPackId, word) } catch (cancelled: CancellationException) { throw cancelled } catch (_: Exception) { emptyList() }
+            val definitions = bases.map { it.word }.distinct().associateWith { monolingualEntries(lang, it) }
             val learnerEntries = try { learnerEntries(lang, bases.map { it.word }.distinct()) } catch (cancelled: CancellationException) { throw cancelled } catch (_: Exception) { emptyList() }
             val adverbs = if (bases.isEmpty()) emptyMap() else bundledAdverbLinks(lang)
             val negations = if (bases.isEmpty()) emptyMap() else bundledNegationLinks(lang)
+            val exclusions = if (bases.isEmpty()) emptyMap() else bundledFamilyExclusions(lang)
             val enriched = bases.map { entry ->
-                val mono = definitions.filter { it.word == entry.word && it.pos == entry.pos }.ifEmpty { definitions.filter { it.word == entry.word } }
+                val headword = DictionaryHeadword(entry.word, entry.pos)
+                val mono = definitions[entry.word].orEmpty().filter { it.word == entry.word && it.pos == entry.pos }
                 val headwordMatches = learnerEntries.filter { normalizeDictionaryQuery(it.word) == normalizeDictionaryQuery(entry.word) }
                 val learner = headwordMatches.firstOrNull { it.pos == entry.pos }
-                val additionalRelatives = adverbs[DictionaryHeadword(entry.word, entry.pos)].orEmpty()
-                val opposite = negations[DictionaryHeadword(entry.word, entry.pos)]?.first
+                val additionalRelatives = adverbs[headword].orEmpty()
+                val opposite = negations[headword]?.first
+                val excluded = exclusions[headword].orEmpty() + headword
                 entry.withOpposite(negations).copy(
                     gender = entry.gender.ifBlank { mono.firstOrNull()?.gender.orEmpty() },
                     monolingualDefinitions = mono.flatMap { it.senses }.ifEmpty { entry.monolingualDefinitions },
                     learner = learner,
-                    wordFamily = (listOfNotNull(opposite) + entry.wordFamily + additionalRelatives).distinct(),
+                    wordFamily = (listOfNotNull(opposite) + entry.wordFamily + additionalRelatives)
+                        .filterNot { it in excluded }.distinct(),
                 )
             }
             DictionaryLookup(word, enriched, if (exactEntry == null) redirects else emptyList(), idioms)
@@ -479,24 +521,40 @@ class OwnDictionary(private val http: HttpClient, @Suppress("UNUSED_PARAMETER") 
     suspend fun wordFamily(entry: Entry, lang: LanguageSpec): List<Entry> = withContext(Dispatchers.IO) {
         if (entry.wordFamily.isEmpty()) return@withContext emptyList()
         mutex.withLock {
-            val index = index(lang)
+            val index = index(lang, refresh = false)
             val negations = bundledNegationLinks(lang)
             val self = DictionaryHeadword(entry.word, entry.pos)
-            // Each relative brings its opposite along, so the UI can show compréhensible / incompréhensible as one pair.
-            val relatives = entry.wordFamily.flatMap { listOf(it) + listOfNotNull(negations[it]?.first?.takeIf { opposite -> opposite != self }) }.distinct()
+            val excluded = bundledFamilyExclusions(lang)[self].orEmpty() + self
+            // Each relative brings its opposite along so the UI can show the pair together.
+            val relatives = buildSet {
+                entry.wordFamily.forEach { relative ->
+                    if (relative !in excluded) {
+                        add(relative)
+                        negations[relative]?.first?.takeUnless { it in excluded }?.let(::add)
+                    }
+                }
+            }
             val shards = relatives.map { dictionaryShardKey(it.word, index.split.keys) }
                 .distinct().associateWith { safeShard(lang, index, it) }
-            val learners = learnerEntries(lang, relatives.map { it.word })
-                .associateBy { DictionaryHeadword(it.word, it.pos) }
+            val learners = try {
+                learnerEntries(lang, relatives.map { it.word })
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (_: Exception) {
+                emptyList()
+            }.associateBy { DictionaryHeadword(it.word, it.pos) }
             relatives.mapNotNull { relative ->
                 val key = dictionaryShardKey(relative.word, index.split.keys)
                 val target = shards[key]?.entries?.firstOrNull { it.word == relative.word && it.pos == relative.pos }
                     ?: return@mapNotNull null
                 val learner = learners[relative]
-                val definitions = if (learner != null || target.monolingualDefinitions.isNotEmpty()) target.monolingualDefinitions
-                    else packEntries(lang, lang.monolingualPackId, relative.word)
-                        .filter { it.word == relative.word && it.pos == relative.pos }.flatMap { it.senses }
-                target.copy(learner = learner, monolingualDefinitions = definitions).withOpposite(negations)
+                val mono = if (learner != null || target.monolingualDefinitions.isNotEmpty()) emptyList()
+                    else monolingualEntries(lang, relative.word).filter { it.word == relative.word && it.pos == relative.pos }
+                target.copy(
+                    learner = learner,
+                    gender = target.gender.ifBlank { mono.firstOrNull()?.gender.orEmpty() },
+                    monolingualDefinitions = target.monolingualDefinitions.ifEmpty { mono.flatMap { it.senses } },
+                ).withOpposite(negations)
             }
         }
     }

@@ -158,12 +158,17 @@ class OwnDictionaryTest {
             writeUtf8("""{"entries":[[2,"paisible","noun",3,"","m","",[["person"]]],
                 [3,"paisible","adjective",4,"","","",[["peaceful","آرام"]],{},[],[],["Qui vit en paix."]]]}""")
         }
-        val http = HttpClient(MockEngine { respond("offline", HttpStatusCode.ServiceUnavailable) })
+        var indexRequests = 0
+        val http = HttpClient(MockEngine { request ->
+            if (request.url.encodedPath.endsWith("/index.json")) indexRequests++
+            respond("offline", HttpStatusCode.ServiceUnavailable)
+        })
         try {
             val dictionary = OwnDictionary(http, InMemoryKeyValueCache(), root, fs)
             val base = dictionary.lookup("calmait", lang).entries.single()
             val family = dictionary.wordFamily(base, lang)
-            assertEquals(listOf(3L, 1L), family.map { it.id })
+            assertEquals(listOf(3L), family.map { it.id })
+            assertEquals(1, indexRequests, "Resolving a family reuses the index read by lookup")
             val relative = family.first()
             assertEquals("peaceful", relative.wordFamilyMeaning(Languages.ENGLISH.code, lang))
             assertEquals("آرام", relative.wordFamilyMeaning(Languages.PERSIAN.code, lang))
@@ -177,6 +182,49 @@ class OwnDictionaryTest {
         }
     }
 
+    @Test fun familyLookupDoesNotUseDefinitionsFromAnotherPartOfSpeech() = runTest {
+        val root = FileSystem.SYSTEM_TEMPORARY_DIRECTORY / "dictionary-family-pos-${Random.nextLong()}"
+        val fs = FileSystem.SYSTEM
+        val lang = Languages.FRENCH.copy(learnerPackId = null)
+        val http = HttpClient(MockEngine { request ->
+            val path = request.url.encodedPath
+            val body = when {
+                path.endsWith("/v2/index.json") ->
+                    """{"lang":"${lang.code}","format":2,"version":1,"shards":["pa"]}"""
+                path.endsWith("/v2/pa.json") ->
+                    """{"entries":[[1,"paisible","noun",5],[2,"paisible","adjective",4]]}"""
+                path.endsWith("/v1/index.json") ->
+                    """{"lang":"${lang.code}","format":1,"version":1,"shards":["pa"]}"""
+                path.endsWith("/v1/pa.json") ->
+                    """{"entries":[{"word":"paisible","pos":"noun","gender":"m","senses":[{"definition":"Une personne."}]}]}"""
+                else -> error("Unexpected dictionary request: $path")
+            }
+            respond(body)
+        })
+        try {
+            val dictionary = OwnDictionary(http, InMemoryKeyValueCache(), root, fs)
+            val exact = DictionaryHeadword("paisible", "adjective")
+            val entry = dictionary.lookup(exact.word, lang, exactEntry = exact).entries.single()
+            assertEquals(2L, entry.id)
+            assertEquals("", entry.gender)
+            assertTrue(entry.monolingualDefinitions.isEmpty())
+        } finally {
+            http.close()
+            fs.deleteRecursively(root, mustExist = false)
+        }
+    }
+
+    @Test fun familyNounArticleDoesNotGuessElisionForHOrY() {
+        val noun = decodeDictionaryEntry(Json.parseToJsonElement("""[1,"haine","noun",4,"","f"]"""))
+        val lang = Languages.FRENCH
+        assertEquals(null, noun.wordFamilyArticle(lang))
+        assertEquals(null, noun.copy(word = "yaourt", gender = "m").wordFamilyArticle(lang))
+        assertEquals("les ", noun.copy(word = "heures", gender = "p").wordFamilyArticle(lang))
+        assertEquals("l'", noun.copy(word = "écriture").wordFamilyArticle(lang))
+        assertEquals("le ", noun.copy(word = "oui", gender = "m").wordFamilyArticle(lang))
+        assertEquals("la ", noun.copy(word = "lecture").wordFamilyArticle(lang))
+    }
+
     @Test fun bundledAdverbLinksEnrichCachedHeadwordsInBothDirections() = runTest {
         val root = FileSystem.SYSTEM_TEMPORARY_DIRECTORY / "dictionary-adverbs-${Random.nextLong()}"
         val fs = FileSystem.SYSTEM
@@ -184,19 +232,25 @@ class OwnDictionaryTest {
         val directory = root / lang.code / "v2"
         fs.createDirectories(directory)
         fs.write(directory / "index.json") {
-            writeUtf8("""{"lang":"fr","format":2,"version":1,"shards":["ra"]}""")
+            writeUtf8("""{"lang":"fr","format":2,"version":1,"shards":["ra","de"]}""")
         }
         fs.write(directory / "ra.json") {
-            writeUtf8("""{"entries":[[1,"rapide","adjective",5],[2,"rapide","noun",4],[3,"rapidement","adverb",4]]}""")
+            writeUtf8("""{"entries":[[1,"rapide","adjective",5,"","","",[],{},[],[],[],[["décélérer","verb"],["rapidité","noun"]]],[2,"rapide","noun",4],[3,"rapidement","adverb",4],[4,"rapidité","noun",4]]}""")
+        }
+        fs.write(directory / "de.json") {
+            writeUtf8("""{"entries":[[5,"décélérer","verb",4,"","","",[],{},[],[],[],[["rapide","adjective"]]]]}""")
         }
         val http = HttpClient(MockEngine { respond("offline", HttpStatusCode.ServiceUnavailable) })
         try {
-            val dictionary = OwnDictionary(http, InMemoryKeyValueCache(), root, fs) { "rapide\tadjective\trapidement" }
+            val dictionary = OwnDictionary(http, InMemoryKeyValueCache(), root, fs,
+                readFamilyExclusions = { "rapide\tadjective\tdécélérer\tverb" }) { "rapide\tadjective\trapidement" }
             val entries = dictionary.lookup("rapide", lang).entries
             val adjective = entries.single { it.pos == "adjective" }
             val noun = entries.single { it.pos == "noun" }
             val adverb = dictionary.lookup("rapidement", lang).entries.single()
-            assertEquals(listOf("rapidement"), dictionary.wordFamily(adjective, lang).map { it.word })
+            assertEquals(listOf("rapidité", "rapidement"), dictionary.wordFamily(adjective, lang).map { it.word })
+            val unrelated = dictionary.lookup("décélérer", lang).entries.single()
+            assertTrue(dictionary.wordFamily(unrelated, lang).isEmpty())
             assertEquals(listOf("rapide"), dictionary.wordFamily(adverb, lang).map { it.word })
             assertTrue(noun.wordFamily.isEmpty())
         } finally {
