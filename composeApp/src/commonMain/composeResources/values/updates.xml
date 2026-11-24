@@ -1,0 +1,10 @@
+<resources>
+    <string name="update_auto_check">Check for updates automatically</string>
+    <string name="update_check">Check for updates</string>
+    <string name="update_checking">Checking for updates…</string>
+    <string name="update_up_to_date">You’re up to date.</string>
+    <string name="update_check_failed">Couldn’t check for updates. Try again.</string>
+    <string name="update_available">An app update is available.</string>
+    <string name="update_version_available">Version %1$s is available.</string>
+    <string name="update_open_release">View release</string>
+</resources>

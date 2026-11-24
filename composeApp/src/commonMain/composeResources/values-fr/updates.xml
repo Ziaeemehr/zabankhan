@@ -1,0 +1,10 @@
+<resources>
+    <string name="update_auto_check">Vérifier automatiquement les mises à jour</string>
+    <string name="update_check">Vérifier les mises à jour</string>
+    <string name="update_checking">Vérification des mises à jour…</string>
+    <string name="update_up_to_date">Votre application est à jour.</string>
+    <string name="update_check_failed">Impossible de vérifier les mises à jour. Réessayez.</string>
+    <string name="update_available">Une mise à jour est disponible.</string>
+    <string name="update_version_available">La version %1$s est disponible.</string>
+    <string name="update_open_release">Voir la version</string>
+</resources>

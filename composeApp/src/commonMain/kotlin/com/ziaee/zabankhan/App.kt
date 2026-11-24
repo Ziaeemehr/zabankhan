@@ -124,6 +124,7 @@ private fun NavHostController.navigateToTab(route: String) {
             val routes = listOf("home", "library", "words", "review", "settings")
             val icons = listOf(Icons.Default.Home, Icons.AutoMirrored.Filled.LibraryBooks, Icons.Default.Translate, Icons.Default.Style, Icons.Default.Settings)
             val snackbar = remember { SnackbarHostState() }
+            com.ziaee.zabankhan.update.UpdateReminder(container.http, snackbar, show = route == "home")
             val errorMessage = stringResource(Res.string.error_save)
             LaunchedEffect(vm.failed) { if (vm.failed) { snackbar.showSnackbar(errorMessage); vm.clearError() } }
             val unavailable by com.ziaee.zabankhan.speech.SpeechEngine.onlineUnavailable.collectAsState()

@@ -1,0 +1,10 @@
+<resources>
+    <string name="update_auto_check">بررسی خودکار به‌روزرسانی</string>
+    <string name="update_check">بررسی به‌روزرسانی</string>
+    <string name="update_checking">در حال بررسی به‌روزرسانی…</string>
+    <string name="update_up_to_date">آخرین نسخه را داری.</string>
+    <string name="update_check_failed">بررسی به‌روزرسانی انجام نشد. دوباره تلاش کن.</string>
+    <string name="update_available">نسخهٔ تازهٔ برنامه آماده است.</string>
+    <string name="update_version_available">نسخهٔ %1$s آماده است.</string>
+    <string name="update_open_release">دیدن نسخهٔ تازه</string>
+</resources>

@@ -270,6 +270,7 @@ fun SettingsScreen(vm: AppViewModel, settings: AppSettings, progress: () -> Unit
                                     }
                                 }
                                 com.ziaee.zabankhan.reminder.ReviewReminderSettings(vm, settings)
+                                com.ziaee.zabankhan.update.UpdateSettings(vm.container.http)
                             }
                             1 -> {
 
