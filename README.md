@@ -26,6 +26,10 @@
 - **یادگیری با ویدیو و صدا:** یوتیوب و ویدیوی محلی با زیرنویس قابل‌لمس، همراه با تمرین شنیدن و تلفظ.
 - **کتابخانهٔ شخصی:** سازمان‌دهی مطالب، واردکردن واژه‌های Anki و CSV و پشتیبان‌گیری از داده‌ها.
 
+### مهاجرت از فرانسه‌خوان به زبان‌خوان
+
+اگر قبلاً از **فرانسه‌خوان (French Reader)** استفاده می‌کردید، می‌توانید از داده‌های خود در برنامهٔ قبلی نسخهٔ پشتیبان بگیرید، آن را در **زبان‌خوان** وارد کنید و یادگیری را با امکانات بیشتر ادامه دهید. پیشنهاد می‌کنیم تا پیش از بررسی موفقیت انتقال، نسخهٔ پشتیبان را نگه دارید.
+
 **نصب آی‌اواس:** فایل `ipa` امضا ندارد؛ [راهنمای نصب](docs/INSTALL-iOS.md).
 
 [دریافت نسخه‌ها](https://github.com/Ziaeemehr/zabankhan/releases) · [راهنمای ساخت و انتشار](docs/STORE.md) · [حریم خصوصی](PRIVACY.md)
@@ -43,6 +47,10 @@ Zabankhan helps you learn French and English through reading. Bring your own tex
 - **Learn words in context:** save vocabulary with example sentences and review it with Leitner spaced repetition.
 - **Learn with video and audio:** watch YouTube or local videos with tappable subtitles and practice listening and pronunciation.
 - **Keep a personal library:** organize reading material, import Anki and CSV vocabulary, and back up your data.
+
+### Moving from French Reader to Zabankhan
+
+Already using **French Reader**? Back up your data in the older app, import the backup into **Zabankhan**, and continue learning with more features. Keep your original backup until you've confirmed the transfer worked.
 
 **iOS install:** the `ipa` is unsigned; see the [install guide](docs/INSTALL-iOS.md).
 
