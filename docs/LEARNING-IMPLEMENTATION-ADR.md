@@ -47,3 +47,5 @@ These are acquisition candidates. Before using any source text or asset, record 
 | Bayard Jeunesse periodicals | Illustrated magazine discovery, beginning with Pomme d’Api and Okapi | Verify official listings and level estimates. No file redistribution rights established |
 | Wikisource and Vikidia | Potential authentic reading | Verify license and attribution for each selected text and each illustration |
 | Édito and Grammaire progressive | Bibliographic and progression references | No reproduction permission established |
+
+The two draft pilot reference packets in `tools/learning/fixtures` exercise stable IDs, canonical French text and Persian localization for an A1 selection and B1 text response. Their claim locators and reviews are still pending. The packets are authoring examples and are excluded from the app bundle and catalog release tool.

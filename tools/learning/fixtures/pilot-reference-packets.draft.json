@@ -1,0 +1,45 @@
+{
+  "status": "draft",
+  "targetLanguage": "fr",
+  "instructionalLocale": "fa",
+  "packets": [
+    {
+      "id": "fr.a1.first-meeting",
+      "level": "A1",
+      "objective": {"fa": "زبان‌آموز بتواند پرسش دربارهٔ نام را تشخیص دهد و نام خود را بگوید."},
+      "sourceCandidates": ["Council of Europe CEFR Companion Volume"],
+      "generation": "llm",
+      "referenceClaims": [],
+      "items": [
+        {
+          "id": "fr.a1.first-meeting.001",
+          "kind": "single-choice",
+          "context": "Bonjour, je m’appelle Sarah. Et vous, comment vous appelez-vous ?",
+          "prompt": {"fa": "برای گفتن نام خود در پاسخ به سارا، کدام گزینه مناسب است؟"},
+          "options": {"name": "Je m’appelle Amir.", "place": "J’habite à Lyon.", "thanks": "Merci beaucoup."},
+          "acceptedOptionIds": ["name"],
+          "feedback": {"fa": "عبارت je m’appelle برای گفتن نام خود به کار می‌رود."}
+        }
+      ]
+    },
+    {
+      "id": "fr.b1.future-in-the-past",
+      "level": "B1",
+      "objective": {"fa": "زبان‌آموز بتواند رویدادی را که از دید یک لحظهٔ گذشته هنوز در آینده بود بیان کند."},
+      "sourceCandidates": ["OQLF Vitrine linguistique"],
+      "generation": "llm",
+      "referenceClaims": [],
+      "items": [
+        {
+          "id": "fr.b1.future-in-the-past.001",
+          "kind": "gap-fill",
+          "context": "Lundi, Nora a annoncé : « Je reviendrai vendredi. »",
+          "prompt": {"fa": "برای نقل غیرمستقیم گفتهٔ نورا، جای خالی را با فعل revenir کامل کنید."},
+          "text": "Lundi, Nora a annoncé qu’elle ___ vendredi.",
+          "acceptedAnswers": ["reviendrait"],
+          "feedback": {"fa": "بازگشت در زمان اعلام هنوز در آینده بود. در نقل غیرمستقیم این جمله، reviendrai به reviendrait تبدیل می‌شود."}
+        }
+      ]
+    }
+  ]
+}
