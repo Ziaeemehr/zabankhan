@@ -15,27 +15,30 @@ class ExportParser(HTMLParser):
     def handle_starttag(self, tag, attrs):
         a = dict(attrs)
         classes = a.get("class", "").split()
-        if tag == "div":
-            mid = re.fullmatch(r"message(\d+)", a.get("id", ""))
-            if mid and "message" in classes:
-                self.current = {"message_id": int(mid[1]), "filename": "", "date": "", "size": ""}
-                self.stack = []
-            field = None
-            if self.current is not None:
-                if "date" in classes:
-                    self.current["date"] = a.get("title", "")
-                if "title" in classes and any(x[1] == "file" for x in self.stack):
-                    field = "filename"
-                elif "status" in classes and any(x[1] == "file" for x in self.stack):
-                    field = "size"
-                elif "media_file" in classes:
-                    field = "file"
-                self.stack.append((tag, field))
+        mid = re.fullmatch(r"message(\d+)", a.get("id", ""))
+        if tag == "div" and mid and "message" in classes:
+            self.current = {"message_id": int(mid[1]), "filename": "", "date": "", "size": ""}
+            self.stack = []
+        if self.current is None or tag not in ("div", "a"):
+            return
+        field = None
+        if "date" in classes:
+            self.current["date"] = a.get("title", "")
+        if "media_file" in classes:
+            field = "file"
+        elif any(scope == "file" for _, scope in self.stack):
+            if "title" in classes:
+                field = "filename"
+            elif "status" in classes:
+                field = "size"
+        self.stack.append((tag, field))
+
     def handle_data(self, data):
         if self.current and self.stack and self.stack[-1][1] in ("filename", "size"):
             self.current[self.stack[-1][1]] += data
+
     def handle_endtag(self, tag):
-        if tag == "div" and self.current is not None and self.stack:
+        if self.current is not None and self.stack and self.stack[-1][0] == tag:
             self.stack.pop()
             if not self.stack:
                 r = self.current

@@ -1,0 +1,33 @@
+{
+  "schemaVersion": 1,
+  "entries": [
+    {
+      "id": "fr.magazine.pomme-d-api",
+      "language": "fr",
+      "type": "magazine",
+      "audience": "children",
+      "illustrated": true,
+      "series": "Pomme d’Api",
+      "levels": ["A1", "A2"],
+      "descriptions": {"fa": "مجلهٔ تصویری کودکان برای تمرین خواندن متن‌های کوتاه فرانسوی."},
+      "provenance": "Draft publisher candidate, Bayard Jeunesse",
+      "rights": "unknown",
+      "generation": "llm",
+      "status": "draft"
+    },
+    {
+      "id": "fr.magazine.okapi",
+      "language": "fr",
+      "type": "magazine",
+      "audience": "teenagers",
+      "illustrated": true,
+      "series": "Okapi",
+      "levels": ["B1", "B2"],
+      "descriptions": {"fa": "مجلهٔ تصویری نوجوانان برای تمرین خواندن گزارش‌ها و مطالب کوتاه."},
+      "provenance": "Draft publisher candidate, Bayard Jeunesse",
+      "rights": "unknown",
+      "generation": "llm",
+      "status": "draft"
+    }
+  ]
+}
