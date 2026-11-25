@@ -60,6 +60,7 @@ import com.ziaee.zabankhan.resources.*
 import com.ziaee.zabankhan.ui.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.MenuBook
 import androidx.compose.material.icons.filled.*
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.layout.LayoutCoordinates
@@ -245,6 +246,7 @@ private data class PdfTextNoteEditor(
     var toolbarFractionY by rememberSaveable(path) { mutableFloatStateOf(.9f) }
     var recentInkColors by rememberSaveable(path) { mutableStateOf(listOf("primary", "secondary", "tertiary", "#FF222222", "#FFB42318", "#FF1570EF")) }
     var selection by remember(path) { mutableStateOf<ReaderSelection?>(null) }
+    var dictionaryOnTap by remember(path) { mutableStateOf(true) }
     var range by remember(path) { mutableStateOf<PdfRange?>(null) }
     var selecting by remember(path) { mutableStateOf(false) }
     var areaMode by remember(path) { mutableStateOf(false) }
@@ -323,6 +325,11 @@ private data class PdfTextNoteEditor(
                         modifier = Modifier.semantics { contentDescription = indicator })
                 }
                 Spacer(Modifier.weight(1f))
+                IconToggleButton(checked = dictionaryOnTap, onCheckedChange = { dictionaryOnTap = it },
+                    modifier = Modifier.size(40.dp)) {
+                    Icon(Icons.AutoMirrored.Filled.MenuBook, stringResource(Res.string.pdf_dictionary_on_tap), Modifier.size(20.dp),
+                        tint = if (dictionaryOnTap) MaterialTheme.colorScheme.primary else LocalContentColor.current)
+                }
                 IconButton(enabled = !recognizing, modifier = Modifier.size(40.dp), onClick = {
                     areaMode = !areaMode
                     range = null; penMode = false
@@ -432,6 +439,7 @@ private data class PdfTextNoteEditor(
                             ink = pageInk(index),
                             onInk = { saveInk(index, it) },
                             onError = { failed = true },
+                            dictionaryOnTap = dictionaryOnTap,
                             onTap = { words, word ->
                                 range = null
                                 lastSentence = sentenceAround(words, words.indexOf(word))
@@ -658,6 +666,7 @@ private data class PdfTextNoteEditor(
     listState: LazyListState,
     penMode: Boolean, penColor: String, penWidth: Float, highlighter: Boolean, eraser: Boolean, eraserSize: Float, partialEraser: Boolean, fingerInk: Boolean, smoothPen: Boolean,
     ink: List<InkStroke>, onInk: (List<InkStroke>) -> Unit, onError: () -> Unit,
+    dictionaryOnTap: Boolean,
     onTap: (List<PdfWord>, PdfWord) -> Unit, onRange: (Int, Int, List<PdfWord>, Rect) -> Unit, onRangeEnd: () -> Unit, onDoubleTap: (Offset) -> Unit,
     onArea: (ImageBitmap, PdfRect) -> Unit) {
     val currentInk by rememberUpdatedState(ink)
@@ -820,7 +829,7 @@ private data class PdfTextNoteEditor(
                 }
             }
         }
-        .pointerInput(areaMode, penMode, words, image, viewport, highlights) {
+        .pointerInput(areaMode, penMode, words, image, viewport, highlights, dictionaryOnTap) {
             detectTapGestures(
                 onDoubleTap = { doubleTap(it) },
                 onTap = { point ->
@@ -831,7 +840,7 @@ private data class PdfTextNoteEditor(
                             if (highlights.any { wordIndex in it.startWord..it.endWord }) {
                                 select(wordIndex, wordIndex)
                                 onRangeEnd()
-                            } else onTap(words, word)
+                            } else if (dictionaryOnTap) onTap(words, word)
                         }
                     }
                 })

@@ -23,6 +23,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalLayoutDirection
+import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.text.SpanStyle
@@ -45,6 +46,8 @@ import com.ziaee.zabankhan.resources.Res
 import com.ziaee.zabankhan.resources.own_listen
 import com.ziaee.zabankhan.resources.own_dictionary_word_family
 import com.ziaee.zabankhan.resources.own_dictionary_opposite
+import com.ziaee.zabankhan.resources.own_dictionary_french_attribution
+import com.ziaee.zabankhan.resources.own_dictionary_french_source
 import com.ziaee.zabankhan.ui.reader.partOfSpeechResource
 import com.ziaee.zabankhan.resources.own_compact_all_meanings
 import com.ziaee.zabankhan.resources.own_compact_examples
@@ -63,7 +66,7 @@ internal fun CompactEntryCard(
     entry: Entry, meanings: List<SenseMeaning>, lang: LanguageSpec, target: String,
     vm: AppViewModel, textId: Long, sentence: String, speak: (String) -> Unit,
     onLookup: (String) -> Unit, vocabEntries: List<VocabEntry>, lists: List<VocabList>,
-    via: List<DictionaryRedirect> = emptyList(), initiallyExpanded: Boolean = true,
+    initiallyExpanded: Boolean = true,
     wordFamily: @Composable () -> Unit,
 ) {
     var open by rememberSaveable(entry.id) { mutableStateOf(initiallyExpanded) }
@@ -71,12 +74,13 @@ internal fun CompactEntryCard(
         Column(Modifier.fillMaxWidth().padding(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             if (!initiallyExpanded) {
                 Row(Modifier.fillMaxWidth().clickable { open = !open }.padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-                    val summary = listOf(entry.word, entry.pos).filter(String::isNotBlank).joinToString(" · ")
+                    val pos = partOfSpeechResource(entry.pos)?.let { stringResource(it) } ?: entry.pos
+                    val summary = listOf(entry.word, pos).filter(String::isNotBlank).joinToString(" · ")
                     Text(summary, Modifier.weight(1f), maxLines = 2, style = MaterialTheme.typography.bodyMedium.merge(contentStyle(summary)))
                     Icon(Icons.Default.KeyboardArrowDown, contentDescription = null)
                 }
-                AnimatedVisibility(open, enter = fadeIn(), exit = fadeOut()) { CompactEntryContents(entry, meanings, lang, target, vm, textId, sentence, speak, onLookup, vocabEntries, lists, via, wordFamily) }
-            } else CompactEntryContents(entry, meanings, lang, target, vm, textId, sentence, speak, onLookup, vocabEntries, lists, via, wordFamily)
+                AnimatedVisibility(open, enter = fadeIn(), exit = fadeOut()) { CompactEntryContents(entry, meanings, lang, target, vm, textId, sentence, speak, onLookup, vocabEntries, lists, wordFamily) }
+            } else CompactEntryContents(entry, meanings, lang, target, vm, textId, sentence, speak, onLookup, vocabEntries, lists, wordFamily)
         }
     }
 }
@@ -85,7 +89,7 @@ internal fun CompactEntryCard(
 private fun CompactEntryContents(
     entry: Entry, meanings: List<SenseMeaning>, lang: LanguageSpec, target: String,
     vm: AppViewModel, textId: Long, sentence: String, speak: (String) -> Unit,
-    onLookup: (String) -> Unit, vocabEntries: List<VocabEntry>, lists: List<VocabList>, via: List<DictionaryRedirect>,
+    onLookup: (String) -> Unit, vocabEntries: List<VocabEntry>, lists: List<VocabList>,
     wordFamily: @Composable () -> Unit,
 ) {
     Row(verticalAlignment = Alignment.CenterVertically) {
@@ -94,13 +98,26 @@ private fun CompactEntryContents(
         IconButton(onClick = { speak(entry.word) }) { Icon(Icons.Default.VolumeUp, stringResource(Res.string.own_listen)) }
     }
     Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
-        val posGender = listOf(entry.pos, entry.gender).filter(String::isNotBlank).joinToString(" · ")
+        val pos = partOfSpeechResource(entry.pos)?.let { stringResource(it) } ?: entry.pos
+        val posGender = listOf(pos, entry.gender).filter(String::isNotBlank).joinToString(" · ")
         if (posGender.isNotBlank()) Surface(color = MaterialTheme.colorScheme.secondaryContainer, shape = MaterialTheme.shapes.small) { Text(posGender, Modifier.padding(horizontal = 8.dp, vertical = 3.dp), style = MaterialTheme.typography.labelSmall.merge(contentStyle(posGender))) }
         if (entry.freq > 0) Text(stringResource(if (entry.freq >= 4) Res.string.own_frequency_very_common else Res.string.own_frequency_common), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
-    via.firstOrNull()?.let { redirect ->
-        val resolution = "${redirect.form} → ${redirect.lemma} · ${redirect.labels.joinToString("; ")}"
-        Text(resolution, style = MaterialTheme.typography.bodySmall.merge(contentStyle(resolution)))
+    if (entry.senses.isEmpty() && entry.monolingualDefinitions.isNotEmpty()) {
+        entry.monolingualDefinitions.forEach { sense ->
+            Text(sense.definition, style = MaterialTheme.typography.bodyMedium.merge(contentStyle(sense.definition)))
+            if (sense.example.isNotBlank()) Text(sense.example, Modifier.clickable { speak(sense.example) },
+                style = MaterialTheme.typography.bodySmall.merge(contentStyle(sense.example)).copy(fontStyle = FontStyle.Italic))
+        }
+        val uri = LocalUriHandler.current
+        lang.monolingualSourceUrlTemplate?.let { source ->
+            TextButton(onClick = { uri.openUri(source.replace("{word}", entry.word.replace(" ", "_"))) }) {
+                Text(stringResource(Res.string.own_dictionary_french_source))
+            }
+        }
+        Text(stringResource(Res.string.own_dictionary_french_attribution), style = MaterialTheme.typography.labelSmall)
+        wordFamily()
+        return
     }
     val allExamples = entry.senses.flatMap { it.examples } + entry.moreExamples.map { Example(it, "", "") }
     val previewExample = entry.senses.firstNotNullOfOrNull { it.examples.firstOrNull() }

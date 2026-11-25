@@ -17,6 +17,7 @@ import com.ziaee.zabankhan.resources.*
 import com.ziaee.zabankhan.speech.createTts
 import com.ziaee.zabankhan.speech.pronounce
 import com.ziaee.zabankhan.speech.togglePronounce
+import com.ziaee.zabankhan.ui.reader.partOfSpeechResource
 import com.ziaee.zabankhan.ui.contentStyle
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
@@ -81,7 +82,16 @@ fun DictionarySearchDialog(vm: AppViewModel, settings: AppSettings, onDismiss: (
                         searching || selected != null -> Text(stringResource(Res.string.own_searching), Modifier.padding(16.dp), color = MaterialTheme.colorScheme.onSurfaceVariant)
                         searchFailed -> Text(stringResource(Res.string.own_search_error), Modifier.padding(16.dp), color = MaterialTheme.colorScheme.error)
                         query.isNotBlank() && results.isEmpty() -> Text(stringResource(Res.string.own_no_entry), Modifier.padding(16.dp), color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        else -> results.forEach { entry -> TextButton(onClick = { selected = DictionaryHeadword(entry.word, entry.pos) }) { Text(entry.word, Modifier.weight(1f), style = contentStyle(entry.word)); if (entry.ipa.isNotBlank()) Text(entry.ipa) } }
+                        else -> results.forEach { entry ->
+                            TextButton(onClick = { selected = DictionaryHeadword(entry.word, entry.pos) }) {
+                                Column(Modifier.weight(1f)) {
+                                    Text(entry.word, style = contentStyle(entry.word))
+                                    val pos = partOfSpeechResource(entry.pos)?.let { stringResource(it) } ?: entry.pos
+                                    if (pos.isNotBlank()) Text(pos, style = MaterialTheme.typography.labelSmall.merge(contentStyle(pos)))
+                                }
+                                if (entry.ipa.isNotBlank()) Text(entry.ipa, style = contentStyle(entry.ipa))
+                            }
+                        }
                     }
                 }
             }

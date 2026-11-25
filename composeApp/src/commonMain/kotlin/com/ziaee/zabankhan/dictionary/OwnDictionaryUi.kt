@@ -113,7 +113,10 @@ private fun OwnDictionaryBlockContent(lookup: DictionaryLookup, lang: LanguageSp
         state
     }
     val meanings = meaningsState.second
-    if (meaningsState.first && entries.none { entry -> entry.wordFamily.isNotEmpty() || meanings[entry.id].orEmpty().any { it.text.isNotBlank() } } &&
+    if (meaningsState.first && entries.none { entry ->
+            entry.wordFamily.isNotEmpty() || entry.monolingualDefinitions.isNotEmpty() ||
+                meanings[entry.id].orEmpty().any { it.text.isNotBlank() }
+        } &&
         !monolingualSelected) {
         DictionaryMachineFallback(lookup.query, lang.code, effectiveTarget, sentence, textId, vm,
             translations, loading = false, failed = false)
@@ -221,7 +224,7 @@ private fun OwnDictionaryBlockContent(lookup: DictionaryLookup, lang: LanguageSp
         Text(stringResource(Res.string.own_dictionary_french_attribution), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
     } else entries.distinctBy { it.id }.take(8).forEachIndexed { index, entry ->
         CompactEntryCard(entry, meanings[entry.id].orEmpty(), lang, effectiveTarget, vm, textId, sentence, speak, onLookup, vocabEntries, lists,
-            via = if (index == 0) lookup.via.filter { it.entryId == entry.id } else emptyList(), initiallyExpanded = index == 0) { familySection(entry) }
+            initiallyExpanded = index == 0) { familySection(entry) }
     }
     HorizontalDivider()
 }

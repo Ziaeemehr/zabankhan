@@ -369,6 +369,7 @@
     <string name="gesture_reading_title">مطالعه</string>
     <string name="pdf_add_to_leitner">افزودن به لایتنر</string>
     <string name="pdf_full_dictionary">فرهنگ لغت کامل</string>
+    <string name="pdf_dictionary_on_tap">باز کردن فرهنگ لغت با لمس</string>
     <string name="pdf_translation_engine">موتور ترجمه</string>
     <string name="pdf_vocab_save_failed">ذخیره نشد. دوباره تلاش کنید.</string>
 

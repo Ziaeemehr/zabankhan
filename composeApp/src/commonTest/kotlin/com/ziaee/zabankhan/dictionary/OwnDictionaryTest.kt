@@ -142,6 +142,43 @@ class OwnDictionaryTest {
         }
     }
 
+    @Test fun monolingualAdjectiveSurvivesBilingualVerbRedirect() = runTest {
+        val root = FileSystem.SYSTEM_TEMPORARY_DIRECTORY / "dictionary-grammar-${Random.nextLong()}"
+        val lang = Languages.FRENCH.copy(learnerPackId = null)
+        val http = HttpClient(MockEngine { request ->
+            respond(when (request.url.encodedPath.substringAfter("/fr/")) {
+                "v2/index.json" -> """{"lang":"fr","format":2,"version":1,"shards":["ap","de"]}"""
+                "v2/ap.json" -> """{"entries":[[1,"approfondir","verb",3,"","","",[["to deepen"]]]],
+                    "redirects":{"approfondi":[[1,0]],"approfondie":[[1,0]]},"targets":{"1":["approfondir","verb"]},"form_labels":["pp"]}"""
+                "v2/de.json" -> """{"entries":[[2,"décider","verb",5,"","","",[["to decide"]]]],
+                    "redirects":{"décidé":[[2,0]]},"targets":{"2":["décider","verb"]},"form_labels":["pp"]}"""
+                "monolingual/v1/index.json" -> """{"lang":"fr","format":1,"version":1,"shards":["ap","de"]}"""
+                "monolingual/v1/ap.json" -> """{"entries":[{"word":"approfondi","pos":"adjective","senses":[{"definition":"Examiné à fond.","example":"Une étude approfondie."}]}]}"""
+                "monolingual/v1/de.json" -> """{"entries":[{"word":"décidé","pos":"adjective","senses":[{"definition":"Qui est résolu."}]}]}"""
+                else -> error("Unexpected dictionary request: ${request.url}")
+            })
+        })
+        try {
+            val dictionary = OwnDictionary(http, InMemoryKeyValueCache(), root, loadLemmas = {
+                loadLemmaLexicon("approfondie\tapprofondir,approfondi", "", it)
+            })
+            for (query in listOf("approfondi", "approfondie")) {
+                val lookup = dictionary.lookup(query, lang)
+                assertEquals(listOf("adjective", "verb"), lookup.entries.map { it.pos }, query)
+                assertEquals("Examiné à fond.", lookup.entries.first().monolingualDefinitions.single().definition)
+                assertEquals("approfondir", lookup.via.single().lemma)
+                val adjective = DictionaryHeadword("approfondi", "adjective")
+                val results = dictionary.search(query, lang)
+                assertEquals(adjective, results.first().let { DictionaryHeadword(it.word, it.pos) })
+                assertEquals("adjective", dictionary.lookup(adjective.word, lang, exactEntry = adjective).entries.single().pos)
+            }
+            assertEquals(listOf("adjective", "verb"), dictionary.lookup("décidé", lang).entries.map { it.pos })
+        } finally {
+            http.close()
+            FileSystem.SYSTEM.deleteRecursively(root, mustExist = false)
+        }
+    }
+
     @Test fun cachedWordFamilyResolvesInflectionsAndHomographsWithMeaningsForEachTab() = runTest {
         val root = FileSystem.SYSTEM_TEMPORARY_DIRECTORY / "dictionary-family-${Random.nextLong()}"
         val fs = FileSystem.SYSTEM
@@ -334,6 +371,79 @@ class OwnDictionaryTest {
             val dictionary = OwnDictionary(http, InMemoryKeyValueCache(), root, fs)
             assertEquals(listOf("calme", "calmement", "cas"), dictionary.completeHeadwords("CA", lang))
             assertEquals(listOf("calmement"), dictionary.completeHeadwords("calme", lang))
+            assertEquals(setOf("calme", "calmement", "cas"), dictionary.search("ca", lang).map { it.word }.toSet())
+        } finally {
+            http.close()
+            fs.deleteRecursively(root, mustExist = false)
+        }
+    }
+
+    @Test fun lookupPrefersTheSpellingOfAnAccentedInflection() = runTest {
+        val root = FileSystem.SYSTEM_TEMPORARY_DIRECTORY / "dictionary-accents-${Random.nextLong()}"
+        val lang = Languages.FRENCH.copy(learnerPackId = null)
+        val http = HttpClient(MockEngine { request ->
+            respond(when (request.url.encodedPath.substringAfter("/fr/")) {
+                "v2/index.json" -> """{"lang":"fr","format":2,"version":1,"shards":["pe"]}"""
+                "v2/pe.json" -> """{"entries":[[1,"pécher","verb",5],[2,"pêcher","verb",4],[3,"pêche","noun",4]],
+                    "redirects":{"pèches":[[1,0]],"pêches":[[2,0],[3,1]]},
+                    "targets":{"1":["pécher","verb"],"2":["pêcher","verb"],"3":["pêche","noun"]},"form_labels":["ind.pres.2s","pl"]}"""
+                "monolingual/v1/index.json" -> """{"lang":"fr","format":1,"version":1,"shards":["pe"]}"""
+                "monolingual/v1/pe.json" -> """{"entries":[{"word":"pécher","pos":"verb","senses":[{"definition":"Commettre un péché."}]}]}"""
+                else -> error("Unexpected dictionary request: ${request.url}")
+            })
+        })
+        try {
+            val dictionary = OwnDictionary(http, InMemoryKeyValueCache(), root, loadLemmas = {
+                loadLemmaLexicon("pêches\tpêche,pêcher", "", it)
+            })
+            assertEquals(listOf("pêcher", "pêche"), dictionary.lookup(" PÊCHES ", lang).entries.map { it.word })
+            assertEquals(listOf("pécher"), dictionary.lookup("pèches", lang).entries.map { it.word })
+            assertEquals(setOf("pécher", "pêcher", "pêche"), dictionary.lookup("peches", lang).entries.map { it.word }.toSet())
+            assertEquals(setOf("pêcher", "pêche"), dictionary.search("pêches", lang).map { it.word }.toSet())
+        } finally {
+            http.close()
+            FileSystem.SYSTEM.deleteRecursively(root, mustExist = false)
+        }
+    }
+
+    @Test fun invalidIndexRefreshLeavesCachedDictionaryUsable() = runTest {
+        val root = FileSystem.SYSTEM_TEMPORARY_DIRECTORY / "dictionary-index-${Random.nextLong()}"
+        val lang = Languages.FRENCH.copy(monolingualPackId = null, learnerPackId = null)
+        val index = root / lang.code / "v2" / "index.json"
+        val http = HttpClient(MockEngine { respond("<html>Maintenance</html>") })
+        val fs = FileSystem.SYSTEM
+        try {
+            fs.createDirectories(index.parent!!)
+            fs.write(index) { writeUtf8("""{"lang":"fr","format":2,"version":1,"shards":["pa"]}""") }
+            fs.write(index.parent!! / "pa.json") { writeUtf8("""{"entries":[[1,"page","noun",5]]}""") }
+            val dictionary = OwnDictionary(http, InMemoryKeyValueCache(), root, fs)
+            assertEquals("page", dictionary.lookup("page", lang).entries.single().word)
+            assertTrue(fs.read(index) { readUtf8() }.startsWith("{"))
+        } finally {
+            http.close()
+            fs.deleteRecursively(root, mustExist = false)
+        }
+    }
+
+    @Test fun invalidDefinitionsIndexPreservesDownloadedDefinitions() = runTest {
+        val root = FileSystem.SYSTEM_TEMPORARY_DIRECTORY / "dictionary-definitions-index-${Random.nextLong()}"
+        val lang = Languages.FRENCH.copy(learnerPackId = null)
+        val fs = FileSystem.SYSTEM
+        val bilingual = root / lang.code / "v2"
+        val definitions = root / lang.code / "monolingual" / "v1"
+        val http = HttpClient(MockEngine { respond("<html>Maintenance</html>") })
+        try {
+            fs.createDirectories(bilingual)
+            fs.createDirectories(definitions)
+            fs.write(bilingual / "index.json") { writeUtf8("""{"lang":"fr","format":2,"version":1,"shards":[]}""") }
+            fs.write(definitions / "index.json") { writeUtf8("""{"lang":"fr","format":1,"version":1,"shards":["ap"]}""") }
+            fs.write(definitions / "ap.json") {
+                writeUtf8("""{"entries":[{"word":"approfondi","pos":"adjective","senses":[{"definition":"Examiné à fond."}]}]}""")
+            }
+            val dictionary = OwnDictionary(http, InMemoryKeyValueCache(), root, fs, loadLemmas = { null })
+            val entry = dictionary.lookup("approfondi", lang).entries.single()
+            assertEquals("Examiné à fond.", entry.monolingualDefinitions.single().definition)
+            assertTrue(fs.exists(definitions / "ap.json"))
         } finally {
             http.close()
             fs.deleteRecursively(root, mustExist = false)

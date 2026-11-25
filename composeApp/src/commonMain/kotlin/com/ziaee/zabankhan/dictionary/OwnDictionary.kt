@@ -42,22 +42,27 @@ fun normalizeDictionaryQuery(value: String): String = buildString {
 }.trim().split(Regex("\\s+")).filter(String::isNotEmpty).joinToString(" ")
 
 /** Exact query first, followed by headword candidates with known leading articles removed. */
-fun dictionaryLookupCandidates(value: String, lang: LanguageSpec): List<String> {
-    val normalized = normalizeDictionaryQuery(value)
-    if (normalized.isEmpty()) return emptyList()
-    val candidates = linkedSetOf(normalized)
-    var rest = normalized
+fun dictionaryLookupCandidates(value: String, lang: LanguageSpec): List<String> =
+    dictionarySpellings(value, lang).map(::normalizeDictionaryQuery).distinct()
+
+private fun dictionarySpelling(value: String): String =
+    value.lowercase().replace('’', '\'').trim().split(Regex("\\s+")).joinToString(" ")
+
+private fun dictionarySpellings(value: String, lang: LanguageSpec): List<String> {
+    var rest = dictionarySpelling(value)
+    if (rest.isEmpty()) return emptyList()
+    val candidates = mutableListOf(rest)
     val articles = lang.dictionaryLeadingArticles.map(::normalizeDictionaryQuery).sortedByDescending { it.length }
     while (rest.isNotEmpty()) {
+        val normalized = normalizeDictionaryQuery(rest)
         val article = articles.firstOrNull { token ->
-            if (token.endsWith("'")) rest.startsWith(token)
-            else rest.startsWith("$token ")
+            if (token.endsWith("'")) normalized.startsWith(token)
+            else normalized.startsWith("$token ")
         } ?: break
-        rest = if (article.endsWith("'")) rest.removePrefix(article) else rest.removePrefix("$article ")
-        rest = rest.trim()
+        rest = rest.substringAfter(if (article.endsWith("'")) '\'' else ' ').trim()
         if (rest.isNotEmpty()) candidates += rest
     }
-    return candidates.toList()
+    return candidates
 }
 
 fun dictionaryShardKey(word: String, split: Set<String> = emptySet()): String {
@@ -89,6 +94,17 @@ data class LearnerPhrase(val phrase: String, val definition: String)
 data class LearnerEntry(val word: String, val pos: String, val senses: List<LearnerSense>, val more: List<String>, val phrases: List<LearnerPhrase>, val pattern: String, val note: String, val family: List<String>)
 data class Sense(val en: String, val fa: String, val tags: List<String>, val examples: List<Example>, val synonyms: List<String>)
 data class DictionaryHeadword(val word: String, val pos: String)
+private fun List<MonolingualEntry>.missingHeadwords(bilingual: List<Entry>): List<Entry> {
+    val existing = bilingual.map { DictionaryHeadword(it.word, it.pos) }.toSet()
+    return groupBy { DictionaryHeadword(it.word, it.pos) }.filterKeys { it !in existing }
+        .values.mapIndexed { index, definitions ->
+            val headword = definitions.first()
+            // Pack IDs are positive. These IDs are local to a result and never saved.
+            Entry(-1L - index, headword.word, headword.pos, 0, "", headword.gender, "",
+                emptyList(), emptyMap(), emptyList(), emptyList(),
+                monolingualDefinitions = definitions.flatMap { it.senses }.distinct())
+        }
+}
 data class Entry(
     val id: Long, val word: String, val pos: String, val freq: Int, val ipa: String, val gender: String,
     val audio: String, val senses: List<Sense>, val forms: Map<String, List<String>>,
@@ -125,6 +141,26 @@ data class DictionaryIndex(
     val shards: List<String>, val split: Map<String, JsonElement>, val audio_prefixes: List<String>,
 )
 data class DictionaryShard(val entries: List<Entry>, val redirects: Map<String, List<DictionaryRedirect>>, val targets: Map<String, Pair<String, String>>, val formLabels: List<String>)
+
+private fun DictionaryShard.redirectsFor(query: String): List<DictionaryRedirect> =
+    redirects.filterKeys { normalizeDictionaryQuery(it) == query }.values.flatten()
+
+private fun List<DictionaryRedirect>.preferSpelling(spelling: String): List<DictionaryRedirect> =
+    filter { dictionarySpelling(it.form) == spelling }.ifEmpty { this }
+
+private fun List<MonolingualEntry>.excludeOtherSpellings(
+    allRedirects: List<DictionaryRedirect>, chosenRedirects: List<DictionaryRedirect>,
+): List<MonolingualEntry> {
+    val otherLemmas = allRedirects.map { it.lemma }.toSet() - chosenRedirects.map { it.lemma }.toSet()
+    return filterNot { it.word in otherLemmas }
+}
+
+private fun DictionaryIndex.prefixShardKeys(query: String): List<String> {
+    val firstWordLength = query.substringBefore(' ').length
+    val shorterParents = split.keys.filter { it.length < firstWordLength }.toSet()
+    val key = dictionaryShardKey(query, shorterParents)
+    return if (key in split) shards.filter { it.startsWith(key) } else listOf(key)
+}
 
 private fun JsonElement?.stringOrEmpty() = (this as? JsonPrimitive)?.contentOrNull.orEmpty()
 private fun JsonElement?.intOrZero() = (this as? JsonPrimitive)?.intOrNull ?: 0
@@ -253,6 +289,7 @@ class OwnDictionary(private val http: HttpClient, @Suppress("UNUSED_PARAMETER") 
     private val readFamilyExclusions: suspend (LanguageSpec) -> String = {
         Res.readBytes("files/${it.code}/lexicon/dictionary_family_exclusions.tsv").decodeToString()
     },
+    private val loadLemmas: suspend (LanguageSpec) -> LemmaLexicon? = { LanguageDataPacks.load(it.code)?.lemmas },
     private val readAdverbLinks: suspend (LanguageSpec) -> String = {
         Res.readBytes("files/${it.code}/lexicon/dictionary_adverb_links.tsv").decodeToString()
     },
@@ -352,31 +389,31 @@ class OwnDictionary(private val http: HttpClient, @Suppress("UNUSED_PARAMETER") 
         check(response.status.value in 200..299) { "Dictionary HTTP ${response.status.value}" }
         return response.bodyAsText()
     }
+    private fun decodeIndex(raw: String, lang: LanguageSpec, format: Int): JsonObject =
+        json.parseToJsonElement(raw).jsonObject.also { obj ->
+            require(obj["lang"].stringOrEmpty() == lang.code && obj["format"].intOrZero() == format)
+            val shards = obj["shards"] as? JsonArray ?: error("Missing dictionary shards")
+            require(shards.all { it is JsonPrimitive && it.isString && it.content.isNotBlank() })
+        }
+
     private suspend fun index(lang: LanguageSpec, refresh: Boolean = true): DictionaryIndex {
         val file = directory(lang) / "index.json"
-        val oldRaw = read(file)
-        val freshRaw = if (!refresh && oldRaw != null) null else try { fetch(lang, "index") } catch (cancelled: CancellationException) { throw cancelled } catch (_: Exception) { null }
-        if (freshRaw == null) return oldRaw?.let { raw ->
-            val obj = json.parseToJsonElement(raw).jsonObject
-            DictionaryIndex(obj["lang"].stringOrEmpty(), obj["format"].intOrZero(), obj["version"] ?: JsonNull,
-                obj["entries"]?.intOrZero() ?: 0, obj["persian"]?.intOrZero() ?: 0,
-                obj["shards"].stringList(),
-                (obj["split"] as? JsonObject).orEmpty(), obj["audio_prefixes"].stringList())
-        } ?: error("Dictionary index unavailable")
-        val freshObject = json.parseToJsonElement(freshRaw).jsonObject
-        val fresh = DictionaryIndex(
-            lang = freshObject["lang"].stringOrEmpty(),
-            format = freshObject["format"].intOrZero(),
-            version = freshObject["version"] ?: JsonNull,
-            entries = freshObject["entries"].intOrZero(),
-            persian = freshObject["persian"].intOrZero(),
-            shards = freshObject["shards"].stringList(),
-            split = (freshObject["split"] as? JsonObject).orEmpty(),
-        audio_prefixes = freshObject["audio_prefixes"].stringList(),
-        )
-        require(fresh.lang == lang.code && fresh.format == 2)
-        val oldVersion = oldRaw?.let { raw -> runCatching { json.parseToJsonElement(raw).jsonObject["version"] }.getOrNull() }
-        if (oldVersion != fresh.version) fs.deleteRecursively(directory(lang), mustExist = false)
+        fun decode(raw: String): DictionaryIndex {
+            val obj = decodeIndex(raw, lang, 2)
+            return DictionaryIndex(lang.code, 2, obj["version"] ?: JsonNull, obj["entries"].intOrZero(), obj["persian"].intOrZero(),
+                obj["shards"].stringList(), (obj["split"] as? JsonObject).orEmpty(), obj["audio_prefixes"].stringList())
+        }
+        val cached = read(file)?.let { raw -> runCatching { decode(raw) }.getOrNull() }
+        if (!refresh && cached != null) return cached
+        val (freshRaw, fresh) = try {
+            val raw = fetch(lang, "index")
+            raw to decode(raw).also { require(it.version is JsonPrimitive && it.version != JsonNull) }
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (failure: Exception) {
+            return cached ?: throw IllegalStateException("Dictionary index unavailable", failure)
+        }
+        if (cached?.version != fresh.version) fs.deleteRecursively(directory(lang), mustExist = false)
         write(directory(lang) / "index.json", freshRaw)
         return fresh
     }
@@ -394,24 +431,28 @@ class OwnDictionary(private val http: HttpClient, @Suppress("UNUSED_PARAMETER") 
     private suspend fun packIndex(lang: LanguageSpec, pack: String): List<String>? {
         val base = packDirectory(lang, pack)
         val indexFile = base / "index.json"
-        val oldIndex = read(indexFile)
+        val cached = read(indexFile)?.let { raw -> runCatching { decodeIndex(raw, lang, 1) }.getOrNull() }
         // One version check per pack per session; later lookups read the cached index without network.
-        val freshIndex = if (oldIndex != null && pack in checkedPacks) null else try {
+        if (cached != null && pack in checkedPacks) return cached["shards"].stringList()
+        val fresh = try {
             val response = http.get("https://ziaeemehr.github.io/zabankhan-dict/$pack/v1/index.json")
-            if (response.status.value in 200..299) response.bodyAsText() else null
+            if (response.status.value !in 200..299) null else {
+                val raw = response.bodyAsText()
+                val index = decodeIndex(raw, lang, 1)
+                val version = index["version"]
+                require(version is JsonPrimitive && version != JsonNull)
+                raw to index
+            }
         } catch (cancelled: CancellationException) { throw cancelled } catch (_: Exception) { null }
-        val indexRaw = freshIndex ?: oldIndex ?: return null
+        val index = fresh?.second ?: cached ?: return null
         checkedPacks += pack  // also when offline: do not retry the network on every lookup
-        if (freshIndex != null) {
-            val previousVersion = oldIndex?.let { runCatching { json.parseToJsonElement(it).jsonObject["version"] }.getOrNull() }
-            val currentVersion = runCatching { json.parseToJsonElement(freshIndex).jsonObject["version"] }.getOrNull()
-            if (previousVersion != null && previousVersion != currentVersion) {
+        if (fresh != null) {
+            val previousVersion = cached?.get("version")
+            if (previousVersion != null && previousVersion != index["version"]) {
                 fs.list(base).filter { it.name != "index.json" }.forEach { fs.delete(it) }
             }
-            write(indexFile, freshIndex)
+            write(indexFile, fresh.first)
         }
-        val index = runCatching { json.parseToJsonElement(indexRaw).jsonObject }.getOrNull() ?: return null
-        if (index["lang"].stringOrEmpty() != lang.code || index["format"].intOrZero() != 1) return null
         return index["shards"].stringList()
     }
 
@@ -430,12 +471,20 @@ class OwnDictionary(private val http: HttpClient, @Suppress("UNUSED_PARAMETER") 
         return raw
     }
 
-    private suspend fun packEntries(lang: LanguageSpec, pack: String?, word: String): List<MonolingualEntry> {
-        pack ?: return emptyList()
-        val lexicon = LanguageDataPacks.load(lang.code)?.lemmas
+    private suspend fun packEntries(lang: LanguageSpec, pack: String?, words: List<String>): List<MonolingualEntry> {
+        if (pack == null || words.isEmpty()) return emptyList()
+        val lexicon = try {
+            loadLemmas(lang)
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (_: Exception) {
+            null
+        }
         val available = packIndex(lang, pack)?.toSet() ?: return emptyList()
-        val normalized = normalizeForMatch(word, lang)
-        val candidates = (lexicon?.lemmas(normalized).orEmpty().map { normalizeForMatch(it, lang) } + normalized).toSet()
+        val candidates = words.flatMap { word ->
+            val normalized = normalizeForMatch(word, lang)
+            listOf(normalized) + lexicon?.lemmas(normalized).orEmpty().map { normalizeForMatch(it, lang) }
+        }.toSet()
         val keys = candidates.map(::dictionaryShardKey).distinct().filter { it in available }
         val entries = keys.flatMap { key ->
             val raw = try { packShard(lang, pack, key) } catch (cancelled: CancellationException) { throw cancelled } catch (_: Exception) { null } ?: return@flatMap emptyList()
@@ -444,9 +493,9 @@ class OwnDictionary(private val http: HttpClient, @Suppress("UNUSED_PARAMETER") 
         return entries.filter { normalizeForMatch(it.word, lang) in candidates }
     }
 
-    private suspend fun monolingualEntries(lang: LanguageSpec, word: String): List<MonolingualEntry> =
+    private suspend fun monolingualEntries(lang: LanguageSpec, words: List<String>): List<MonolingualEntry> =
         try {
-            packEntries(lang, lang.monolingualPackId, word)
+            packEntries(lang, lang.monolingualPackId, words)
         } catch (cancelled: CancellationException) {
             throw cancelled
         } catch (_: Exception) {
@@ -471,14 +520,19 @@ class OwnDictionary(private val http: HttpClient, @Suppress("UNUSED_PARAMETER") 
         mutex.withLock {
             val index = index(lang)
             val splitParents = index.split.keys
-            val candidates = dictionaryLookupCandidates(word, lang)
+            val spellings = dictionarySpellings(word, lang)
+            val candidates = spellings.map(::normalizeDictionaryQuery).distinct()
             val exact = mutableListOf<Entry>()
             val redirects = mutableListOf<DictionaryRedirect>()
-            candidates.forEach { query ->
+            val allRedirects = mutableListOf<DictionaryRedirect>()
+            spellings.forEach { spelling ->
+                val query = normalizeDictionaryQuery(spelling)
                 val key = dictionaryShardKey(query, splitParents)
                 val queryShard = if (key in index.shards) shard(lang, index, key) else null
                 exact += queryShard?.entries.orEmpty().filter { normalizeDictionaryQuery(it.word) == query }
-                redirects += queryShard?.redirects?.entries?.firstOrNull { normalizeDictionaryQuery(it.key) == query }?.value.orEmpty()
+                val matches = queryShard?.redirectsFor(query).orEmpty()
+                allRedirects += matches
+                redirects += matches.preferSpelling(spelling)
             }
             val resolved = redirects.distinctBy { it.entryId to it.pos }.mapNotNull { redirect ->
                 val key = dictionaryShardKey(redirect.lemma, splitParents)
@@ -486,7 +540,11 @@ class OwnDictionary(private val http: HttpClient, @Suppress("UNUSED_PARAMETER") 
                 targetShard?.entries?.firstOrNull { it.id == redirect.entryId && it.pos == redirect.pos }
             }.distinctBy { it.id }
             // Same headword, several POS: the more frequent POS leads (pendant: preposition before noun), then the richer entry.
-            val bases = (exact.sortedWith(compareByDescending<Entry> { it.freq }.thenByDescending { it.senses.size }) + resolved).distinctBy { it.id }
+            val direct = exact.distinctBy { it.id }.sortedWith(compareByDescending<Entry> { dictionarySpelling(it.word) in spellings }
+                .thenByDescending { it.freq }.thenByDescending { it.senses.size })
+            val queriedDefinitions = monolingualEntries(lang, candidates)
+            val supplemental = queriedDefinitions.excludeOtherSpellings(allRedirects, redirects).missingHeadwords(direct + resolved)
+            val bases = (direct + supplemental + resolved).distinctBy { it.id }
                 .filter { exactEntry == null || (it.word == exactEntry.word && it.pos == exactEntry.pos) }
             val idiomWords = sentence?.let(::dictionaryWords).orEmpty()
             val idiomNames = bases.flatMap { it.expressions }.filter { dictionaryIdiomMatches(it, sentence.orEmpty()) }.distinct()
@@ -494,7 +552,9 @@ class OwnDictionary(private val http: HttpClient, @Suppress("UNUSED_PARAMETER") 
                 val key = dictionaryShardKey(expression, splitParents)
                 if (key !in index.shards) null else safeShard(lang, index, key)?.entries?.firstOrNull { normalizeDictionaryQuery(it.word) == normalizeDictionaryQuery(expression) }
             }.distinctBy { it.id }.filter { entry -> idiomWords.isNotEmpty() && dictionaryIdiomMatches(entry.word, sentence.orEmpty()) }
-            val definitions = bases.map { it.word }.distinct().associateWith { monolingualEntries(lang, it) }
+            val queriedHeadwords = queriedDefinitions.map { DictionaryHeadword(it.word, it.pos) }.toSet()
+            val missingDefinitions = bases.filter { DictionaryHeadword(it.word, it.pos) !in queriedHeadwords }.map { it.word }.distinct()
+            val definitions = (queriedDefinitions + monolingualEntries(lang, missingDefinitions)).distinct().groupBy { it.word }
             val learnerEntries = try { learnerEntries(lang, bases.map { it.word }.distinct()) } catch (cancelled: CancellationException) { throw cancelled } catch (_: Exception) { emptyList() }
             val adverbs = if (bases.isEmpty()) emptyMap() else bundledAdverbLinks(lang)
             val negations = if (bases.isEmpty()) emptyMap() else bundledNegationLinks(lang)
@@ -549,7 +609,7 @@ class OwnDictionary(private val http: HttpClient, @Suppress("UNUSED_PARAMETER") 
                     ?: return@mapNotNull null
                 val learner = learners[relative]
                 val mono = if (learner != null || target.monolingualDefinitions.isNotEmpty()) emptyList()
-                    else monolingualEntries(lang, relative.word).filter { it.word == relative.word && it.pos == relative.pos }
+                    else monolingualEntries(lang, listOf(relative.word)).filter { it.word == relative.word && it.pos == relative.pos }
                 target.copy(
                     learner = learner,
                     gender = target.gender.ifBlank { mono.firstOrNull()?.gender.orEmpty() },
@@ -564,12 +624,8 @@ class OwnDictionary(private val http: HttpClient, @Suppress("UNUSED_PARAMETER") 
         if (!lang.ownDictionaryAvailable || query.length < 2) return@withContext emptyList()
         mutex.withLock {
             val index = index(lang)
-            val firstWordLength = query.substringBefore(' ').length
-            val splitParents = index.split.keys.filter { it.length < firstWordLength }.toSet()
-            val key = dictionaryShardKey(query, splitParents)
-            val keys = if (key in index.split) index.shards.filter { it.startsWith(key) } else listOf(key)
             val suggestions = linkedSetOf<String>()
-            for (shardKey in keys) {
+            for (shardKey in index.prefixShardKeys(query)) {
                 val entries = safeShard(lang, index, shardKey)?.entries.orEmpty()
                 for (entry in entries.filter { normalizeDictionaryQuery(it.word).let { word -> word.startsWith(query) && word != query } }
                     .sortedBy { it.rank }) {
@@ -586,22 +642,43 @@ class OwnDictionary(private val http: HttpClient, @Suppress("UNUSED_PARAMETER") 
         if (!lang.ownDictionaryAvailable || prefix.isBlank() || limit <= 0) return@withContext emptyList()
         mutex.withLock {
             val index = index(lang)
-            val results = dictionaryLookupCandidates(prefix, lang).flatMap { query ->
+            val spellings = dictionarySpellings(prefix, lang)
+            val loadedShards = mutableMapOf<String, DictionaryShard>()
+            suspend fun load(key: String) = loadedShards[key] ?: shard(lang, index, key).also { loadedShards[key] = it }
+            val exact = mutableListOf<Entry>()
+            val exactRedirects = mutableListOf<Entry>()
+            val allRedirects = mutableListOf<DictionaryRedirect>()
+            val chosenRedirects = mutableListOf<DictionaryRedirect>()
+            val prefixMatches = mutableListOf<Entry>()
+            for (spelling in spellings) {
+                val query = normalizeDictionaryQuery(spelling)
                 val key = dictionaryShardKey(query, index.split.keys)
-                if (key !in index.shards) return@flatMap emptyList()
-                val shard = shard(lang, index, key)
-                val exact = shard.entries.filter { normalizeDictionaryQuery(it.word) == query }
-                val redirectEntries = shard.redirects.filterKeys { normalizeDictionaryQuery(it) == query }.values.flatten().mapNotNull { redirect ->
+                suspend fun resolve(redirect: DictionaryRedirect): Entry? {
                     val lemmaKey = dictionaryShardKey(redirect.lemma, index.split.keys)
-                    if (lemmaKey !in index.shards) null else shard(lang, index, lemmaKey).entries.firstOrNull { it.id == redirect.entryId && it.pos == redirect.pos }
+                    return if (lemmaKey !in index.shards) null else load(lemmaKey).entries.firstOrNull { it.id == redirect.entryId && it.pos == redirect.pos }
                 }
-                val redirects = shard.redirects.filterKeys { normalizeDictionaryQuery(it).startsWith(query) }.values.flatten().mapNotNull { redirect ->
-                    val lemmaKey = dictionaryShardKey(redirect.lemma, index.split.keys)
-                    if (lemmaKey !in index.shards) null else shard(lang, index, lemmaKey).entries.firstOrNull { it.id == redirect.entryId && it.pos == redirect.pos }
+                val shard = if (key in index.shards) load(key) else null
+                exact += shard?.entries.orEmpty().filter { normalizeDictionaryQuery(it.word) == query }
+                val matches = shard?.redirectsFor(query).orEmpty()
+                allRedirects += matches
+                val chosen = matches.preferSpelling(spelling)
+                chosenRedirects += chosen
+                chosen.mapNotNullTo(exactRedirects) { resolve(it) }
+                for (prefixKey in index.prefixShardKeys(query)) {
+                    val prefixShard = if (prefixKey == key) shard else safeShard(lang, index, prefixKey)
+                    prefixMatches += prefixShard?.entries.orEmpty().filter { normalizeDictionaryQuery(it.word).startsWith(query) }
                 }
-                exact + redirectEntries + redirects + shard.entries.filter { normalizeDictionaryQuery(it.word).startsWith(query) }
+                for ((form, redirects) in shard?.redirects.orEmpty()) {
+                    val normalized = normalizeDictionaryQuery(form)
+                    if (normalized != query && normalized.startsWith(query)) redirects.mapNotNullTo(prefixMatches) { resolve(it) }
+                }
             }
-            results.distinctBy { it.id }.sortedBy { it.freq.takeIf { f -> f > 0 }?.let { 6 - it } ?: Int.MAX_VALUE }.take(limit)
+            val candidates = spellings.map(::normalizeDictionaryQuery).distinct()
+            val supplemental = monolingualEntries(lang, candidates).excludeOtherSpellings(allRedirects, chosenRedirects)
+                .missingHeadwords(exact + exactRedirects + prefixMatches)
+            val direct = exact.sortedWith(compareByDescending<Entry> { dictionarySpelling(it.word) in spellings }.thenBy { it.rank })
+            (direct + supplemental + exactRedirects.sortedBy { it.rank } + prefixMatches.sortedBy { it.rank })
+                .distinctBy { it.id }.take(limit)
         }
     }
     suspend fun senseMeanings(entry: Entry, target: String, translations: TranslationRepository): List<SenseMeaning> = entry.senses.map { sense ->

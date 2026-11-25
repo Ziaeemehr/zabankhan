@@ -365,6 +365,7 @@
     <string name="gesture_reading_title">Lecture</string>
     <string name="pdf_add_to_leitner">Ajouter au Leitner</string>
     <string name="pdf_full_dictionary">Dictionnaire complet</string>
+    <string name="pdf_dictionary_on_tap">Ouvrir le dictionnaire au toucher</string>
     <string name="pdf_translation_engine">Moteur de traduction</string>
     <string name="pdf_vocab_save_failed">Échec de l’enregistrement. Réessayez.</string>
 
