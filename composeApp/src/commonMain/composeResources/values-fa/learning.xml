@@ -1,0 +1,11 @@
+<resources>
+    <string name="learn_title">یادگیری</string>
+    <string name="learn_resources">منابع یادگیری</string>
+    <string name="learn_grammar">دستور زبان</string>
+    <string name="learn_exam_practice">تمرین آزمون</string>
+    <string name="learn_vocab_review">مرور واژگان</string>
+    <string name="learn_catalog_error">فهرست منابع باز نشد.</string>
+    <string name="learn_catalog_empty">هنوز منبعی برای این زبان در فهرست نیست.</string>
+    <string name="learn_no_matches">منبعی مطابق جست‌وجوی شما یافت نشد.</string>
+    <string name="learn_official_source">منبع رسمی</string>
+</resources>

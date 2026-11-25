@@ -23,3 +23,9 @@ python3 tools/learning/validate_catalog.py tools/learning/fixtures/resource-cata
 Use `--release` on a proposed public catalog. Every entry must be approved and carry an official HTTPS URL, dated rights evidence and owner approval for its current content hash. LLM-assisted descriptions also need passing blind, adversarial and pedagogical review records from three distinct reviewers. Compute the digest with `content_hash(entry)` from the validator. It hashes sorted, compact UTF-8 JSON of all entry fields except the status and review records.
 
 The fixtures contain draft candidates for illustrated children's and teen magazines. Rights, Persian descriptions and CEFR estimates still need review. The fixtures live under `tools/learning` and stay outside application resources.
+
+## App entry point
+
+Open Learn from Home, then Learning resources. The browser reads bundled metadata for the active learning language, with search and a CEFR level filter. Illustrated children's and teen magazines appear first. The PDF action opens the existing Library import and reader flow.
+
+The bundled public catalog is empty pending review of the first entries. Release CI validates it. The draft catalog records publisher subscription listings for Pomme d’Api and Okapi and treats them as link-only candidates. Publisher age ranges are separate from the draft CEFR estimates. [Pomme d’Api](https://www.bayard-jeunesse.com/p/abonnement-pomme-d-api) · [Okapi](https://www.bayard-jeunesse.com/p/abonnement-okapi)

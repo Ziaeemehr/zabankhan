@@ -31,6 +31,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Validate bundled learning catalog
+        run: |
+          python3 -m unittest discover -s tools/learning -v
+          python3 tools/learning/validate_catalog.py --release composeApp/src/commonMain/composeResources/files/learning/resources.json
+
       - name: Validate version and release
         id: version
         shell: bash

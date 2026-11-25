@@ -29,6 +29,33 @@ import org.jetbrains.compose.resources.stringResource
 expect fun loadImportImage(path: String): ImageBitmap
 
 @Composable
+internal fun rememberPdfLibraryImport(
+    vm: AppViewModel,
+    language: String,
+    open: (Long) -> Unit,
+    onBusy: (Boolean) -> Unit = {},
+): () -> Unit = rememberFilePicker(listOf(FileKind.PDF)) { file ->
+    if (file != null) vm.action {
+        onBusy(true)
+        try {
+            val id = withContext(Dispatchers.IO) {
+                vm.container.texts.insert(
+                    TextDocument(
+                        lang = language,
+                        title = file.displayName.substringBeforeLast('.'),
+                        body = "",
+                        pdfPath = file.path,
+                    ),
+                )
+            }
+            open(id)
+        } finally {
+            onBusy(false)
+        }
+    }
+}
+
+@Composable
 fun ImportAddMenu(
     vm: AppViewModel, settings: AppSettings, addText: () -> Unit, open: (Long) -> Unit,
     watch: () -> Unit, discover: () -> Unit = {},
@@ -53,7 +80,6 @@ fun ImportAddMenu(
             busy = true
             try {
                 when (kind) {
-                    FileKind.PDF -> open(withContext(Dispatchers.IO) { vm.container.texts.insert(TextDocument(lang = spec.code, title = file.displayName.substringBeforeLast('.'), body = "", pdfPath = file.path)) })
                     FileKind.TEXT -> open(withContext(Dispatchers.IO) { repository.text(FileSystem.SYSTEM.read(file.path.toPath()) { readUtf8() }, file.displayName) })
                     FileKind.EPUB -> open(withContext(Dispatchers.IO) { repository.epub(FileSystem.SYSTEM.read(file.path.toPath()) { readByteArray() }) })
                     FileKind.IMAGE -> {
@@ -68,7 +94,7 @@ fun ImportAddMenu(
             } finally { busy = false }
         }
     }
-    val pdf = rememberFilePicker(listOf(FileKind.PDF), picked(FileKind.PDF))
+    val pdf = rememberPdfLibraryImport(vm, spec.code, open) { busy = it }
     val text = rememberFilePicker(listOf(FileKind.TEXT), picked(FileKind.TEXT))
     val epub = rememberFilePicker(listOf(FileKind.EPUB), picked(FileKind.EPUB))
     val image = rememberFilePicker(listOf(FileKind.IMAGE), picked(FileKind.IMAGE))

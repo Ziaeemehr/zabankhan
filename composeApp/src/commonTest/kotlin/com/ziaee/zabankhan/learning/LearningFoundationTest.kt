@@ -38,6 +38,17 @@ class LearningFoundationTest {
         }
     }
 
+    @Test
+    fun browseShowsOnlyReviewedResourcesAndFiltersWithoutNetwork() {
+        val approved = catalog.replace("\"draft\"", "\"approved\"")
+            .replace("\"rights\":\"unknown\"", "\"rights\":\"link_only\",\"officialUrl\":\"https://example.org/magazine\"")
+        assertTrue(LocalLearningResources.fromJson(catalog).browse("fr").isEmpty())
+        val repository = LocalLearningResources.fromJson(approved)
+        assertEquals("https://example.org/magazine", repository.browse("fr", "مجله", "B2").single().officialUrl)
+        assertTrue(repository.browse("fr", "example", "A1").isEmpty())
+        assertTrue(repository.browse("de", "example").isEmpty())
+    }
+
     private val catalog = """
         {"schemaVersion":1,"entries":[{
           "id":"fr.magazine.sample","language":"fr","type":"magazine",

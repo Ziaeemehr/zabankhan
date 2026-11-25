@@ -1,0 +1,11 @@
+<resources>
+    <string name="learn_title">Learn</string>
+    <string name="learn_resources">Learning resources</string>
+    <string name="learn_grammar">Grammar</string>
+    <string name="learn_exam_practice">Exam practice</string>
+    <string name="learn_vocab_review">Vocabulary review</string>
+    <string name="learn_catalog_error">The resource catalog could not be opened.</string>
+    <string name="learn_catalog_empty">There are no catalog entries for this language yet.</string>
+    <string name="learn_no_matches">No resources match your search.</string>
+    <string name="learn_official_source">Official source</string>
+</resources>

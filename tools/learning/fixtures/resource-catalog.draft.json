@@ -8,12 +8,20 @@
       "audience": "children",
       "illustrated": true,
       "series": "Pomme d’Api",
-      "levels": ["A1", "A2"],
-      "descriptions": {"fa": "مجلهٔ تصویری کودکان برای تمرین خواندن متن‌های کوتاه فرانسوی."},
-      "provenance": "Draft publisher candidate, Bayard Jeunesse",
-      "rights": "unknown",
+      "levels": [
+        "A1",
+        "A2"
+      ],
+      "descriptions": {
+        "fa": "مجلهٔ تصویری کودکان برای تمرین خواندن متن‌های کوتاه فرانسوی."
+      },
+      "provenance": "Bayard Jeunesse subscription listing, publisher audience ages 3–7",
+      "rights": "link_only",
       "generation": "llm",
-      "status": "draft"
+      "status": "draft",
+      "officialUrl": "https://www.bayard-jeunesse.com/p/abonnement-pomme-d-api",
+      "rightsEvidence": "Official subscription listing; the catalog entry links to the publisher.",
+      "verifiedOn": "2026-11-25"
     },
     {
       "id": "fr.magazine.okapi",
@@ -22,12 +30,20 @@
       "audience": "teenagers",
       "illustrated": true,
       "series": "Okapi",
-      "levels": ["B1", "B2"],
-      "descriptions": {"fa": "مجلهٔ تصویری نوجوانان برای تمرین خواندن گزارش‌ها و مطالب کوتاه."},
-      "provenance": "Draft publisher candidate, Bayard Jeunesse",
-      "rights": "unknown",
+      "levels": [
+        "B1",
+        "B2"
+      ],
+      "descriptions": {
+        "fa": "مجلهٔ تصویری نوجوانان برای تمرین خواندن گزارش‌ها و مطالب کوتاه."
+      },
+      "provenance": "Bayard Jeunesse subscription listing, publisher audience ages 10–15",
+      "rights": "link_only",
       "generation": "llm",
-      "status": "draft"
+      "status": "draft",
+      "officialUrl": "https://www.bayard-jeunesse.com/p/abonnement-okapi",
+      "rightsEvidence": "Official subscription listing; the catalog entry links to the publisher.",
+      "verifiedOn": "2026-11-25"
     }
   ]
 }

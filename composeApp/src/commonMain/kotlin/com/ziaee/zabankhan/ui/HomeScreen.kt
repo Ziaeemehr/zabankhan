@@ -46,6 +46,7 @@ import com.ziaee.zabankhan.watch.WatchHistory
     words: () -> Unit = {}, news: () -> Unit = {}, achievements: () -> Unit = {}, watchVideo: (String, String, String) -> Unit = { _, _, _ -> },
     datasets: () -> Unit = {},
     shadow: () -> Unit = {},
+    learn: (() -> Unit)? = null,
 ) {
     val motivation by vm.progress.collectAsState()
     val lang = requireNotNull(settings.learningLang)
@@ -136,6 +137,11 @@ import com.ziaee.zabankhan.watch.WatchHistory
                 }
             }
             if (statsReady) item { DailyReviewCard(due, review) }
+            if (learn != null) item {
+                OutlinedButton(learn, Modifier.fillMaxWidth()) {
+                    Text(stringResource(Res.string.learn_title))
+                }
+            }
             item {
                 EditorialCard {
                     WatchVideosRow(languageLabel, watch)

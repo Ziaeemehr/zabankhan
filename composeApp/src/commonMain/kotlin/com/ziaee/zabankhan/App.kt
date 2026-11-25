@@ -24,6 +24,9 @@ import org.jetbrains.compose.resources.stringResource
 import com.ziaee.zabankhan.content.ImportRepository
 import com.ziaee.zabankhan.files.PickedFile
 import com.ziaee.zabankhan.lang.Languages
+import com.ziaee.zabankhan.datapack.LanguageDataPacks
+import com.ziaee.zabankhan.learning.LearnScreen
+import com.ziaee.zabankhan.learning.LearningResourceScreen
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.IO
 import kotlinx.coroutines.withContext
@@ -170,7 +173,7 @@ private fun NavHostController.navigateToTab(route: String) {
                 }
             }) { padding ->
                 NavHost(nav, "home", Modifier.padding(padding).consumeWindowInsets(padding)) {
-                    composable("home") { HomeScreen(vm, prefs, { id -> vm.action { val doc = container.texts.getById(id); nav.navigate(if (doc?.pdfPath != null) "pdf/$id" else "reader/$id") } }, { nav.navigate("add") }, { nav.navigate("review") }, { nav.navigate("videos") }, { nav.navigate("statistics") }, { nav.navigate("discover") }, { nav.navigate("grammar") }, { nav.navigate("exams") }, { nav.navigate("settings") }, { nav.navigate("words") { popUpTo("home") { saveState = true }; launchSingleTop = true; restoreState = true } }, { nav.navigate("news") }, datasets = { nav.navigate("datasets") }, achievements = { nav.navigate("achievements") }, watchVideo = { video, path, subs -> nav.navigate(watchRoute(video, path, subs)) }, shadow = { nav.navigate("shadow") }) }
+                    composable("home") { HomeScreen(vm, prefs, { id -> vm.action { val doc = container.texts.getById(id); nav.navigate(if (doc?.pdfPath != null) "pdf/$id" else "reader/$id") } }, { nav.navigate("add") }, { nav.navigate("review") }, { nav.navigate("videos") }, { nav.navigate("statistics") }, { nav.navigate("discover") }, { nav.navigate("grammar") }, { nav.navigate("exams") }, { nav.navigate("settings") }, { nav.navigate("words") { popUpTo("home") { saveState = true }; launchSingleTop = true; restoreState = true } }, { nav.navigate("news") }, datasets = { nav.navigate("datasets") }, achievements = { nav.navigate("achievements") }, watchVideo = { video, path, subs -> nav.navigate(watchRoute(video, path, subs)) }, shadow = { nav.navigate("shadow") }, learn = { nav.navigate("learn") }) }
                     composable("library") { LibraryScreen(vm, prefs, { id -> vm.action { val doc = container.texts.getById(id); nav.navigate(if (doc?.pdfPath != null) "pdf/$id" else "reader/$id") } }, { nav.navigate("add") }, { nav.navigate("videos") }, { nav.navigate("discover") }, openAt = { id, query ->
                         nav.navigate(readerRoute(id, query))
                     }, openDatasets = { nav.navigate("datasets") }) }
@@ -187,6 +190,21 @@ private fun NavHostController.navigateToTab(route: String) {
                     composable("study-log/entry") { com.ziaee.zabankhan.statistics.StudyLogEntryScreen(prefs.learningLang.orEmpty(), null) { nav.popBackStack() } }
                     composable("study-log/entry/{id}") { entry -> com.ziaee.zabankhan.statistics.StudyLogEntryScreen(prefs.learningLang.orEmpty(), entry.arguments?.read { getString("id")?.toLongOrNull() }) { nav.popBackStack() } }
                     composable("study-log/sources") { com.ziaee.zabankhan.statistics.StudySourcesScreen(prefs.learningLang.orEmpty()) { nav.popBackStack() } }
+                    composable("learn") {
+                        val available = LanguageDataPacks.available(prefs.learningLang.orEmpty())
+                        LearnScreen(
+                            back = { nav.popBackStack() },
+                            openResources = { nav.navigate("learn/resources") },
+                            openGrammar = if (available) ({ nav.navigate("grammar") }) else null,
+                            openExams = if (available) ({ nav.navigate("exams") }) else null,
+                            openReview = { nav.navigate("review") },
+                        )
+                    }
+                    composable("learn/resources") {
+                        val language = requireNotNull(prefs.learningLang)
+                        val importPdf = rememberPdfLibraryImport(vm, language, { nav.navigate("pdf/$it") })
+                        LearningResourceScreen(language, { nav.popBackStack() }, importPdf)
+                    }
                     composable("discover") { com.ziaee.zabankhan.discover.DiscoverScreen(vm, prefs, { nav.popBackStack() }, { nav.navigate("reader/$it") }) }
                     composable("grammar") { com.ziaee.zabankhan.grammar.GrammarScreen(prefs) { nav.popBackStack() } }
                     composable("exams") { com.ziaee.zabankhan.datapack.TcfPracticeScreen(prefs.learningLang.orEmpty()) { nav.popBackStack() } }
