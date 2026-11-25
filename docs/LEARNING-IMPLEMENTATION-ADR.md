@@ -2,7 +2,7 @@
 
 ## P0 decisions
 
-- Use a Learn destination reached from Home. `App.kt` already registers five bottom destinations. Keep the existing Review destination and link into it from Learn.
+- Place Learn in the center of the five bottom destinations, between Library and Words. Keep Review in the bottom bar and Settings accessible from the Home toolbar.
 - Keep runtime contracts and development fixtures in the app branch. Use the owner-selected `zabankhan-learn` repository for production content and a configurable HTTPS GitHub Pages origin, following the existing dataset delivery model. Confirm the production URL and license before publication. Draft fixtures do not require a live server.
 - Start with French A1–B2 and require Persian instructional fields. Keep target language, instructional locale and UI locale separate, and allow additional levels and instructional locales in the data model.
 - Use on-device TTS for offline practice. Treat authentic recordings as separately licensed assets. Keep both current Android flavors in the verification gate.
@@ -12,7 +12,7 @@
 
 | Area | Branch evidence and decision |
 | --- | --- |
-| Navigation | `App.kt` and `HomeScreen` own Home and its feature entry points. Add Learn there and reuse the grammar, exams, reader and library destinations. |
+| Navigation | `App.kt` and `HomeScreen` own Home and its feature entry points. Register Learn in the bottom bar and reuse the grammar, exams, reader and library destinations. |
 | Language and offline assets | `LanguageSpec` owns target-language behavior. `LanguageDataPacks` in `datapack/LanguageDataPack.kt` resolves bundled resources by target language. Extend the existing pack access path when adding installed learning packs. |
 | Reading, dictionary and Leitner | `TappableLearningText`, `ui/reader/DictionarySheet.kt` and `ReadingScreen` provide the text and dictionary interaction patterns. Route explicit vocabulary saves through the existing vocabulary flow and `VocabSrs`. |
 | TTS | `Tts` in `speech/Speech.kt` and `ActivityTts` already serve Android and iOS callers. Use the active language and local engine for offline activities. |

@@ -7,6 +7,8 @@ import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalLayoutDirection
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.savedstate.read
 import androidx.navigation.NavHostController
@@ -123,9 +125,9 @@ private fun NavHostController.navigateToTab(route: String) {
             val route = entry?.destination?.route
             var reviewingCards by remember { mutableStateOf(false) }
             var reviewEntryIds by remember { mutableStateOf<Set<Long>?>(null) }
-            val labels = listOf(Res.string.nav_home, Res.string.nav_library, Res.string.nav_words, Res.string.nav_review, Res.string.nav_settings)
-            val routes = listOf("home", "library", "words", "review", "settings")
-            val icons = listOf(Icons.Default.Home, Icons.AutoMirrored.Filled.LibraryBooks, Icons.Default.Translate, Icons.Default.Style, Icons.Default.Settings)
+            val labels = listOf(Res.string.nav_home, Res.string.nav_library, Res.string.learn_title, Res.string.nav_words, Res.string.nav_review)
+            val routes = listOf("home", "library", "learn", "words", "review")
+            val icons = listOf(Icons.Default.Home, Icons.AutoMirrored.Filled.LibraryBooks, Icons.Default.School, Icons.Default.Translate, Icons.Default.Style)
             val snackbar = remember { SnackbarHostState() }
             com.ziaee.zabankhan.update.UpdateReminder(container.http, snackbar, show = route == "home")
             val errorMessage = stringResource(Res.string.error_save)
@@ -152,28 +154,30 @@ private fun NavHostController.navigateToTab(route: String) {
                 if (route in routes && !(route == "review" && reviewingCards)) {
                     Column {
                         HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-                        NavigationBar(containerColor = MaterialTheme.colorScheme.surface) {
-                            routes.forEachIndexed { index, target ->
-                                NavigationBarItem(
-                                    selected = route == target,
-                                    onClick = { nav.navigateToTab(target) },
-                                    icon = { Icon(icons[index], null) },
-                                    label = { EditorialNavigationLabel(stringResource(labels[index])) },
-                                    colors = NavigationBarItemDefaults.colors(
-                                        selectedIconColor = MaterialTheme.colorScheme.onPrimaryContainer,
-                                        selectedTextColor = MaterialTheme.colorScheme.primary,
-                                        unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        indicatorColor = MaterialTheme.colorScheme.primaryContainer,
-                                    ),
-                                )
+                        CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
+                            NavigationBar(containerColor = MaterialTheme.colorScheme.surface) {
+                                routes.forEachIndexed { index, target ->
+                                    NavigationBarItem(
+                                        selected = route == target,
+                                        onClick = { nav.navigateToTab(target) },
+                                        icon = { Icon(icons[index], null) },
+                                        label = { EditorialNavigationLabel(stringResource(labels[index])) },
+                                        colors = NavigationBarItemDefaults.colors(
+                                            selectedIconColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                                            selectedTextColor = MaterialTheme.colorScheme.primary,
+                                            unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            indicatorColor = MaterialTheme.colorScheme.primaryContainer,
+                                        ),
+                                    )
+                                }
                             }
                         }
                     }
                 }
             }) { padding ->
                 NavHost(nav, "home", Modifier.padding(padding).consumeWindowInsets(padding)) {
-                    composable("home") { HomeScreen(vm, prefs, { id -> vm.action { val doc = container.texts.getById(id); nav.navigate(if (doc?.pdfPath != null) "pdf/$id" else "reader/$id") } }, { nav.navigate("add") }, { nav.navigate("review") }, { nav.navigate("videos") }, { nav.navigate("statistics") }, { nav.navigate("discover") }, { nav.navigate("grammar") }, { nav.navigate("exams") }, { nav.navigate("settings") }, { nav.navigate("words") { popUpTo("home") { saveState = true }; launchSingleTop = true; restoreState = true } }, { nav.navigate("news") }, datasets = { nav.navigate("datasets") }, achievements = { nav.navigate("achievements") }, watchVideo = { video, path, subs -> nav.navigate(watchRoute(video, path, subs)) }, shadow = { nav.navigate("shadow") }, learn = { nav.navigate("learn") }) }
+                    composable("home") { HomeScreen(vm, prefs, { id -> vm.action { val doc = container.texts.getById(id); nav.navigate(if (doc?.pdfPath != null) "pdf/$id" else "reader/$id") } }, { nav.navigate("add") }, { nav.navigate("review") }, { nav.navigate("videos") }, { nav.navigate("statistics") }, { nav.navigate("discover") }, { nav.navigate("grammar") }, { nav.navigate("exams") }, { nav.navigate("settings") }, { nav.navigate("words") { popUpTo("home") { saveState = true }; launchSingleTop = true; restoreState = true } }, { nav.navigate("news") }, datasets = { nav.navigate("datasets") }, achievements = { nav.navigate("achievements") }, watchVideo = { video, path, subs -> nav.navigate(watchRoute(video, path, subs)) }, shadow = { nav.navigate("shadow") }) }
                     composable("library") { LibraryScreen(vm, prefs, { id -> vm.action { val doc = container.texts.getById(id); nav.navigate(if (doc?.pdfPath != null) "pdf/$id" else "reader/$id") } }, { nav.navigate("add") }, { nav.navigate("videos") }, { nav.navigate("discover") }, openAt = { id, query ->
                         nav.navigate(readerRoute(id, query))
                     }, openDatasets = { nav.navigate("datasets") }) }

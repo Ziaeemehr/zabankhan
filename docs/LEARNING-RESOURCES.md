@@ -26,6 +26,6 @@ The fixtures contain draft candidates for illustrated children's and teen magazi
 
 ## App entry point
 
-Open Learn from Home, then Learning resources. The browser reads bundled metadata for the active learning language, with search and a CEFR level filter. Illustrated children's and teen magazines appear first. The PDF action opens the existing Library import and reader flow.
+Open Learn from the center of the bottom navigation bar, then Learning resources. The browser reads bundled metadata for the active learning language, with search and a CEFR level filter. Illustrated children's and teen magazines appear first. The PDF action opens the existing Library import and reader flow.
 
 The bundled public catalog is empty pending review of the first entries. Release CI validates it. The draft catalog records publisher subscription listings for Pomme d’Api and Okapi and treats them as link-only candidates. Publisher age ranges are separate from the draft CEFR estimates. [Pomme d’Api](https://www.bayard-jeunesse.com/p/abonnement-pomme-d-api) · [Okapi](https://www.bayard-jeunesse.com/p/abonnement-okapi)
