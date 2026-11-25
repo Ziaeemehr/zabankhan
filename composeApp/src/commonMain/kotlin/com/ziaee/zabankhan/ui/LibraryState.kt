@@ -90,7 +90,11 @@ internal fun readingStatus(document: TextDocument): ReadingStatus = when {
 
 data class HomeReadingMetrics(val progressFraction: Float, val progressPercent: Int, val estimatedTotalMinutes: Int, val estimatedRemainingMinutes: Int)
 
-internal fun homeReadingMetrics(doc: TextDocument, wordsPerMinute: Int = 200): HomeReadingMetrics {
+internal fun homeReadingMetrics(doc: TextDocument, wordsPerMinute: Int = 200, pdfPageCount: Int = 0): HomeReadingMetrics {
+    if (doc.pdfPath != null) {
+        val fraction = com.ziaee.zabankhan.pdf.PdfReadingProgress(doc.lastOffset, pdfPageCount).fraction
+        return HomeReadingMetrics(fraction, (fraction * 100).toInt(), 0, 0)
+    }
     val words = doc.body.split(Regex("\\s+")).count { it.isNotBlank() }
     val totalMinutes = ceil(words.toDouble() / wordsPerMinute).toInt()
     val fraction = readingFraction(doc)

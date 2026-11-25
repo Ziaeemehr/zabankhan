@@ -16,13 +16,13 @@ import kotlin.test.assertTrue
 @OptIn(ExperimentalTestApi::class)
 class PdfEraserSizeTest {
     @Test
-    fun eraserControlInVerticalToolbarChangesTheEraseReach() = runComposeUiTest {
+    fun eraserSizeSliderChangesTheEraseReach() = runComposeUiTest {
         val size = mutableFloatStateOf(PDF_ERASER_DEFAULT_SIZE)
         val stroke = InkStroke(points = listOf(.1f, .2f, .9f, .2f))
         assertFalse(inkHit(stroke, .5f, .24f, size.floatValue))
         setContent {
             MaterialTheme {
-                PdfInkWidthControl(size.floatValue, vertical = true, eraser = true) { size.floatValue = it }
+                PdfInkWidthControl(size.floatValue, eraser = true) { size.floatValue = it }
             }
         }
         onNode(SemanticsMatcher.keyIsDefined(SemanticsActions.SetProgress))

@@ -1,5 +1,6 @@
 <resources>
     <string name="pdf_pen">قلم</string>
+    <string name="pdf_pen_settings">تنظیمات قلم</string>
     <string name="pdf_pen_thickness">ضخامت قلم</string>
     <string name="pdf_pen_eraser">پاک‌کن</string>
     <string name="pdf_pen_undo">واگرد خط</string>
@@ -13,5 +14,14 @@
     <string name="pdf_smooth_pen">قلم نرم</string>
     <string name="pdf_partial_eraser">پاک کردن بخشی</string>
     <string name="pdf_ink_palette">رنگ قلم</string>
-    <string name="pdf_ink_custom_hex">رنگ سفارشی · کد هگز</string>
+    <string name="pdf_ink_hue">فام رنگ</string>
+    <string name="pdf_ink_shade">اشباع و روشنایی رنگ</string>
+    <string name="pdf_ink_lighter">روشن‌تر</string>
+    <string name="pdf_ink_darker">تیره‌تر</string>
+    <string name="pdf_ink_more_saturated">اشباع بیشتر</string>
+    <string name="pdf_ink_less_saturated">اشباع کمتر</string>
+    <string name="pdf_ink_saved_colors">رنگ‌های ذخیره‌شده</string>
+    <string name="pdf_ink_presets">رنگ‌های آماده</string>
+    <string name="pdf_ink_add_color">افزودن به پالت</string>
+    <string name="pdf_ink_use_color">انتخاب رنگ</string>
 </resources>

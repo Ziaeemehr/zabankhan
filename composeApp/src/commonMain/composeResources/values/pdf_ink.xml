@@ -1,5 +1,6 @@
 <resources>
     <string name="pdf_pen">Pen</string>
+    <string name="pdf_pen_settings">Pen settings</string>
     <string name="pdf_pen_thickness">Stroke thickness</string>
     <string name="pdf_pen_eraser">Eraser</string>
     <string name="pdf_pen_undo">Undo stroke</string>
@@ -13,5 +14,14 @@
     <string name="pdf_smooth_pen">Smooth pen</string>
     <string name="pdf_partial_eraser">Partial erase</string>
     <string name="pdf_ink_palette">Pen colors</string>
-    <string name="pdf_ink_custom_hex">Custom color · Hex</string>
+    <string name="pdf_ink_hue">Hue</string>
+    <string name="pdf_ink_shade">Color saturation and brightness</string>
+    <string name="pdf_ink_lighter">Lighter</string>
+    <string name="pdf_ink_darker">Darker</string>
+    <string name="pdf_ink_more_saturated">More saturated</string>
+    <string name="pdf_ink_less_saturated">Less saturated</string>
+    <string name="pdf_ink_saved_colors">Saved colors</string>
+    <string name="pdf_ink_presets">Presets</string>
+    <string name="pdf_ink_add_color">Add to palette</string>
+    <string name="pdf_ink_use_color">Use color</string>
 </resources>

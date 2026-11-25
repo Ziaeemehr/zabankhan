@@ -121,7 +121,14 @@ import com.ziaee.zabankhan.watch.WatchHistory
                 )
             }
             recentState?.firstOrNull()?.let { doc ->
-                item { ContinueReadingCard(doc, onClick = { open(doc.id) }) }
+                item(key = doc.id) {
+                    val pdfPageCount by produceState(0, doc.id, doc.pdfPath, doc.lastAccessedAtMs) {
+                        value = if (doc.pdfPath != null) {
+                            vm.container.cache.get("pdf:page-count:${doc.id}")?.toIntOrNull() ?: 0
+                        } else 0
+                    }
+                    ContinueReadingCard(doc, onClick = { open(doc.id) }, pdfPageCount = pdfPageCount)
+                }
             }
             continueWatching?.let { video ->
                 item {

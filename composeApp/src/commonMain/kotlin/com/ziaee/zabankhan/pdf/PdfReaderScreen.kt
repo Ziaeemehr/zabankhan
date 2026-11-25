@@ -25,6 +25,8 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.foundation.border
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.ui.input.nestedscroll.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
@@ -43,7 +45,6 @@ import androidx.compose.ui.input.pointer.PointerType
 import androidx.compose.ui.input.pointer.PointerEventType
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.layout.onSizeChanged
-import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.foundation.gestures.detectDragGestures
@@ -52,6 +53,7 @@ import androidx.compose.animation.core.Animatable
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.DpSize
 import com.ziaee.zabankhan.app.AppViewModel
 import com.ziaee.zabankhan.data.*
 import com.ziaee.zabankhan.dictionary.*
@@ -61,6 +63,7 @@ import com.ziaee.zabankhan.ui.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.MenuBook
+import androidx.compose.material.icons.automirrored.filled.Undo
 import androidx.compose.material.icons.filled.*
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.layout.LayoutCoordinates
@@ -72,16 +75,11 @@ import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.expandVertically
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.shrinkVertically
-import androidx.compose.animation.core.tween
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.Role
 import com.ziaee.zabankhan.ui.reader.*
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.distinctUntilChanged
@@ -131,9 +129,6 @@ private data class PdfTextNoteEditor(
         return
     }
     com.ziaee.zabankhan.statistics.TrackActivity(vm.container, text.id, text.lang, com.ziaee.zabankhan.statistics.ActivityKind.READING)
-    LaunchedEffect(text.id, handle.pageCount) {
-        vm.container.cache.put("pdf:page-count:${text.id}", handle.pageCount.toString())
-    }
     val list = rememberLazyListState(text.lastOffset.coerceIn(0, handle.pageCount - 1))
     var zoom by rememberSaveable(path) { mutableFloatStateOf(1f) }
     var panX by rememberSaveable(path) { mutableFloatStateOf(0f) }
@@ -240,11 +235,9 @@ private data class PdfTextNoteEditor(
     var inkToolbarExpanded by rememberSaveable(path) { mutableStateOf(false) }
     var inkToolbarMinimized by rememberSaveable(path) { mutableStateOf(false) }
     var inkToolbarVertical by rememberSaveable(path) { mutableStateOf(false) }
-    var inkToolbarBounds by remember { mutableStateOf<Rect?>(null) }
-    var toolbarViewportCoordinates by remember { mutableStateOf<LayoutCoordinates?>(null) }
     var toolbarFractionX by rememberSaveable(path) { mutableFloatStateOf(.5f) }
     var toolbarFractionY by rememberSaveable(path) { mutableFloatStateOf(.9f) }
-    var recentInkColors by rememberSaveable(path) { mutableStateOf(listOf("primary", "secondary", "tertiary", "#FF222222", "#FFB42318", "#FF1570EF")) }
+    var recentInkColors by rememberSaveable(path) { mutableStateOf(emptyList<String>()) }
     var selection by remember(path) { mutableStateOf<ReaderSelection?>(null) }
     var dictionaryOnTap by remember(path) { mutableStateOf(true) }
     var range by remember(path) { mutableStateOf<PdfRange?>(null) }
@@ -253,12 +246,24 @@ private data class PdfTextNoteEditor(
     var areaText by remember(path) { mutableStateOf<String?>(null) }
     var recognizing by remember(path) { mutableStateOf(false) }
     var page by remember(path) { mutableIntStateOf(list.firstVisibleItemIndex) }
-    LaunchedEffect(list, text.id) {
+    LaunchedEffect(list, text.id, handle.pageCount) {
+        vm.container.cache.put("pdf:page-count:${text.id}", handle.pageCount.toString())
         snapshotFlow {
             val info = list.layoutInfo
-            pageAtCentre(info.visibleItemsInfo.map { PdfVisiblePage(it.index, it.offset, it.size) }, info.viewportStartOffset, info.viewportEndOffset)
+            when {
+                info.visibleItemsInfo.isEmpty() -> null
+                !list.canScrollForward -> handle.pageCount - 1
+                else -> pageAtCentre(info.visibleItemsInfo.map { PdfVisiblePage(it.index, it.offset, it.size) },
+                    info.viewportStartOffset, info.viewportEndOffset)
+            }
         }.distinctUntilChanged().collect { index ->
-            if (index != null) { page = index; vm.container.texts.savePosition(text.id, index) }
+            if (index == null) return@collect
+            page = index
+            if (index == handle.pageCount - 1) {
+                withContext(NonCancellable) { vm.container.texts.savePosition(text.id, index) }
+            } else {
+                vm.container.texts.savePosition(text.id, index)
+            }
         }
     }
     val clipboard = LocalClipboardManager.current
@@ -367,14 +372,10 @@ private data class PdfTextNoteEditor(
         // Pinch coordinates belong to the untransformed viewport, as in French Reader.
         Box(Modifier.weight(1f).fillMaxWidth().onSizeChanged {
             viewportWidth = it.width; viewportHeight = it.height
-        }.onGloballyPositioned { toolbarViewportCoordinates = it }.pointerInput(areaMode, penMode, inkToolbarExpanded, inkToolbarBounds) {
+        }.pointerInput(areaMode, penMode) {
             if (areaMode) return@pointerInput
             awaitEachGesture {
-                val down = awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Initial)
-                if (penMode && inkToolbarExpanded) {
-                    val rootPosition = toolbarViewportCoordinates?.localToRoot(down.position)
-                    if (rootPosition != null && inkToolbarBounds?.contains(rootPosition) != true) inkToolbarExpanded = false
-                }
+                awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Initial)
                 var pinching = false
                 try {
                     do {
@@ -483,21 +484,24 @@ private data class PdfTextNoteEditor(
                     else { eraser = true; highlighter = false }
                 })
                 PdfInkToolbar(
-                    modifier = dragModifier.onSizeChanged { toolbarSize = it }.onGloballyPositioned { inkToolbarBounds = it.boundsInRoot() },
+                    modifier = dragModifier.onSizeChanged { toolbarSize = it },
                     onMove = { delta -> moveToolbar(delta) }, onDragEnd = { settleToolbar() },
                     minimized = inkToolbarMinimized, expanded = inkToolbarExpanded,
                     vertical = inkToolbarVertical, onToggleOrientation = { inkToolbarVertical = !inkToolbarVertical },
-                    penColor = penColor, recentColors = recentInkColors, toolSize = if (eraser) eraserSize else if (highlighter) highlighterWidth else penWidth,
+                    penColor = penColor, recentColors = (recentInkColors + settings.pdfInkPalette + defaultRecentInkColors).distinct().take(6),
+                    savedColors = settings.pdfInkPalette,
+                    toolSize = if (eraser) eraserSize else if (highlighter) highlighterWidth else penWidth,
                     eraser = eraser, highlighter = highlighter, fingerInk = fingerInk, smoothPen = smoothPen,
                     partialEraser = partialEraser, onPartialEraser = { partialEraser = it },
                     onMinimize = { inkToolbarMinimized = true }, onRestore = { inkToolbarMinimized = false },
-                    onExpand = { inkToolbarExpanded = !inkToolbarExpanded },
+                    onExpandedChange = { inkToolbarExpanded = it },
                     onColor = { color ->
                         penColor = color
                         if (eraser) { highlighter = false; lastInkToolHighlighter = false }
                         eraser = false
                         recentInkColors = (listOf(color) + recentInkColors.filterNot { it == color }).take(6)
                     },
+                    onSaveColor = { color -> vm.action { vm.container.settings.addPdfInkColor(color) } },
                     onWidth = { if (eraser) eraserSize = it else if (highlighter) highlighterWidth = it else penWidth = it },
                     onEraser = {
                         eraser = it
@@ -967,14 +971,9 @@ private data class PdfTextNoteEditor(
     }
 }
 
-private val curatedInkColors = listOf(
-    "#FF171717", "#FF667085", "#FF98A2B3", "#FFD0D5DD",
-    "#FFB42318", "#FFDC6803", "#FFCA8A04", "#FF3F6212",
-    "#FF15803D", "#FF0F766E", "#FF026AA2", "#FF175CD3",
-    "#FF5925DC", "#FF7A5AF8", "#FFC11574", "#FFD92D20",
-)
+private val defaultRecentInkColors = listOf("primary", "secondary", "tertiary", "#FF222222", "#FFB42318", "#FF1570EF")
 
-private fun inkColor(key: String, primary: androidx.compose.ui.graphics.Color,
+internal fun inkColor(key: String, primary: androidx.compose.ui.graphics.Color,
     secondary: androidx.compose.ui.graphics.Color, tertiary: androidx.compose.ui.graphics.Color): androidx.compose.ui.graphics.Color {
     if (key == "secondary") return secondary
     if (key == "tertiary") return tertiary
@@ -992,16 +991,17 @@ private fun inkColor(key: String, primary: androidx.compose.ui.graphics.Color,
 @Composable
 private fun PdfInkToolbar(
     modifier: Modifier, minimized: Boolean, expanded: Boolean, penColor: String, recentColors: List<String>,
+    savedColors: List<String>,
     toolSize: Float, eraser: Boolean, highlighter: Boolean, fingerInk: Boolean, smoothPen: Boolean,
     partialEraser: Boolean, onPartialEraser: (Boolean) -> Unit, vertical: Boolean, onToggleOrientation: () -> Unit,
-    onMinimize: () -> Unit, onRestore: () -> Unit, onExpand: () -> Unit,
+    onMinimize: () -> Unit, onRestore: () -> Unit, onExpandedChange: (Boolean) -> Unit,
     onMove: (Offset) -> Unit, onDragEnd: () -> Unit,
-    onColor: (String) -> Unit, onWidth: (Float) -> Unit, onEraser: (Boolean) -> Unit,
+    onColor: (String) -> Unit, onSaveColor: (String) -> Unit, onWidth: (Float) -> Unit, onEraser: (Boolean) -> Unit,
     onHighlighter: (Boolean) -> Unit, onFinger: (Boolean) -> Unit, onSmoothPen: (Boolean) -> Unit,
     onToggleEraser: () -> Unit,
     onUndo: () -> Unit, canUndo: Boolean,
 ) {
-    val palette = remember { mutableStateOf(false) }
+    val palette = rememberSaveable { mutableStateOf(false) }
     val currentToolIcon = when { eraser -> Icons.Default.Delete; highlighter -> Icons.Default.Highlight; else -> Icons.Default.Edit }
     if (minimized) {
         Surface(modifier = modifier.size(52.dp).combinedClickable(onClick = onRestore, onLongClick = onToggleEraser)
@@ -1018,122 +1018,90 @@ private fun PdfInkToolbar(
         return
     }
     BoxWithConstraints(modifier) {
-        Column(Modifier.widthIn(max = this@BoxWithConstraints.maxWidth).heightIn(max = this@BoxWithConstraints.maxHeight), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            AnimatedVisibility(visible = expanded, enter = expandVertically(tween(150)) + fadeIn(tween(150)),
-                exit = shrinkVertically(tween(150)) + fadeOut(tween(150))) {
-                Surface(shape = MaterialTheme.shapes.extraLarge, color = MaterialTheme.colorScheme.surfaceContainerHigh,
-                    shadowElevation = 5.dp) {
-                    val expandedItems: @Composable () -> Unit = {
-                        recentColors.take(6).forEach { key ->
-                            PdfInkSwatch(key, selected = key == penColor, onClick = { onColor(key) })
+        Surface(shape = CircleShape, color = MaterialTheme.colorScheme.surfaceContainerHigh, shadowElevation = 6.dp) {
+            val toolbarItems: @Composable () -> Unit = {
+                Box(Modifier.size(28.dp).pointerInput(Unit) {
+                    detectDragGestures(onDragEnd = onDragEnd) { change, delta -> change.consume(); onMove(delta) }
+                }.semantics { contentDescription = "Move toolbar" }, contentAlignment = Alignment.Center) {
+                    Icon(Icons.Default.DragIndicator, "Move toolbar", Modifier.size(18.dp))
+                }
+                IconToggleButton(checked = !eraser && !highlighter, onCheckedChange = { onEraser(false); onHighlighter(false) },
+                    modifier = Modifier.size(40.dp).semantics { contentDescription = "Pen" }) { Icon(Icons.Default.Edit, "Pen", Modifier.size(19.dp)) }
+                IconToggleButton(checked = highlighter, onCheckedChange = onHighlighter,
+                    modifier = Modifier.size(40.dp).semantics { contentDescription = "Highlighter" }) { Icon(Icons.Default.Highlight, "Highlighter", Modifier.size(19.dp)) }
+                IconToggleButton(checked = eraser, onCheckedChange = onEraser,
+                    modifier = Modifier.size(40.dp).semantics { contentDescription = "Eraser" }) { Icon(Icons.Default.Delete, "Eraser", Modifier.size(19.dp)) }
+                PdfInkSwatch(penColor, selected = false, label = stringResource(Res.string.pdf_ink_palette)) {
+                    palette.value = true
+                }
+                Box {
+                    IconButton(onClick = { onExpandedChange(!expanded) }, modifier = Modifier.size(44.dp)) {
+                        Icon(Icons.Default.Tune, stringResource(Res.string.pdf_pen_settings), Modifier.size(20.dp))
+                    }
+                    DropdownMenu(
+                        expanded = expanded,
+                        onDismissRequest = { onExpandedChange(false) },
+                        modifier = Modifier.width(224.dp),
+                    ) {
+                        Column(
+                            Modifier.fillMaxWidth().padding(horizontal = 12.dp),
+                            verticalArrangement = Arrangement.spacedBy(4.dp),
+                        ) {
+                            if (!eraser) {
+                                FlowRow(
+                                    Modifier.fillMaxWidth(),
+                                    maxItemsInEachRow = 3,
+                                    horizontalArrangement = Arrangement.SpaceEvenly,
+                                ) {
+                                    recentColors.take(6).forEach { key ->
+                                        PdfInkSwatch(key, selected = key == penColor, onClick = { onColor(key) })
+                                    }
+                                }
+                            }
+                            PdfInkWidthControl(toolSize, eraser, onWidth)
+                            if (eraser) {
+                                PdfInkSettingSwitch(stringResource(Res.string.pdf_partial_eraser), partialEraser, onPartialEraser)
+                            } else if (!highlighter) {
+                                PdfInkSettingSwitch(stringResource(Res.string.pdf_smooth_pen), smoothPen, onSmoothPen)
+                            }
+                            PdfInkSettingSwitch(stringResource(Res.string.pdf_pen_finger), fingerInk, onFinger)
                         }
-                        PdfInkWidthControl(toolSize, vertical, eraser, onWidth)
-                        IconToggleButton(checked = !eraser && !highlighter, onCheckedChange = { onEraser(false); onHighlighter(false) },
-                            modifier = Modifier.size(44.dp).semantics { contentDescription = "Pen" }) { Icon(Icons.Default.Edit, "Pen", Modifier.size(20.dp)) }
-                        FilterChip(selected = smoothPen, enabled = !eraser && !highlighter,
-                            onClick = { onSmoothPen(!smoothPen) },
-                            label = { Text(stringResource(Res.string.pdf_smooth_pen)) })
-                        IconToggleButton(checked = highlighter, onCheckedChange = onHighlighter,
-                            modifier = Modifier.size(44.dp).semantics { contentDescription = "Highlighter" }) { Icon(Icons.Default.Highlight, "Highlighter", Modifier.size(20.dp)) }
-                        IconToggleButton(checked = eraser, onCheckedChange = onEraser,
-                            modifier = Modifier.size(44.dp).semantics { contentDescription = "Eraser" }) { Icon(Icons.Default.Delete, "Eraser", Modifier.size(20.dp)) }
-                        if (eraser) FilterChip(selected = partialEraser, onClick = { onPartialEraser(!partialEraser) },
-                            label = { Text(stringResource(Res.string.pdf_partial_eraser)) })
-                        IconToggleButton(checked = fingerInk, onCheckedChange = onFinger,
-                            modifier = Modifier.size(44.dp).semantics { contentDescription = "Finger ink" }) { Icon(Icons.Default.TouchApp, "Finger ink", Modifier.size(20.dp)) }
-                        IconButton(enabled = canUndo, onClick = onUndo, modifier = Modifier.size(44.dp).semantics { contentDescription = "Undo ink" }) { Icon(Icons.Default.Undo, "Undo", Modifier.size(20.dp)) }
-                    }
-                    if (vertical) FlowColumn(Modifier.widthIn(max = this@BoxWithConstraints.maxWidth).heightIn(max = this@BoxWithConstraints.maxHeight * .72f).verticalScroll(rememberScrollState()).padding(horizontal = 8.dp, vertical = 5.dp),
-                        maxItemsInEachColumn = 8, horizontalArrangement = Arrangement.Center, verticalArrangement = Arrangement.Center) { expandedItems() }
-                    else FlowRow(Modifier.widthIn(max = this@BoxWithConstraints.maxWidth).heightIn(max = this@BoxWithConstraints.maxHeight * .72f).verticalScroll(rememberScrollState()).padding(horizontal = 8.dp, vertical = 5.dp),
-                        horizontalArrangement = Arrangement.Center, verticalArrangement = Arrangement.Center) { expandedItems() }
-                }
-            }
-            Surface(shape = CircleShape, color = MaterialTheme.colorScheme.surfaceContainerHigh, shadowElevation = 6.dp) {
-                val toolbarItems: @Composable () -> Unit = {
-                    Box(Modifier.size(28.dp).pointerInput(Unit) {
-                        detectDragGestures(onDragEnd = onDragEnd) { change, delta -> change.consume(); onMove(delta) }
-                    }.semantics { contentDescription = "Move toolbar" }, contentAlignment = Alignment.Center) {
-                        Icon(Icons.Default.DragIndicator, "Move toolbar", Modifier.size(18.dp))
-                    }
-                    IconToggleButton(checked = !eraser && !highlighter, onCheckedChange = { onEraser(false); onHighlighter(false) },
-                        modifier = Modifier.size(40.dp).semantics { contentDescription = "Pen" }) { Icon(Icons.Default.Edit, "Pen", Modifier.size(19.dp)) }
-                    IconToggleButton(checked = highlighter, onCheckedChange = onHighlighter,
-                        modifier = Modifier.size(40.dp).semantics { contentDescription = "Highlighter" }) { Icon(Icons.Default.Highlight, "Highlighter", Modifier.size(19.dp)) }
-                    IconToggleButton(checked = eraser, onCheckedChange = onEraser,
-                        modifier = Modifier.size(40.dp).semantics { contentDescription = "Eraser" }) { Icon(Icons.Default.Delete, "Eraser", Modifier.size(19.dp)) }
-                    PdfInkSwatch(penColor, selected = false, label = stringResource(Res.string.pdf_ink_palette)) {
-                        palette.value = true
-                    }
-                    IconButton(onClick = onExpand, modifier = Modifier.size(44.dp).semantics { contentDescription = if (expanded) "Hide pen tools" else "More pen tools" }) {
-                        Icon(if (expanded) Icons.Default.ExpandMore else Icons.Default.ExpandLess,
-                            if (expanded) "Hide pen tools" else "More pen tools", Modifier.size(20.dp))
-                    }
-                    IconButton(onClick = onToggleOrientation, modifier = Modifier.size(44.dp).semantics { contentDescription = if (vertical) "Horizontal toolbar" else "Vertical toolbar" }) {
-                        Icon(if (vertical) Icons.Default.SwapHoriz else Icons.Default.SwapVert,
-                            if (vertical) "Horizontal toolbar" else "Vertical toolbar", Modifier.size(20.dp))
-                    }
-                    IconButton(onClick = onMinimize, modifier = Modifier.size(44.dp).semantics { contentDescription = "Minimize pen toolbar" }) {
-                        Icon(Icons.Default.Close, "Minimize toolbar", Modifier.size(18.dp))
+                        HorizontalDivider(Modifier.padding(horizontal = 12.dp, vertical = 4.dp))
+                        DropdownMenuItem(
+                            text = { Text(stringResource(Res.string.pdf_pen_undo)) },
+                            leadingIcon = { Icon(Icons.AutoMirrored.Filled.Undo, null, Modifier.size(20.dp)) },
+                            enabled = canUndo,
+                            onClick = onUndo,
+                        )
                     }
                 }
-                if (vertical) FlowColumn(Modifier.heightIn(max = this@BoxWithConstraints.maxHeight).verticalScroll(rememberScrollState()).padding(vertical = 4.dp),
-                    maxItemsInEachColumn = 10, horizontalArrangement = Arrangement.Center, verticalArrangement = Arrangement.Center) { toolbarItems() }
-                else FlowRow(Modifier.widthIn(max = this@BoxWithConstraints.maxWidth).padding(horizontal = 4.dp),
-                    verticalArrangement = Arrangement.Center, horizontalArrangement = Arrangement.Center) { toolbarItems() }
+                IconButton(onClick = onToggleOrientation, modifier = Modifier.size(44.dp).semantics { contentDescription = if (vertical) "Horizontal toolbar" else "Vertical toolbar" }) {
+                    Icon(if (vertical) Icons.Default.SwapHoriz else Icons.Default.SwapVert,
+                        if (vertical) "Horizontal toolbar" else "Vertical toolbar", Modifier.size(20.dp))
+                }
+                IconButton(onClick = onMinimize, modifier = Modifier.size(44.dp).semantics { contentDescription = "Minimize pen toolbar" }) {
+                    Icon(Icons.Default.Close, "Minimize toolbar", Modifier.size(18.dp))
+                }
             }
+            if (vertical) Column(
+                Modifier.heightIn(max = this@BoxWithConstraints.maxHeight).verticalScroll(rememberScrollState()).padding(vertical = 4.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) { toolbarItems() }
+            else FlowRow(Modifier.widthIn(max = this@BoxWithConstraints.maxWidth).padding(horizontal = 4.dp),
+                verticalArrangement = Arrangement.Center, horizontalArrangement = Arrangement.Center) { toolbarItems() }
         }
     }
     if (palette.value) {
-        PdfInkColorPicker(penColor, onDismiss = { palette.value = false }) { color ->
+        PdfInkColorPicker(penColor, savedColors, onDismiss = { palette.value = false }) { color, addToPalette ->
             onColor(color)
+            if (addToPalette) onSaveColor(color)
             palette.value = false
         }
     }
 }
 
-@OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun PdfInkColorPicker(selected: String, onDismiss: () -> Unit, onColor: (String) -> Unit) {
-    var hex by remember { mutableStateOf("") }
-    val customColor = hex.trim().removePrefix("#").uppercase()
-        .takeIf { it.length == 6 && it.all { digit -> digit in "0123456789ABCDEF" } }
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text(stringResource(Res.string.pdf_ink_palette)) },
-        text = {
-            Column(
-                Modifier.fillMaxWidth().verticalScroll(rememberScrollState()),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
-            ) {
-                FlowRow(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center) {
-                    curatedInkColors.forEach { color ->
-                        PdfInkSwatch(color, selected = color == selected, onClick = { onColor(color) })
-                    }
-                }
-                OutlinedTextField(
-                    value = hex,
-                    onValueChange = { hex = it },
-                    modifier = Modifier.fillMaxWidth(),
-                    label = { Text(stringResource(Res.string.pdf_ink_custom_hex)) },
-                    placeholder = { Text("#175CD3") },
-                    shape = MaterialTheme.shapes.medium,
-                    singleLine = true,
-                    isError = hex.isNotBlank() && customColor == null,
-                )
-            }
-        },
-        confirmButton = {
-            TextButton(enabled = customColor != null, onClick = { customColor?.let { onColor("#FF$it") } }) {
-                Text(stringResource(Res.string.save))
-            }
-        },
-        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(Res.string.cancel)) } },
-    )
-}
-
-@Composable
-private fun PdfInkSwatch(key: String, selected: Boolean, label: String? = null, onClick: () -> Unit) {
+internal fun PdfInkSwatch(key: String, selected: Boolean, label: String? = null, onClick: () -> Unit) {
     val colors = MaterialTheme.colorScheme
     val color = inkColor(key, colors.primary, colors.secondary, colors.tertiary)
     val name = label ?: if (key.startsWith("#")) "#${key.takeLast(6)}" else key
@@ -1154,22 +1122,54 @@ private fun PdfInkSwatch(key: String, selected: Boolean, label: String? = null, 
 }
 
 @Composable
-internal fun PdfInkWidthControl(value: Float, vertical: Boolean, eraser: Boolean, onWidth: (Float) -> Unit) {
+private fun PdfInkSettingSwitch(label: String, checked: Boolean, onCheckedChange: (Boolean) -> Unit) {
+    Row(
+        Modifier.fillMaxWidth().heightIn(min = 48.dp)
+            .toggleable(checked, role = Role.Switch, onValueChange = onCheckedChange)
+            .padding(horizontal = 4.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(label, Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
+        Switch(checked = checked, onCheckedChange = null)
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+internal fun PdfInkWidthControl(value: Float, eraser: Boolean, onWidth: (Float) -> Unit) {
     val range = if (eraser) PDF_ERASER_MIN_SIZE..PDF_ERASER_MAX_SIZE else PDF_INK_MIN_WIDTH..PDF_INK_MAX_WIDTH
     val fraction = ((value - range.start) / (range.endInclusive - range.start)).coerceIn(0f, 1f)
     val previewHeight = (2f + fraction * 8f).dp
     val valueLabel = "${(value * 1000f).toInt() / 10f}%"
     val description = stringResource(if (eraser) Res.string.pdf_eraser_size else Res.string.pdf_pen_thickness)
+    val sliderInteractions = remember { MutableInteractionSource() }
 
-    Surface(shape = RoundedCornerShape(18.dp), color = MaterialTheme.colorScheme.surfaceContainerLow) {
-        Column(Modifier.width(if (vertical) 104.dp else 120.dp).padding(horizontal = 8.dp, vertical = 6.dp),
-            verticalArrangement = Arrangement.spacedBy(2.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(description, Modifier.weight(1f), style = MaterialTheme.typography.labelSmall)
+    Surface(
+        shape = RoundedCornerShape(12.dp),
+        color = MaterialTheme.colorScheme.surfaceContainerLowest,
+    ) {
+        Column(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp)) {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                Text(description, Modifier.weight(1f), style = MaterialTheme.typography.labelMedium)
                 Text(valueLabel, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
             }
-            Slider(value = value, onValueChange = onWidth, valueRange = range,
-                modifier = Modifier.fillMaxWidth().height(40.dp).semantics { contentDescription = description })
+            Slider(
+                value = value,
+                onValueChange = onWidth,
+                valueRange = range,
+                modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp).semantics { contentDescription = description },
+                interactionSource = sliderInteractions,
+                thumb = { SliderDefaults.Thumb(sliderInteractions, thumbSize = DpSize(18.dp, 18.dp)) },
+                track = { state ->
+                    SliderDefaults.Track(
+                        sliderState = state,
+                        modifier = Modifier.height(6.dp),
+                        drawStopIndicator = null,
+                        thumbTrackGapSize = 2.dp,
+                    )
+                },
+            )
             PdfInkWidthPreview(previewHeight, Modifier.fillMaxWidth())
         }
     }

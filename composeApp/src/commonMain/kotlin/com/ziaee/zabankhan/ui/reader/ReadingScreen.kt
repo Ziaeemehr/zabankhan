@@ -26,6 +26,7 @@ import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.first
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -44,6 +45,7 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.snapshotFlow
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.debounce
+import kotlinx.coroutines.flow.collectLatest
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -262,15 +264,16 @@ fun ReadingScreen(vm: AppViewModel, settings: AppSettings, textId: Long, onBack:
         }
     }
     LaunchedEffect(playback, rate, settings.ttsVoices[lang.code]) { playback.configureAudio(rate, settings.ttsVoices[lang.code]) }
-    LaunchedEffect(textId, parts, pageNavigation, speechComplete) {
+    LaunchedEffect(listState, positionSaver, pageNavigation, speechComplete) {
         if (speechComplete) return@LaunchedEffect
         if (pageNavigation != PageNavigation.SCROLL) return@LaunchedEffect
-        snapshotFlow { listState.firstVisibleItemIndex to (listState.layoutInfo.totalItemsCount > 0 && !listState.canScrollForward) }
-            .distinctUntilChanged().collect { (index, atEnd) ->
-                // The resume offset is the first visible paragraph; at the bottom store the end so progress reaches 100%.
-                val offset = if (atEnd && parts.isNotEmpty()) text.body.length else parts.getOrNull(index)?.offset ?: return@collect
-                positionSaver.save(offset)
+        snapshotFlow { listState.firstVisibleItemIndex to listState.isEndVisible() }.collect { (index, atEnd) ->
+            if (atEnd) {
+                vm.action { positionSaver.saveEnd(text.body.length) }
+            } else {
+                parts.getOrNull(index)?.let { positionSaver.save(it.offset) }
             }
+        }
     }
     LaunchedEffect(textId, speechComplete) {
         if (speechComplete && parts.isNotEmpty()) positionSaver.complete(text.body.length)
@@ -284,8 +287,18 @@ fun ReadingScreen(vm: AppViewModel, settings: AppSettings, textId: Long, onBack:
         }
     }
     LaunchedEffect(listState, positionSaver) {
-        listState.interactionSource.interactions.collect { interaction ->
-            if (interaction is DragInteraction.Start) positionSaver.reset()
+        listState.interactionSource.interactions.collectLatest { interaction ->
+            if (interaction is DragInteraction.Start) {
+                val startIndex = listState.firstVisibleItemIndex
+                val startOffset = listState.firstVisibleItemScrollOffset
+                // A drag against the bottom edge can leave the list in the same place.
+                snapshotFlow {
+                    val moved = listState.firstVisibleItemIndex != startIndex ||
+                        listState.firstVisibleItemScrollOffset != startOffset
+                    moved && !listState.isEndVisible()
+                }.first { it }
+                positionSaver.reset()
+            }
         }
     }
     LaunchedEffect(listState, activity) {
@@ -780,8 +793,10 @@ fun ReadingScreen(vm: AppViewModel, settings: AppSettings, textId: Long, onBack:
                                 val end = page.fragments.lastOrNull()
                                 val lastPage = end != null && end.chunkIndex == parts.lastIndex &&
                                     end.endOffset >= (parts.getOrNull(end.chunkIndex)?.sourceOffsets?.size ?: 0)
-                                val offset = if (lastPage) text.body.length else part.sourceOffsets.getOrElse(visiblePageAnchor.characterOffset) { part.offset }
-                                vm.action { positionSaver.save(offset) }
+                                val offset = part.sourceOffsets.getOrElse(visiblePageAnchor.characterOffset) { part.offset }
+                                vm.action {
+                                    if (lastPage) positionSaver.saveEnd(text.body.length) else positionSaver.save(offset)
+                                }
                             }
                         }
                     ) { page ->
@@ -919,6 +934,12 @@ fun ReadingScreen(vm: AppViewModel, settings: AppSettings, textId: Long, onBack:
         { index -> scope.launch { positionSaver.reset() }; if (pageNavigation == PageNavigation.SCROLL) scope.launch { listState.scrollToItem(index) } else requestedPageAnchor = ReadingAnchor(index); showContentsSheet = false }, { showContentsSheet = false })
     if (showSourceInfoSheet) SourceInfoSheet(text, chunks, currentParagraph ?: if (pageNavigation == PageNavigation.SCROLL) listState.firstVisibleItemIndex else visiblePageAnchor.chunkIndex, palette) { showSourceInfoSheet = false }
 
+}
+
+private fun LazyListState.isEndVisible(): Boolean {
+    val layout = layoutInfo
+    val last = layout.visibleItemsInfo.lastOrNull() ?: return false
+    return last.index == layout.totalItemsCount - 1 && last.offset + last.size <= layout.viewportEndOffset
 }
 
 private val SPEED_OPTIONS = listOf(0.75f, 1f, 1.25f, 1.5f)

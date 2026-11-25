@@ -263,8 +263,10 @@ fun TextLevelBadge(level: String?, modifier: Modifier = Modifier) {
 }
 
 @Composable
-fun ContinueReadingCard(doc: TextDocument, onClick: () -> Unit, modifier: Modifier = Modifier) {
-    val metrics = remember(doc.id, doc.body, doc.lastOffset) { homeReadingMetrics(doc) }
+fun ContinueReadingCard(doc: TextDocument, onClick: () -> Unit, modifier: Modifier = Modifier, pdfPageCount: Int = 0) {
+    val metrics = remember(doc.id, doc.body, doc.pdfPath, doc.lastOffset, pdfPageCount) {
+        homeReadingMetrics(doc, pdfPageCount = pdfPageCount)
+    }
     EditorialCard(modifier, onClick = onClick) {
         Row(Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
             DocumentThumbnail(doc, Modifier.size(ZabankhanDesign.sizes.thumbnailMedium))
@@ -284,11 +286,13 @@ fun ContinueReadingCard(doc: TextDocument, onClick: () -> Unit, modifier: Modifi
                 }
                 Spacer(Modifier.height(ZabankhanDesign.spacing.half))
                 EditorialProgressIndicator(metrics.progressFraction, stringResource(Res.string.home_progress_percent, metrics.progressPercent))
-                Text(
-                    if (metrics.estimatedRemainingMinutes > 0) stringResource(Res.string.home_remaining_minutes, metrics.estimatedRemainingMinutes)
-                    else stringResource(Res.string.home_reading_complete),
-                    style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
+                if (metrics.estimatedRemainingMinutes > 0 || metrics.progressPercent == 100) {
+                    Text(
+                        if (metrics.progressPercent == 100) stringResource(Res.string.home_reading_complete)
+                        else stringResource(Res.string.home_remaining_minutes, metrics.estimatedRemainingMinutes),
+                        style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
             }
             Spacer(Modifier.width(ZabankhanDesign.spacing.xSmall))
             ContinueButton(Icons.Default.MenuBook, stringResource(Res.string.home_continue_reading), onClick)

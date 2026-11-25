@@ -75,6 +75,7 @@ data class AppSettings(
     val llmProvider: String = "",
     val llmApiKey: String = "",
     val llmModel: String = "",
+    val pdfInkPalette: List<String> = emptyList(),
 )
 
 class SettingsRepository(private val store: DataStore<Preferences>, private val scope: CoroutineScope? = null, private val secrets: SecretStore = createSecretStore()) {
@@ -112,6 +113,7 @@ class SettingsRepository(private val store: DataStore<Preferences>, private val 
         val readingHighlight = stringPreferencesKey("reading_highlight_color")
         val autoFollow = androidx.datastore.preferences.core.booleanPreferencesKey("reader_auto_follow")
         val lastHighlight = stringPreferencesKey("last_highlight_color")
+        val pdfInkPalette = stringPreferencesKey("pdf_ink_palette")
         val watchTranslation = androidx.datastore.preferences.core.booleanPreferencesKey("watch_translation_enabled")
         val cloudTranslation = androidx.datastore.preferences.core.booleanPreferencesKey("cloud_translation_enabled")
         val watchSize = intPreferencesKey("watch_subtitle_size_percent")
@@ -172,6 +174,7 @@ class SettingsRepository(private val store: DataStore<Preferences>, private val 
             readingHighlightColor = p[K.readingHighlight]?.takeIf { value -> com.ziaee.zabankhan.ui.theme.HighlightColor.entries.any { it.name == value } } ?: "YELLOW",
             readerAutoFollow = p[K.autoFollow] ?: true,
             lastHighlightColor = p[K.lastHighlight] ?: "yellow",
+            pdfInkPalette = p[K.pdfInkPalette]?.split(',').orEmpty(),
             watchTranslationEnabled = p[K.watchTranslation] ?: false,
             cloudTranslationEnabled = p[K.cloudTranslation] ?: true,
             watchSubtitleSizePercent = (p[K.watchSize] ?: 100).takeIf { it in listOf(85, 100, 115, 130, 150, 175) } ?: 100,
@@ -294,6 +297,10 @@ class SettingsRepository(private val store: DataStore<Preferences>, private val 
     suspend fun setLastHighlightColor(value: String) = store.edit {
         require(value in setOf("yellow", "green", "blue", "pink", "orange"))
         it[K.lastHighlight] = value
+    }
+    suspend fun addPdfInkColor(color: String) = store.edit {
+        val saved = it[K.pdfInkPalette]?.split(',').orEmpty()
+        it[K.pdfInkPalette] = (listOf(color) + saved).distinct().joinToString(",")
     }
     suspend fun setWatchTranslationEnabled(enabled: Boolean) = store.edit { it[K.watchTranslation] = enabled }
     suspend fun setCloudTranslationEnabled(enabled: Boolean) = store.edit { it[K.cloudTranslation] = enabled }

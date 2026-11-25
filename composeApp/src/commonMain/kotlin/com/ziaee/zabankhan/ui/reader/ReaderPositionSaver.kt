@@ -16,6 +16,11 @@ internal class ReaderPositionSaver(
         if (!completed) saveOffset(offset)
     }
 
+    suspend fun saveEnd(endOffset: Int) = mutex.withLock {
+        saveOffset(endOffset)
+        completed = true
+    }
+
     suspend fun complete(endOffset: Int) = mutex.withLock {
         if (!completionPersisted) {
             saveOffset(endOffset)
