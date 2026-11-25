@@ -73,52 +73,44 @@ internal fun PdfInkColorPicker(
 
     AlertDialog(
         onDismissRequest = onDismiss,
+        containerColor = scheme.surfaceContainerHigh,
         title = { Text(stringResource(Res.string.pdf_ink_palette)) },
         text = {
             Column(
                 Modifier.fillMaxWidth().verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(10.dp),
             ) {
-                PdfInkShadeField(hue, saturation, value) { newSaturation, newValue ->
-                    saturation = newSaturation
-                    value = newValue
-                    swatchKey = null
-                }
-                CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
-                    Slider(
-                        value = hue,
-                        onValueChange = {
-                            hue = it
-                            // An achromatic swatch needs some saturation and light to show a hue change.
-                            if (saturation == 0f) saturation = .8f
-                            if (value == 0f) value = .9f
+                Surface(shape = MaterialTheme.shapes.large, color = scheme.surfaceContainerLow) {
+                    Column(Modifier.fillMaxWidth().padding(8.dp)) {
+                        PdfInkShadeField(hue, saturation, value) { newSaturation, newValue ->
+                            saturation = newSaturation
+                            value = newValue
                             swatchKey = null
-                        },
-                        valueRange = 0f..360f,
-                        modifier = Modifier.fillMaxWidth().semantics { contentDescription = hueLabel },
-                        thumb = {
-                            Box(
-                                Modifier.size(22.dp).background(Color.hsv(hue, 1f, 1f), CircleShape)
-                                    .border(2.dp, Color.White, CircleShape),
+                        }
+                        CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
+                            Slider(
+                                value = hue,
+                                onValueChange = {
+                                    hue = it
+                                    // An achromatic swatch needs some saturation and light to show a hue change.
+                                    if (saturation == 0f) saturation = .8f
+                                    if (value == 0f) value = .9f
+                                    swatchKey = null
+                                },
+                                valueRange = 0f..360f,
+                                modifier = Modifier.fillMaxWidth().semantics { contentDescription = hueLabel },
+                                thumb = {
+                                    Box(
+                                        Modifier.size(22.dp).background(Color.hsv(hue, 1f, 1f), CircleShape)
+                                            .border(2.dp, Color.White, CircleShape),
+                                    )
+                                },
+                                track = {
+                                    Box(Modifier.fillMaxWidth().height(12.dp).background(inkHueSpectrum, CircleShape))
+                                },
                             )
-                        },
-                        track = {
-                            Box(Modifier.fillMaxWidth().height(12.dp).background(inkHueSpectrum, CircleShape))
-                        },
-                    )
-                }
-                Row(
-                    Modifier.fillMaxWidth().height(48.dp).background(scheme.surfaceContainerLowest, MaterialTheme.shapes.medium)
-                        .padding(horizontal = 12.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(12.dp),
-                ) {
-                    Box(Modifier.size(28.dp).background(previewColor, CircleShape).border(1.dp, scheme.outlineVariant, CircleShape))
-                    Canvas(Modifier.weight(1f).height(20.dp)) {
-                        drawLine(
-                            previewColor, Offset(4.dp.toPx(), center.y), Offset(size.width - 4.dp.toPx(), center.y),
-                            strokeWidth = 5.dp.toPx(), cap = StrokeCap.Round,
-                        )
+                        }
+                        PdfInkStrokeSample(previewColor)
                     }
                 }
                 if (savedColors.isNotEmpty()) {
@@ -136,12 +128,45 @@ internal fun PdfInkColorPicker(
     )
 }
 
+@Composable
+private fun PdfInkStrokeSample(color: Color) {
+    val scheme = MaterialTheme.colorScheme
+    Column(
+        Modifier.fillMaxWidth().background(scheme.surfaceContainerLowest, MaterialTheme.shapes.medium)
+            .padding(horizontal = 10.dp, vertical = 6.dp),
+    ) {
+        Text(
+            stringResource(Res.string.pdf_ink_stroke_preview),
+            style = MaterialTheme.typography.labelSmall,
+            color = scheme.onSurfaceVariant,
+        )
+        Row(
+            Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Box(Modifier.size(20.dp).background(color, CircleShape).border(1.dp, scheme.outlineVariant, CircleShape))
+            Canvas(Modifier.weight(1f).height(22.dp)) {
+                val start = Offset(4.dp.toPx(), center.y)
+                val end = Offset(size.width - 4.dp.toPx(), center.y)
+                drawLine(scheme.outlineVariant, start, end, 6.dp.toPx(), StrokeCap.Round)
+                drawLine(color, start, end, 4.dp.toPx(), StrokeCap.Round)
+            }
+        }
+    }
+}
+
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun PdfInkSwatchGroup(label: String, keys: List<String>, selected: String, onColor: (String) -> Unit) {
-    Column {
-        Text(label, style = MaterialTheme.typography.labelLarge)
-        FlowRow(Modifier.fillMaxWidth(), maxItemsInEachRow = 4, horizontalArrangement = Arrangement.SpaceEvenly) {
+    Column(Modifier.fillMaxWidth()) {
+        Text(
+            label,
+            Modifier.padding(start = 4.dp, top = 2.dp),
+            style = MaterialTheme.typography.labelLarge,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        FlowRow(Modifier.fillMaxWidth(), maxItemsInEachRow = 4, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             keys.forEach { key -> PdfInkSwatch(key, selected = key == selected, onClick = { onColor(key) }) }
         }
     }

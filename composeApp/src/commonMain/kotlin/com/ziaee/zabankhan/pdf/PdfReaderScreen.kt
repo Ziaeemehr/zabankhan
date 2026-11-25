@@ -24,15 +24,11 @@ import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.foundation.border
-import androidx.compose.foundation.combinedClickable
-import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.foundation.selection.toggleable
 import androidx.compose.ui.input.nestedscroll.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
@@ -48,12 +44,10 @@ import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.foundation.gestures.detectDragGestures
-import androidx.compose.material.icons.filled.DragIndicator
 import androidx.compose.animation.core.Animatable
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.DpSize
 import com.ziaee.zabankhan.app.AppViewModel
 import com.ziaee.zabankhan.data.*
 import com.ziaee.zabankhan.dictionary.*
@@ -63,7 +57,6 @@ import com.ziaee.zabankhan.ui.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.MenuBook
-import androidx.compose.material.icons.automirrored.filled.Undo
 import androidx.compose.material.icons.filled.*
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.layout.LayoutCoordinates
@@ -72,14 +65,10 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.window.Popup
 import com.ziaee.zabankhan.speech.*
 import androidx.compose.material.icons.filled.Edit
-import androidx.compose.material.icons.filled.Check
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.Role
 import com.ziaee.zabankhan.ui.reader.*
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.distinctUntilChanged
@@ -332,7 +321,7 @@ private data class PdfTextNoteEditor(
                 Spacer(Modifier.weight(1f))
                 IconToggleButton(checked = dictionaryOnTap, onCheckedChange = { dictionaryOnTap = it },
                     modifier = Modifier.size(40.dp)) {
-                    Icon(Icons.AutoMirrored.Filled.MenuBook, stringResource(Res.string.pdf_dictionary_on_tap), Modifier.size(20.dp),
+                    Icon(if (dictionaryOnTap) Icons.Filled.TouchApp else Icons.Filled.DoNotTouch, stringResource(Res.string.pdf_dictionary_on_tap), Modifier.size(20.dp),
                         tint = if (dictionaryOnTap) MaterialTheme.colorScheme.primary else LocalContentColor.current)
                 }
                 IconButton(enabled = !recognizing, modifier = Modifier.size(40.dp), onClick = {
@@ -985,208 +974,6 @@ internal fun inkColor(key: String, primary: androidx.compose.ui.graphics.Color,
         blue = (value and 0xff).toFloat() / 255f,
         alpha = ((value shr 24) and 0xff).toFloat() / 255f,
     )
-}
-
-@OptIn(ExperimentalLayoutApi::class)
-@Composable
-private fun PdfInkToolbar(
-    modifier: Modifier, minimized: Boolean, expanded: Boolean, penColor: String, recentColors: List<String>,
-    savedColors: List<String>,
-    toolSize: Float, eraser: Boolean, highlighter: Boolean, fingerInk: Boolean, smoothPen: Boolean,
-    partialEraser: Boolean, onPartialEraser: (Boolean) -> Unit, vertical: Boolean, onToggleOrientation: () -> Unit,
-    onMinimize: () -> Unit, onRestore: () -> Unit, onExpandedChange: (Boolean) -> Unit,
-    onMove: (Offset) -> Unit, onDragEnd: () -> Unit,
-    onColor: (String) -> Unit, onSaveColor: (String) -> Unit, onWidth: (Float) -> Unit, onEraser: (Boolean) -> Unit,
-    onHighlighter: (Boolean) -> Unit, onFinger: (Boolean) -> Unit, onSmoothPen: (Boolean) -> Unit,
-    onToggleEraser: () -> Unit,
-    onUndo: () -> Unit, canUndo: Boolean,
-) {
-    val palette = rememberSaveable { mutableStateOf(false) }
-    val currentToolIcon = when { eraser -> Icons.Default.Delete; highlighter -> Icons.Default.Highlight; else -> Icons.Default.Edit }
-    if (minimized) {
-        Surface(modifier = modifier.size(52.dp).combinedClickable(onClick = onRestore, onLongClick = onToggleEraser)
-            .pointerInput(Unit) { detectDragGestures(onDragEnd = onDragEnd) { change, delta -> change.consume(); onMove(delta) } },
-            shape = CircleShape, color = MaterialTheme.colorScheme.surfaceContainerHigh, shadowElevation = 6.dp) {
-            Box(contentAlignment = Alignment.Center) {
-                Box(Modifier.size(46.dp), contentAlignment = Alignment.Center) {
-                    Box(Modifier.size(12.dp).align(Alignment.BottomEnd).background(inkColor(penColor,
-                        MaterialTheme.colorScheme.primary, MaterialTheme.colorScheme.secondary, MaterialTheme.colorScheme.tertiary), CircleShape))
-                    Icon(currentToolIcon, "Restore pen toolbar", Modifier.size(21.dp))
-                }
-            }
-        }
-        return
-    }
-    BoxWithConstraints(modifier) {
-        Surface(shape = CircleShape, color = MaterialTheme.colorScheme.surfaceContainerHigh, shadowElevation = 6.dp) {
-            val toolbarItems: @Composable () -> Unit = {
-                Box(Modifier.size(28.dp).pointerInput(Unit) {
-                    detectDragGestures(onDragEnd = onDragEnd) { change, delta -> change.consume(); onMove(delta) }
-                }.semantics { contentDescription = "Move toolbar" }, contentAlignment = Alignment.Center) {
-                    Icon(Icons.Default.DragIndicator, "Move toolbar", Modifier.size(18.dp))
-                }
-                IconToggleButton(checked = !eraser && !highlighter, onCheckedChange = { onEraser(false); onHighlighter(false) },
-                    modifier = Modifier.size(40.dp).semantics { contentDescription = "Pen" }) { Icon(Icons.Default.Edit, "Pen", Modifier.size(19.dp)) }
-                IconToggleButton(checked = highlighter, onCheckedChange = onHighlighter,
-                    modifier = Modifier.size(40.dp).semantics { contentDescription = "Highlighter" }) { Icon(Icons.Default.Highlight, "Highlighter", Modifier.size(19.dp)) }
-                IconToggleButton(checked = eraser, onCheckedChange = onEraser,
-                    modifier = Modifier.size(40.dp).semantics { contentDescription = "Eraser" }) { Icon(Icons.Default.Delete, "Eraser", Modifier.size(19.dp)) }
-                PdfInkSwatch(penColor, selected = false, label = stringResource(Res.string.pdf_ink_palette)) {
-                    palette.value = true
-                }
-                Box {
-                    IconButton(onClick = { onExpandedChange(!expanded) }, modifier = Modifier.size(44.dp)) {
-                        Icon(Icons.Default.Tune, stringResource(Res.string.pdf_pen_settings), Modifier.size(20.dp))
-                    }
-                    DropdownMenu(
-                        expanded = expanded,
-                        onDismissRequest = { onExpandedChange(false) },
-                        modifier = Modifier.width(224.dp),
-                    ) {
-                        Column(
-                            Modifier.fillMaxWidth().padding(horizontal = 12.dp),
-                            verticalArrangement = Arrangement.spacedBy(4.dp),
-                        ) {
-                            if (!eraser) {
-                                FlowRow(
-                                    Modifier.fillMaxWidth(),
-                                    maxItemsInEachRow = 3,
-                                    horizontalArrangement = Arrangement.SpaceEvenly,
-                                ) {
-                                    recentColors.take(6).forEach { key ->
-                                        PdfInkSwatch(key, selected = key == penColor, onClick = { onColor(key) })
-                                    }
-                                }
-                            }
-                            PdfInkWidthControl(toolSize, eraser, onWidth)
-                            if (eraser) {
-                                PdfInkSettingSwitch(stringResource(Res.string.pdf_partial_eraser), partialEraser, onPartialEraser)
-                            } else if (!highlighter) {
-                                PdfInkSettingSwitch(stringResource(Res.string.pdf_smooth_pen), smoothPen, onSmoothPen)
-                            }
-                            PdfInkSettingSwitch(stringResource(Res.string.pdf_pen_finger), fingerInk, onFinger)
-                        }
-                        HorizontalDivider(Modifier.padding(horizontal = 12.dp, vertical = 4.dp))
-                        DropdownMenuItem(
-                            text = { Text(stringResource(Res.string.pdf_pen_undo)) },
-                            leadingIcon = { Icon(Icons.AutoMirrored.Filled.Undo, null, Modifier.size(20.dp)) },
-                            enabled = canUndo,
-                            onClick = onUndo,
-                        )
-                    }
-                }
-                IconButton(onClick = onToggleOrientation, modifier = Modifier.size(44.dp).semantics { contentDescription = if (vertical) "Horizontal toolbar" else "Vertical toolbar" }) {
-                    Icon(if (vertical) Icons.Default.SwapHoriz else Icons.Default.SwapVert,
-                        if (vertical) "Horizontal toolbar" else "Vertical toolbar", Modifier.size(20.dp))
-                }
-                IconButton(onClick = onMinimize, modifier = Modifier.size(44.dp).semantics { contentDescription = "Minimize pen toolbar" }) {
-                    Icon(Icons.Default.Close, "Minimize toolbar", Modifier.size(18.dp))
-                }
-            }
-            if (vertical) Column(
-                Modifier.heightIn(max = this@BoxWithConstraints.maxHeight).verticalScroll(rememberScrollState()).padding(vertical = 4.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
-            ) { toolbarItems() }
-            else FlowRow(Modifier.widthIn(max = this@BoxWithConstraints.maxWidth).padding(horizontal = 4.dp),
-                verticalArrangement = Arrangement.Center, horizontalArrangement = Arrangement.Center) { toolbarItems() }
-        }
-    }
-    if (palette.value) {
-        PdfInkColorPicker(penColor, savedColors, onDismiss = { palette.value = false }) { color, addToPalette ->
-            onColor(color)
-            if (addToPalette) onSaveColor(color)
-            palette.value = false
-        }
-    }
-}
-
-@Composable
-internal fun PdfInkSwatch(key: String, selected: Boolean, label: String? = null, onClick: () -> Unit) {
-    val colors = MaterialTheme.colorScheme
-    val color = inkColor(key, colors.primary, colors.secondary, colors.tertiary)
-    val name = label ?: if (key.startsWith("#")) "#${key.takeLast(6)}" else key
-    IconButton(onClick = onClick, modifier = Modifier.size(48.dp).semantics {
-        contentDescription = name
-        this.selected = selected
-    }) {
-        Box(
-            Modifier.size(30.dp).background(color, CircleShape)
-                .border(1.dp, colors.outlineVariant, CircleShape),
-            contentAlignment = Alignment.Center,
-        ) {
-            if (selected) {
-                Icon(Icons.Default.Check, null, Modifier.size(18.dp), tint = if (color.luminance() > 0.179f) Color.Black else Color.White)
-            }
-        }
-    }
-}
-
-@Composable
-private fun PdfInkSettingSwitch(label: String, checked: Boolean, onCheckedChange: (Boolean) -> Unit) {
-    Row(
-        Modifier.fillMaxWidth().heightIn(min = 48.dp)
-            .toggleable(checked, role = Role.Switch, onValueChange = onCheckedChange)
-            .padding(horizontal = 4.dp),
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Text(label, Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
-        Switch(checked = checked, onCheckedChange = null)
-    }
-}
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-internal fun PdfInkWidthControl(value: Float, eraser: Boolean, onWidth: (Float) -> Unit) {
-    val range = if (eraser) PDF_ERASER_MIN_SIZE..PDF_ERASER_MAX_SIZE else PDF_INK_MIN_WIDTH..PDF_INK_MAX_WIDTH
-    val fraction = ((value - range.start) / (range.endInclusive - range.start)).coerceIn(0f, 1f)
-    val previewHeight = (2f + fraction * 8f).dp
-    val valueLabel = "${(value * 1000f).toInt() / 10f}%"
-    val description = stringResource(if (eraser) Res.string.pdf_eraser_size else Res.string.pdf_pen_thickness)
-    val sliderInteractions = remember { MutableInteractionSource() }
-
-    Surface(
-        shape = RoundedCornerShape(12.dp),
-        color = MaterialTheme.colorScheme.surfaceContainerLowest,
-    ) {
-        Column(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp)) {
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                Text(description, Modifier.weight(1f), style = MaterialTheme.typography.labelMedium)
-                Text(valueLabel, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
-            }
-            Slider(
-                value = value,
-                onValueChange = onWidth,
-                valueRange = range,
-                modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp).semantics { contentDescription = description },
-                interactionSource = sliderInteractions,
-                thumb = { SliderDefaults.Thumb(sliderInteractions, thumbSize = DpSize(18.dp, 18.dp)) },
-                track = { state ->
-                    SliderDefaults.Track(
-                        sliderState = state,
-                        modifier = Modifier.height(6.dp),
-                        drawStopIndicator = null,
-                        thumbTrackGapSize = 2.dp,
-                    )
-                },
-            )
-            PdfInkWidthPreview(previewHeight, Modifier.fillMaxWidth())
-        }
-    }
-}
-
-@Composable
-private fun PdfInkWidthPreview(thickness: androidx.compose.ui.unit.Dp, modifier: Modifier = Modifier) {
-    val color = MaterialTheme.colorScheme.primary
-    Canvas(modifier.height(18.dp)) {
-        drawLine(
-            color = color,
-            start = Offset(4.dp.toPx(), size.height / 2),
-            end = Offset(size.width - 4.dp.toPx(), size.height / 2),
-            strokeWidth = thickness.toPx(),
-            cap = StrokeCap.Round,
-        )
-    }
 }
 
 /** Expressions found in the selected text, ready to save with their dictionary meaning. */

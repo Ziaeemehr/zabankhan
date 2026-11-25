@@ -24,4 +24,11 @@
     <string name="pdf_ink_presets">Presets</string>
     <string name="pdf_ink_add_color">Add to palette</string>
     <string name="pdf_ink_use_color">Use color</string>
+    <string name="pdf_ink_highlighter">Highlighter</string>
+    <string name="pdf_ink_toolbar_move">Move pen toolbar</string>
+    <string name="pdf_ink_toolbar_restore">Restore pen toolbar</string>
+    <string name="pdf_ink_toolbar_horizontal">Horizontal toolbar</string>
+    <string name="pdf_ink_toolbar_vertical">Vertical toolbar</string>
+    <string name="pdf_ink_toolbar_minimize">Minimize pen toolbar</string>
+    <string name="pdf_ink_stroke_preview">Stroke preview</string>
 </resources>

@@ -25,4 +25,11 @@
     <string name="pdf_ink_presets">Couleurs prédéfinies</string>
     <string name="pdf_ink_add_color">Ajouter à la palette</string>
     <string name="pdf_ink_use_color">Utiliser la couleur</string>
+    <string name="pdf_ink_highlighter">Surligneur</string>
+    <string name="pdf_ink_toolbar_move">Déplacer la barre du stylet</string>
+    <string name="pdf_ink_toolbar_restore">Rétablir la barre du stylet</string>
+    <string name="pdf_ink_toolbar_horizontal">Barre horizontale</string>
+    <string name="pdf_ink_toolbar_vertical">Barre verticale</string>
+    <string name="pdf_ink_toolbar_minimize">Réduire la barre du stylet</string>
+    <string name="pdf_ink_stroke_preview">Aperçu du tracé</string>
 </resources>

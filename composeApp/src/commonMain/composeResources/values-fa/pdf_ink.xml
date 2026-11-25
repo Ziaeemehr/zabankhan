@@ -24,4 +24,11 @@
     <string name="pdf_ink_presets">رنگ‌های آماده</string>
     <string name="pdf_ink_add_color">افزودن به پالت</string>
     <string name="pdf_ink_use_color">انتخاب رنگ</string>
+    <string name="pdf_ink_highlighter">ماژیک</string>
+    <string name="pdf_ink_toolbar_move">جابه‌جایی نوار قلم</string>
+    <string name="pdf_ink_toolbar_restore">باز کردن نوار قلم</string>
+    <string name="pdf_ink_toolbar_horizontal">نوار قلم افقی</string>
+    <string name="pdf_ink_toolbar_vertical">نوار قلم عمودی</string>
+    <string name="pdf_ink_toolbar_minimize">جمع کردن نوار قلم</string>
+    <string name="pdf_ink_stroke_preview">پیش‌نمایش خط</string>
 </resources>
