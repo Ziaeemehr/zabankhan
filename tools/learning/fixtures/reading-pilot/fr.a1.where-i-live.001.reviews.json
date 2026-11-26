@@ -1,0 +1,58 @@
+{
+  "itemId": "fr.a1.where-i-live.001",
+  "revision": 1,
+  "contentHash": "795c51892b3b1a106b07854c864726c1893d4b452066aa8b6d03ec01972bef94",
+  "hashScope": "SHA-256 of exact UTF-8 item file bytes",
+  "status": "draft",
+  "risk": "low",
+  "source": "Original French stimulus in the item; evidence is an exact quoted span",
+  "licenseStatus": "pending owner decision",
+  "ownerApproval": "pending",
+  "generation": {
+    "model": "gpt-6-luna",
+    "reasoningEffort": "low",
+    "sessionId": "01a216c1-4f4a-7453-b58f-9965b8f26410"
+  },
+  "deterministicChecks": "Passed: locale coverage, unique choices, key, evidence span, distractor coverage and independent session/hash checks",
+  "reviews": [
+    {
+      "verdict": "pass",
+      "answerOptionId": "city_lyon",
+      "evidence": "Lina habite à Lyon.",
+      "findings": "The stimulus explicitly says Lina lives in Lyon, so the answer is unambiguous.",
+      "contentHash": "795c51892b3b1a106b07854c864726c1893d4b452066aa8b6d03ec01972bef94",
+      "role": "blind",
+      "sessionId": "01a216c2-024c-70e2-a314-3afbd349afa2",
+      "model": "gpt-6-luna",
+      "reasoningEffort": "low",
+      "rubric": "§4.1 correctness and stimulus evidence; author key, feedback and evidence withheld",
+      "reviewedOn": "2026-11-26"
+    },
+    {
+      "verdict": "pass",
+      "answerOptionId": "city_lyon",
+      "evidence": "Lina habite à Lyon.",
+      "findings": "The stimulus explicitly says Lina lives in Lyon. Paris and Lille are unambiguously contradicted; the Persian prompt, feedback, and distractor feedback align with the French text. No substantive defect found.",
+      "contentHash": "795c51892b3b1a106b07854c864726c1893d4b452066aa8b6d03ec01972bef94",
+      "role": "adversarial",
+      "sessionId": "01a216c2-024c-7620-b064-7e66cbacdabf",
+      "model": "gpt-6-luna",
+      "reasoningEffort": "low",
+      "rubric": "§4.1 ambiguity, alternate answers, natural French, Persian and distractors",
+      "reviewedOn": "2026-11-26"
+    },
+    {
+      "verdict": "pass",
+      "answerOptionId": "city_lyon",
+      "evidence": "Lina habite à Lyon.",
+      "findings": "A1 fit and objective alignment are sound. The Persian prompt is clear; feedback addresses the correct answer and both distractors accurately. The key matches the explicit French evidence. No uncertainty.",
+      "contentHash": "795c51892b3b1a106b07854c864726c1893d4b452066aa8b6d03ec01972bef94",
+      "role": "pedagogical",
+      "sessionId": "01a216c2-024c-72d1-86cb-583f6d8c09b2",
+      "model": "gpt-6-luna",
+      "reasoningEffort": "low",
+      "rubric": "§4.1 level, objective, learner clarity, source fidelity and answer verification",
+      "reviewedOn": "2026-11-26"
+    }
+  ]
+}
