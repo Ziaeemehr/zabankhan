@@ -49,3 +49,5 @@ These are acquisition candidates. Before using any source text or asset, record 
 | Édito and Grammaire progressive | Bibliographic and progression references | No reproduction permission established |
 
 The two draft pilot reference packets in `tools/learning/fixtures` exercise stable IDs, canonical French text and Persian localization for an A1 selection and B1 text response. Their claim locators and reviews are still pending. The packets are authoring examples and are excluded from the app bundle and catalog release tool.
+
+P2 now has a local JSON contract for single-choice reading exercises. It checks the Persian fields, unique choices, answer key, exact stimulus evidence and feedback coverage before evaluating a response. The shared tests use the reviewed A1 draft. Connecting this contract to a lesson screen and persisting attempts remain P2 work.
